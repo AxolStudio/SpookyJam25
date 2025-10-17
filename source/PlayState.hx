@@ -2,6 +2,8 @@ package;
 
 import flixel.FlxG;
 import flixel.FlxState;
+import flixel.tile.FlxBaseTilemap.FlxTilemapAutoTiling;
+import flixel.tile.FlxTilemap;
 
 class PlayState extends FlxState
 {
@@ -10,6 +12,7 @@ class PlayState extends FlxState
 	override public function create():Void
 	{
 		super.create();
+		// GameMap now produces both floor and walls layers
 		tilemap = new GameMap();
 		tilemap.generate();
 		add(tilemap);

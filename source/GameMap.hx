@@ -2,13 +2,17 @@ package;
 
 import flixel.FlxG;
 import flixel.addons.tile.FlxCaveGenerator;
+import flixel.group.FlxGroup;
 import flixel.tile.FlxBaseTilemap.FlxTilemapAutoTiling;
 import flixel.tile.FlxTilemap;
 
-class GameMap extends FlxTilemap
+class GameMap extends FlxGroup
 {
 	public var walkableTiles:Array<Int> = [];
 	public var roomsInfo:Array<RoomInfo> = [];
+
+	public var floorMap:FlxTilemap;
+	public var wallsMap:FlxTilemap;
 
 	public function new()
 	{
@@ -153,28 +157,31 @@ class GameMap extends FlxTilemap
 		{
 			if (leaf.left != null || leaf.right != null)
 				continue;
-			var margin = 2;
+			// increase margin so rooms stay away from partition edges
+			var margin = 3;
 			var maxRW = Math.max(3, leaf.w - margin * 2);
 			var maxRH = Math.max(3, leaf.h - margin * 2);
 			if (maxRW < 3 || maxRH < 3)
 				continue;
 
-			var rW = Math.max(3, maxRW - Std.int(FlxG.random.float() * Std.int(maxRW * 0.12)));
-			var rH = Math.max(3, maxRH - Std.int(FlxG.random.float() * Std.int(maxRH * 0.12)));
+			// increase room fraction so rooms are larger (65% - 90% of partition)
+			var rW = Std.int(Math.max(3, maxRW * (0.65 + FlxG.random.float() * 0.25)));
+			var rH = Std.int(Math.max(3, maxRH * (0.65 + FlxG.random.float() * 0.25)));
 			var rx = leaf.x + margin + Std.int(FlxG.random.float() * Math.max(0, leaf.w - rW - margin * 2));
 			var ry = leaf.y + margin + Std.int(FlxG.random.float() * Math.max(0, leaf.h - rH - margin * 2));
 
 			var cx = rx + Std.int(rW / 2);
 			var cy = ry + Std.int(rH / 2);
 
-			var circles = 5 + Std.int(FlxG.random.float() * 8); // 5..12
+			// more circles and slightly larger radii for richer blobs
+			var circles = 6 + Std.int(FlxG.random.float() * 7); // 6..12
 			for (c in 0...circles)
 			{
 				var angle = FlxG.random.float() * Math.PI * 2;
-				var edgeBias = 0.35 + FlxG.random.float() * 0.65;
+				var edgeBias = 0.35 + FlxG.random.float() * 0.55; // push toward edge moderately
 				var ox = cx + Std.int((rW / 2) * Math.cos(angle) * edgeBias) + Std.int((FlxG.random.float() - 0.5) * 4);
 				var oy = cy + Std.int((rH / 2) * Math.sin(angle) * edgeBias) + Std.int((FlxG.random.float() - 0.5) * 4);
-				var maxRad = Math.max(2, Std.int(Math.min(rW, rH) * (0.20 + FlxG.random.float() * 0.55)));
+				var maxRad = Math.max(2, Std.int(Math.min(rW, rH) * (0.18 + FlxG.random.float() * 0.50))); // larger circles
 
 				var minx:Int = Std.int(Math.max(1, ox - maxRad - 1));
 				var maxx:Int = Std.int(Math.min(totalW - 2, ox + maxRad + 1));
@@ -285,7 +292,7 @@ class GameMap extends FlxTilemap
 			carveCrooked(x1, y1, mxi, myi, width, depth + 1);
 			carveCrooked(mxi, myi, x2, y2, width, depth + 1);
 
-			if (FlxG.random.float() < 0.18 && depth < 4)
+			if (FlxG.random.float() < 0.35 && depth < 6)
 			{
 				var bx = Std.int(mxi + (FlxG.random.float() - 0.5) * dist * 0.5);
 				var by = Std.int(myi + (FlxG.random.float() - 0.5) * dist * 0.5);
@@ -301,11 +308,23 @@ class GameMap extends FlxTilemap
 				return;
 			if (node.left != null && node.right != null)
 			{
-				var a = node.left.roomCenter;
-				var b = node.right.roomCenter;
+				// find nearest room center in left subtree and right subtree
+				function findCenter(n:Dynamic):Dynamic
+				{
+					if (n == null)
+						return null;
+					if (n.roomCenter != null)
+						return n.roomCenter;
+					var l:Dynamic = findCenter(n.left);
+					if (l != null)
+						return l;
+					return findCenter(n.right);
+				}
+				var a = findCenter(node.left);
+				var b = findCenter(node.right);
 				if (a != null && b != null)
 				{
-					var w = Std.int(3 + Std.int(FlxG.random.float() * 9));
+					var w = Std.int(3 + Std.int(FlxG.random.float() * 6));
 					carveCrooked(a.x, a.y, b.x, b.y, w, 0);
 				}
 			}
@@ -359,6 +378,97 @@ class GameMap extends FlxTilemap
 			M[y][totalW - 1] = 1;
 		}
 
+		// --- Remove orphan (disconnected) floor regions, keeping the largest connected area ---
+		// Build component id grid initialized to -1
+		var comp:Array<Array<Int>> = [];
+		for (yy in 0...totalH)
+		{
+			var crow:Array<Int> = [];
+			for (xx in 0...totalW)
+				crow.push(-1);
+			comp.push(crow);
+		}
+
+		var comps:Array<Array<Dynamic>> = [];
+		var cid:Int = 0;
+		for (yy in 0...totalH)
+		{
+			for (xx in 0...totalW)
+			{
+				if (M[yy][xx] != 0 || comp[yy][xx] != -1)
+					continue;
+				// flood-fill / BFS stack
+				var stack:Array<Dynamic> = [];
+				stack.push({x: xx, y: yy});
+				comp[yy][xx] = cid;
+				var list:Array<Dynamic> = [];
+				while (stack.length > 0)
+				{
+					var cur = stack.pop();
+					list.push(cur);
+					var dxs:Array<Int> = [-1, 1, 0, 0];
+					var dys:Array<Int> = [0, 0, -1, 1];
+					for (k in 0...4)
+					{
+						var nx:Int = cur.x + dxs[k];
+						var ny:Int = cur.y + dys[k];
+						if (nx < 0 || ny < 0 || nx >= totalW || ny >= totalH)
+							continue;
+						if (M[ny][nx] == 0 && comp[ny][nx] == -1)
+						{
+							comp[ny][nx] = cid;
+							stack.push({x: nx, y: ny});
+						}
+					}
+				}
+				comps.push(list);
+				cid++;
+			}
+		}
+
+		// find largest component
+		var keepId:Int = -1;
+		var bestSize:Int = -1;
+		for (i in 0...comps.length)
+		{
+			if (comps[i].length > bestSize)
+			{
+				bestSize = comps[i].length;
+				keepId = i;
+			}
+		}
+
+		// fill (turn to wall) any component that is not the main one
+		for (i in 0...comps.length)
+		{
+			if (i == keepId)
+				continue;
+			for (t in comps[i])
+				M[t.y][t.x] = 1;
+		}
+
+		// Recompute each room's tile list based on final map (roomsInfo built earlier may be stale)
+		for (r in 0...roomsInfo.length)
+		{
+			var room:RoomInfo = roomsInfo[r];
+			var rx:Int = Std.int(room.bbox.x);
+			var ry:Int = Std.int(room.bbox.y);
+			var rw:Int = Std.int(room.bbox.w);
+			var rh:Int = Std.int(room.bbox.h);
+			var by0:Int = Std.int(Math.max(0, ry - 1));
+			var by1:Int = Std.int(Math.min(totalH, ry + rh + 1));
+			var bx0:Int = Std.int(Math.max(0, rx - 1));
+			var bx1:Int = Std.int(Math.min(totalW, rx + rw + 1));
+			var newTiles:Array<Dynamic> = [];
+			for (yy in by0...by1)
+				for (xx in bx0...bx1)
+					if (M[yy][xx] == 0)
+						newTiles.push({x: xx, y: yy});
+			room.tiles = newTiles;
+			room.area = newTiles.length;
+		}
+
+		// rebuild global walkable list
 		walkableTiles = [];
 		for (yy in 0...totalH)
 			for (xx in 0...totalW)
@@ -366,7 +476,122 @@ class GameMap extends FlxTilemap
 					walkableTiles.push(yy * totalW + xx);
 
 		var csv:String = FlxCaveGenerator.convertMatrixToString(M);
-		this.loadMapFromCSV(csv, "assets/images/autotiles.png", TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.AUTO);
+		// create floor tilemap (full-extent mockup) and add it below walls
+		var floorCsv:String = generateFloorCSV(totalW, totalH);
+		floorMap = new FlxTilemap();
+		// use OFF autotiling for the simple floor tileset (4 tiles in floor.png)
+		floorMap.loadMapFromCSV(floorCsv, "assets/images/floor.png", TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.OFF);
+		this.add(floorMap);
+
+		// create walls tilemap and add on top of floor
+		wallsMap = new FlxTilemap();
+		wallsMap.loadMapFromCSV(csv, "assets/images/autotiles.png", TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.FULL);
+		this.add(wallsMap);
+	}
+
+	// --- helper: generate a floor CSV using multi-octave value-noise (Perlin-like) ---
+	private function generateFloorCSV(w:Int, h:Int):String
+	{
+		// simple value-noise: grid of random values sampled with bilinear interpolation
+
+		// sample with multiple octaves (tuned for more coherence)
+		var octaves = 4;
+		var persistence = 0.62; // stronger low-frequency contribution
+		var lacunarity = 1.7; // slower frequency increase -> bigger features
+		var baseFreq:Float = 0.6; // start at a lower base frequency for larger patches
+
+		var maxAmp:Float = 0.0;
+		for (o in 0...octaves)
+			maxAmp += Math.pow(persistence, o);
+
+		// first build a float grid of values
+		var vals:Array<Array<Float>> = [];
+		for (j in 0...h)
+		{
+			var crow:Array<Float> = [];
+			for (i in 0...w)
+				crow.push(0.0);
+			vals.push(crow);
+		}
+
+		for (j in 0...h)
+		{
+			for (i in 0...w)
+			{
+				var amplitude:Float = 1.0;
+				var freq:Float = baseFreq;
+				var val:Float = 0.0;
+				for (o in 0...octaves)
+				{
+					var sx:Float = i / Math.max(1, w) * freq;
+					var sy:Float = j / Math.max(1, h) * freq;
+					var ix:Int = Std.int(Math.floor(sx));
+					var iy:Int = Std.int(Math.floor(sy));
+					var fx:Float = sx - ix;
+					var fy:Float = sy - iy;
+					// four corner values (value noise)
+					var v00:Float = FlxG.random.float();
+					var v10:Float = FlxG.random.float();
+					var v01:Float = FlxG.random.float();
+					var v11:Float = FlxG.random.float();
+					// bilinear interpolation
+					var a:Float = v00 * (1 - fx) + v10 * fx;
+					var b:Float = v01 * (1 - fx) + v11 * fx;
+					var s:Float = a * (1 - fy) + b * fy;
+					val += s * amplitude;
+					amplitude *= persistence;
+					freq *= lacunarity;
+				}
+				vals[j][i] = val / maxAmp;
+			}
+		}
+
+		// apply a couple of light smoothing passes (3x3 box blur) to increase coherence
+		for (p in 0...2)
+		{
+			var buf:Array<Array<Float>> = [];
+			for (y in 0...h)
+			{
+				var brow:Array<Float> = [];
+				for (x in 0...w)
+				{
+					var sum:Float = 0.0;
+					var cnt:Int = 0;
+					for (oy in -1...2)
+						for (ox in -1...2)
+						{
+							var nx:Int = x + ox;
+							var ny:Int = y + oy;
+							if (nx < 0 || ny < 0 || nx >= w || ny >= h)
+								continue;
+							sum += vals[ny][nx];
+							cnt++;
+						}
+					brow.push(sum / Math.max(1, cnt));
+				}
+				buf.push(brow);
+			}
+			vals = buf;
+		}
+
+		// quantize to 0..3 and build CSV
+		var rows:Array<String> = [];
+		for (j in 0...h)
+		{
+			var cols:Array<String> = [];
+			for (i in 0...w)
+			{
+				var v:Float = vals[j][i];
+				var idx = Std.int(Math.floor(v * 4));
+				if (idx < 0)
+					idx = 0;
+				if (idx > 3)
+					idx = 3;
+				cols.push(Std.string(idx));
+			}
+			rows.push(cols.join(","));
+		}
+		return rows.join("\n");
 	}
 }
 
