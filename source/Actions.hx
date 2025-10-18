@@ -7,8 +7,8 @@ import flixel.input.actions.FlxActionInput.FlxInputDevice;
 import flixel.input.actions.FlxActionInput.FlxInputDeviceID;
 import flixel.input.actions.FlxActionManager;
 import flixel.input.actions.FlxActionSet;
-// (no platform sensors used)
 
+// (no platform sensors used)
 class Actions
 {
 	public static var actions:FlxActionManager;
@@ -146,6 +146,8 @@ class Actions
 
 		Actions.leftStick.addGamepad(LEFT_ANALOG_STICK, MOVED, EITHER);
 		Actions.rightStick.addGamepad(RIGHT_ANALOG_STICK, MOVED, EITHER);
+		// Do not add mouse motion to rightStick: mouse will be handled as absolute
+		// cursor position inside Reticle (preferred for keyboard+mouse players).
 
 		Actions.upUI.addGamepad(LEFT_STICK_DIGITAL_UP, JUST_RELEASED);
 		Actions.downUI.addGamepad(LEFT_STICK_DIGITAL_DOWN, JUST_RELEASED);
