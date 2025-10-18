@@ -83,16 +83,13 @@ class PlayState extends FlxState
 
 		if (any)
 		{
-			// GameObject.move expects degrees
 			var deg:Float = moveAngle * 180.0 / Math.PI;
 			player.move(deg);
-			move.put();
 		}
 		else
 		{
-			// stop instantly when no input
 			player.stop();
-			move.put();
 		}
+		move.put();
 	}
 }

@@ -7,7 +7,7 @@ import flixel.input.actions.FlxActionInput.FlxInputDevice;
 import flixel.input.actions.FlxActionInput.FlxInputDeviceID;
 import flixel.input.actions.FlxActionManager;
 import flixel.input.actions.FlxActionSet;
-import openfl.sensors.Accelerometer;
+// (no platform sensors used)
 
 class Actions
 {

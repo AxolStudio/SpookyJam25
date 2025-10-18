@@ -10,7 +10,6 @@ class Player extends GameObject
 	{
 		super(X, Y);
 		this.speed = SPEED;
-		// accel will be derived as DEFAULT_ACCEL_MULT * speed by GameObject if unset
 		makeGraphic(16, 16, FlxColor.WHITE);
 	}
 }

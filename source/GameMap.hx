@@ -14,7 +14,7 @@ class GameMap extends FlxGroup
 	public var floorMap:FlxTilemap;
 	public var wallsMap:FlxTilemap;
 
-	// portal room info (tile coords and pixel coords)
+	// portal info
 	public var portalRoomIndex:Int = -1;
 	public var portalTileX:Int = -1;
 	public var portalTileY:Int = -1;
