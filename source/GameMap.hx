@@ -41,7 +41,7 @@ class GameMap extends FlxGroup
 
 	public function generate():Void
 	{
-		var TILE_SIZE:Int = 8;
+		var TILE_SIZE:Int = 16;
 		var tilesWide:Int = Std.int(FlxG.width / TILE_SIZE);
 		var tilesHigh:Int = Std.int(FlxG.height / TILE_SIZE);
 		var totalW:Int = Std.int(Math.max(48, tilesWide * 4));
