@@ -14,6 +14,26 @@ class GameMap extends FlxGroup
 	public var floorMap:FlxTilemap;
 	public var wallsMap:FlxTilemap;
 
+	// portal room info (tile coords and pixel coords)
+	public var portalRoomIndex:Int = -1;
+	public var portalTileX:Int = -1;
+	public var portalTileY:Int = -1;
+	public var portalPixelX:Float = -1;
+	public var portalPixelY:Float = -1;
+
+	public var width(get, never):Int;
+	public var height(get, never):Int;
+
+	private function get_width():Int
+	{
+		return wallsMap != null ? Std.int(wallsMap.width) : 0;
+	}
+
+	private function get_height():Int
+	{
+		return wallsMap != null ? Std.int(wallsMap.height) : 0;
+	}
+
 	public function new()
 	{
 		super();
@@ -475,6 +495,82 @@ class GameMap extends FlxGroup
 				if (M[yy][xx] == 0)
 					walkableTiles.push(yy * totalW + xx);
 
+		// --- pick a random room as the portal room and a random tile within it ---
+		portalRoomIndex = -1;
+		portalTileX = portalTileY = -1;
+		portalPixelX = portalPixelY = -1;
+		var candidateRooms:Array<Int> = [];
+		for (i in 0...roomsInfo.length)
+		{
+			if (roomsInfo[i].area > 0)
+				candidateRooms.push(i);
+		}
+		if (candidateRooms.length > 0)
+		{
+			var ri:Int = Std.int(FlxG.random.float() * candidateRooms.length);
+			if (ri < 0)
+				ri = 0;
+			if (ri >= candidateRooms.length)
+				ri = candidateRooms.length - 1;
+			portalRoomIndex = candidateRooms[ri];
+			var room:RoomInfo = roomsInfo[portalRoomIndex];
+			if (room.tiles.length > 0)
+			{
+				// prefer tiles with 1-tile clearance (all 8 neighbors are floor)
+				var clearance:Array<Dynamic> = [];
+				for (t in room.tiles)
+				{
+					var x0:Int = Std.int(t.x);
+					var y0:Int = Std.int(t.y);
+					var ok:Bool = true;
+					for (oy in -1...2)
+						for (ox in -1...2)
+						{
+							var nx:Int = x0 + ox;
+							var ny:Int = y0 + oy;
+							if (nx < 0 || ny < 0 || nx >= totalW || ny >= totalH)
+							{
+								ok = false;
+								break;
+							}
+							if (M[ny][nx] != 0)
+							{
+								ok = false;
+								break;
+							}
+						}
+					if (ok)
+						clearance.push({x: x0, y: y0});
+				}
+				var pickTile:Dynamic = null;
+				if (clearance.length > 0)
+				{
+					var ci:Int = Std.int(FlxG.random.float() * clearance.length);
+					if (ci < 0)
+						ci = 0;
+					if (ci >= clearance.length)
+						ci = clearance.length - 1;
+					pickTile = clearance[ci];
+				}
+				else
+				{
+					// fallback: pick any tile in the room
+					var ti:Int = Std.int(FlxG.random.float() * room.tiles.length);
+					if (ti < 0)
+						ti = 0;
+					if (ti >= room.tiles.length)
+						ti = room.tiles.length - 1;
+					pickTile = room.tiles[ti];
+				}
+				portalTileX = Std.int(pickTile.x);
+				portalTileY = Std.int(pickTile.y);
+				portalPixelX = portalTileX * TILE_SIZE + TILE_SIZE / 2.0; // center of tile
+				portalPixelY = portalTileY * TILE_SIZE + TILE_SIZE / 2.0;
+				// mark room as portal room
+				room.isPortal = true;
+			}
+		}
+
 		var csv:String = FlxCaveGenerator.convertMatrixToString(M);
 		// create floor tilemap (full-extent mockup) and add it below walls
 		var floorCsv:String = generateFloorCSV(totalW, totalH);
@@ -602,6 +698,7 @@ class RoomInfo
 	public var centroid:Dynamic;
 	public var bbox:Dynamic;
 	public var isCorridor:Bool;
+	public var isPortal:Bool;
 
 	public function new(tiles:Array<Dynamic>, area:Int, centroid:Dynamic, bbox:Dynamic, isCorridor:Bool)
 	{
@@ -610,5 +707,6 @@ class RoomInfo
 		this.centroid = centroid;
 		this.bbox = bbox;
 		this.isCorridor = isCorridor;
+		this.isPortal = false;
 	}
 }
