@@ -1,9 +1,11 @@
 package;
 
 import flixel.FlxG;
+import flixel.FlxSprite;
 import flixel.FlxState;
 import flixel.group.FlxGroup.FlxTypedGroup;
 import flixel.math.FlxPoint;
+import ui.Hud;
 
 class PlayState extends FlxState
 {
@@ -13,6 +15,9 @@ class PlayState extends FlxState
 
 	// enemies group (rendered above player, below reticle)
 	public var enemies:FlxTypedGroup<Enemy>;
+
+	// HUD
+	public var hud:Hud;
 
 	override public function create():Void
 	{
@@ -34,16 +39,23 @@ class PlayState extends FlxState
 		reticle = new Reticle(player);
 		add(reticle);
 
+		// HUD group (separate class)
+		hud = new Hud(player);
+		add(hud);
+
 		FlxG.camera.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		FlxG.camera.follow(player);
 		super.create();
 	}
+
+	// ...existing code...
 
 	override public function update(elapsed:Float):Void
 	{
 		playerMovement(elapsed);
 		if (reticle != null)
 			reticle.updateFromPlayer(player);
+		// HUD updates handled by Hud.update()
 		super.update(elapsed);
 		FlxG.collide(player, tilemap.wallsMap);
 	}
@@ -104,6 +116,29 @@ class PlayState extends FlxState
 			player.stop();
 		}
 		move.put();
+		// handle attack/photo input
+		if (Actions.attack.check())
+		{
+			if (player.tryTakePhoto())
+			{
+				// use FlxG.overlap to leverage HaxeFlixel collision logic (handles groups,
+				// origin offsets and any custom overlap callbacks). We'll capture the first
+				// enemy we find under the reticle and call capture on it.
+				var hits:Array<Enemy> = [];
+				FlxG.overlap(reticle, enemies, function(a:Dynamic, b:Dynamic):Void
+				{
+					if (b != null)
+						hits.push(cast(b, Enemy));
+				});
+				// capture all hits found (rare case). We capture after collecting
+				// to avoid mutating the group while FlxG.overlap is iterating.
+				for (h in hits)
+				{
+					if (h != null)
+						h.capture(player);
+				}
+			}
+		}
 	}
 	// spawn enemies into rooms (skip portal room and corridors)
 	private function spawnEnemies():Void
@@ -111,9 +146,9 @@ class PlayState extends FlxState
 		if (tilemap == null || tilemap.roomsInfo == null)
 			return;
 		var TILE_SIZE:Int = Constants.TILE_SIZE;
-		var tilesPerEnemy:Int = 18; // require roughly this many tiles per enemy (sparser)
-		var maxPerRoom:Int = 6;
-		var globalMax:Int = 30; // reduce overall enemy count approx. in half
+		var tilesPerEnemy:Int = 14; // was 18, reduced to increase density (~+20%)
+		var maxPerRoom:Int = 7; // was 6
+		var globalMax:Int = 36; // was 30
 		var totalSpawned:Int = 0;
 
 		// screen-based density cap: no more than 1 enemy per quarter-screen area
