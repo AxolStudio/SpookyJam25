@@ -6,11 +6,14 @@ class Player extends GameObject
 {
 	public static inline var SPEED:Float = 50;
 
-	public function new(X:Float, Y:Float)
+	public function new(tileX:Int, tileY:Int)
 	{
-		super(X, Y);
+		super(tileX, tileY);
 		speed = SPEED;
-		makeGraphic(16, 16, FlxColor.WHITE);
 		moveAngle = 90;
+	}
+	public override function buildGraphics():Void
+	{
+		makeGraphic(Constants.TILE_SIZE, Constants.TILE_SIZE, FlxColor.WHITE);
 	}
 }

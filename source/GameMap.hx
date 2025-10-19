@@ -41,7 +41,7 @@ class GameMap extends FlxGroup
 
 	public function generate():Void
 	{
-		var TILE_SIZE:Int = 16;
+		var TILE_SIZE:Int = Constants.TILE_SIZE;
 		var tilesWide:Int = Std.int(FlxG.width / TILE_SIZE);
 		var tilesHigh:Int = Std.int(FlxG.height / TILE_SIZE);
 		var totalW:Int = Std.int(Math.max(48, tilesWide * 4));
@@ -187,8 +187,36 @@ class GameMap extends FlxGroup
 			// increase room fraction so rooms are larger (65% - 90% of partition)
 			var rW = Std.int(Math.max(3, maxRW * (0.65 + FlxG.random.float() * 0.25)));
 			var rH = Std.int(Math.max(3, maxRH * (0.65 + FlxG.random.float() * 0.25)));
-			var rx = leaf.x + margin + Std.int(FlxG.random.float() * Math.max(0, leaf.w - rW - margin * 2));
-			var ry = leaf.y + margin + Std.int(FlxG.random.float() * Math.max(0, leaf.h - rH - margin * 2));
+			// Try to pick a room position that keeps some separation from existing rooms
+			var minRoomSeparation:Int = 6; // tiles
+			var attemptsPos:Int = 0;
+			var rx:Int = 0;
+			var ry:Int = 0;
+			var maxPosAttempts:Int = 12;
+			while (attemptsPos < maxPosAttempts)
+			{
+				attemptsPos++;
+				rx = leaf.x + margin + Std.int(FlxG.random.float() * Math.max(0, leaf.w - rW - margin * 2));
+				ry = leaf.y + margin + Std.int(FlxG.random.float() * Math.max(0, leaf.h - rH - margin * 2));
+				var cxTry = rx + Std.int(rW / 2);
+				var cyTry = ry + Std.int(rH / 2);
+				var okPos:Bool = true;
+				// check against already placed rooms' centroids
+				for (existingRoom in roomsInfo)
+				{
+					if (existingRoom == null)
+						continue;
+					var exC:Int = Std.int(existingRoom.centroid.x);
+					var eyC:Int = Std.int(existingRoom.centroid.y);
+					if (Math.abs(exC - cxTry) <= minRoomSeparation && Math.abs(eyC - cyTry) <= minRoomSeparation)
+					{
+						okPos = false;
+						break;
+					}
+				}
+				if (okPos)
+					break;
+			}
 
 			var cx = rx + Std.int(rW / 2);
 			var cy = ry + Std.int(rH / 2);
@@ -496,17 +524,48 @@ class GameMap extends FlxGroup
 					walkableTiles.push(yy * totalW + xx);
 
 		// --- pick a random room as the portal room and a random tile within it ---
+		// Prefer small-to-medium rooms so the player doesn't start in a huge empty room.
 		portalRoomIndex = -1;
 		portalTileX = portalTileY = -1;
 		portalPixelX = portalPixelY = -1;
-		var candidateRooms:Array<Int> = [];
+		// Build list of valid rooms (non-corridor, positive area)
+		var validRooms:Array<Int> = [];
 		for (i in 0...roomsInfo.length)
 		{
-			if (roomsInfo[i].area > 0)
-				candidateRooms.push(i);
+			var rr:RoomInfo = roomsInfo[i];
+			if (rr != null && rr.area > 0 && !rr.isCorridor)
+				validRooms.push(i);
 		}
-		if (candidateRooms.length > 0)
+		if (validRooms.length > 0)
 		{
+			// Compute a size cutoff around the 60th percentile to prefer small/medium rooms
+			var areas:Array<Int> = [];
+			for (idx in validRooms)
+				areas.push(roomsInfo[idx].area);
+			areas.sort(function(a:Int, b:Int):Int
+			{
+				return a - b;
+			});
+			var cutoffIndex:Int = Std.int(Math.floor(validRooms.length * 0.6));
+			if (cutoffIndex < 0)
+				cutoffIndex = 0;
+			if (cutoffIndex >= areas.length)
+				cutoffIndex = areas.length - 1;
+			var cutoffArea:Int = areas[cutoffIndex];
+
+			// Choose candidate rooms that are <= cutoffArea but not trivially small
+			var candidateRooms:Array<Int> = [];
+			for (idx in validRooms)
+			{
+				var rr2:RoomInfo = roomsInfo[idx];
+				if (rr2.area <= cutoffArea && rr2.area >= 6)
+					candidateRooms.push(idx);
+			}
+
+			// Fallback: if none match the heuristic, use all valid rooms
+			if (candidateRooms.length == 0)
+				candidateRooms = validRooms;
+
 			var ri:Int = Std.int(FlxG.random.float() * candidateRooms.length);
 			if (ri < 0)
 				ri = 0;

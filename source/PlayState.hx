@@ -2,6 +2,7 @@ package;
 
 import flixel.FlxG;
 import flixel.FlxState;
+import flixel.group.FlxGroup.FlxTypedGroup;
 import flixel.math.FlxPoint;
 
 class PlayState extends FlxState
@@ -9,6 +10,9 @@ class PlayState extends FlxState
 	public var tilemap:GameMap;
 	public var player:Player;
 	public var reticle:Reticle;
+
+	// enemies group (rendered above player, below reticle)
+	public var enemies:FlxTypedGroup<Enemy>;
 
 	override public function create():Void
 	{
@@ -19,8 +23,13 @@ class PlayState extends FlxState
 		tilemap.generate();
 		add(tilemap);
 
-		player = new Player(tilemap.portalPixelX, tilemap.portalPixelY);
+		player = new Player(tilemap.portalTileX * Constants.TILE_SIZE, tilemap.portalTileY * Constants.TILE_SIZE);
 		add(player);
+
+		// create enemies group and spawn
+		enemies = new FlxTypedGroup<Enemy>();
+		add(enemies);
+		spawnEnemies();
 
 		reticle = new Reticle(player);
 		add(reticle);
@@ -95,5 +104,106 @@ class PlayState extends FlxState
 			player.stop();
 		}
 		move.put();
+	}
+	// spawn enemies into rooms (skip portal room and corridors)
+	private function spawnEnemies():Void
+	{
+		if (tilemap == null || tilemap.roomsInfo == null)
+			return;
+		var TILE_SIZE:Int = Constants.TILE_SIZE;
+		var tilesPerEnemy:Int = 18; // require roughly this many tiles per enemy (sparser)
+		var maxPerRoom:Int = 6;
+		var globalMax:Int = 30; // reduce overall enemy count approx. in half
+		var totalSpawned:Int = 0;
+
+		// screen-based density cap: no more than 1 enemy per quarter-screen area
+		var screenTilesW:Int = Std.int(FlxG.width / TILE_SIZE);
+		var screenTilesH:Int = Std.int(FlxG.height / TILE_SIZE);
+		var quarterScreenTiles:Int = Std.int(Math.max(1, (screenTilesW * screenTilesH) / 4));
+
+		for (i in 0...tilemap.roomsInfo.length)
+		{
+			if (totalSpawned >= globalMax)
+				break;
+			var room:Dynamic = tilemap.roomsInfo[i];
+			if (room == null || room.area <= 0)
+				continue;
+			if (room.isPortal)
+				continue;
+			if (room.isCorridor)
+				continue;
+
+			// explicit per-area mapping requested:
+			// area < 5 -> 0
+			// 5..14 -> 1
+			// 15..29 -> 2
+			// 30..44 -> 3
+			// >=45 -> scale by area but still respect maxPerRoom and screen cap
+			var desired:Int = 0;
+			if (room.area < 5)
+				desired = 0;
+			else if (room.area < 15)
+				desired = 1;
+			else if (room.area < 30)
+				desired = 2;
+			else if (room.area < 45)
+				desired = 3;
+			else
+				desired = Std.int(room.area / tilesPerEnemy);
+
+			if (desired > maxPerRoom)
+				desired = maxPerRoom;
+
+			// Enforce screen-density cap: at most one enemy per quarter-screen area
+			var screenCap:Int = 0;
+			if (quarterScreenTiles > 0)
+				screenCap = Std.int(room.area / quarterScreenTiles);
+			if (screenCap < desired)
+				desired = screenCap;
+
+			var attempts:Int = 0;
+			var placed:Int = 0;
+			while (placed < desired && attempts < desired * 8 && totalSpawned < globalMax)
+			{
+				attempts++;
+				var tlen:Int = Std.int(room.tiles.length);
+				if (tlen <= 0)
+					continue;
+				var ti:Int = Std.int(FlxG.random.float() * tlen);
+				if (ti < 0)
+					ti = 0;
+				if (ti >= tlen)
+					ti = tlen - 1;
+				var t = room.tiles[ti];
+				if (t == null)
+					continue;
+				var tx:Int = Std.int(t.x);
+				var ty:Int = Std.int(t.y);
+				// avoid portal tile
+				if (tx == tilemap.portalTileX && ty == tilemap.portalTileY)
+					continue;
+				// avoid spawning too close to existing enemies (tile distance < 2)
+				var ok:Bool = true;
+				for (existing in enemies.members)
+				{
+					if (existing == null)
+						continue;
+					var ex:Int = Std.int((existing.x + existing.width / 2) / TILE_SIZE);
+					var ey:Int = Std.int((existing.y + existing.height / 2) / TILE_SIZE);
+					if (Math.abs(ex - tx) <= 1 && Math.abs(ey - ty) <= 1)
+					{
+						ok = false;
+						break;
+					}
+				}
+				if (!ok)
+					continue;
+
+				var variant:String = Enemy.pickVariant();
+				var e:Enemy = enemies.add(new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant));
+				placed++;
+				totalSpawned++;
+			}
+		}
 	}
 }

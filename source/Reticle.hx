@@ -24,7 +24,7 @@ class Reticle extends FlxSprite
 	public function new(Parent:Player)
 	{
 		super();
-		loadGraphic("assets/images/reticle.png", true, 16, 16, false, 'reticle');
+		loadGraphic("assets/images/reticle.png", true, Constants.TILE_SIZE, Constants.TILE_SIZE, false, 'reticle');
 		animation.add("blink", [0, 1], 12, true);
 		animation.play("blink");
 
