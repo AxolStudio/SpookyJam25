@@ -11,6 +11,9 @@ import flixel.input.actions.FlxActionSet;
 // (no platform sensors used)
 class Actions
 {
+	// When true, input for cursor/reticle comes from gamepad only; when false, mouse only
+	public static var usingGamepad:Bool = false;
+
 	public static var actions:FlxActionManager;
 
 	public static var menuIndex:Int = -1;

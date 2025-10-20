@@ -15,7 +15,7 @@ class Hud extends FlxGroup
 {
 	public var player:Player;
 	public var filmIcon:FlxSprite;
-	public var filmText:FlxText;
+	public var filmText:GameText;
 	public var flashIcon:FlxSprite;
 	public var cooldownBarYellow:FlxBar;
 	public var cooldownBarWhite:FlxBar;
@@ -24,35 +24,35 @@ class Hud extends FlxGroup
 	private var cooldownTarget:Float = 0;
 	private var cooldownTweenActive:Bool = false;
 
-	public function new(player:Player)
+	public function new(P:Player)
 	{
 		super();
-		this.player = player;
+		player = P;
+
+		var hudBack:FlxSprite = new FlxSprite(0, 0);
+		hudBack.makeGraphic(FlxG.width, 18, FlxColor.BLACK);
+		hudBack.scrollFactor.set(0, 0);
+		add(hudBack);
 
 		// film icon sized 12x12 (no extra outline)
 		var iconX = 8;
-		var iconY = 8;
+		var iconY = 2;
 		filmIcon = new FlxSprite(iconX, iconY);
 		filmIcon.loadGraphic("assets/images/hud_film.png");
 		filmIcon.scrollFactor.set(0, 0);
 		add(filmIcon);
 
 		// film count with a 1px black shadow behind white text to simulate an outline
-		var textX = iconX + 18;
-		var textY = iconY + 1; // slight vertical align
-		var filmTextShadow = new FlxText(textX + 1, textY + 1, 64, Std.string(player.film));
-		filmTextShadow.scrollFactor.set(0, 0);
-		filmTextShadow.setFormat(null, 8, 0xFF000000, "left");
-		add(filmTextShadow);
-		filmText = new FlxText(textX, textY, 64, Std.string(player.film));
+		filmText = new GameText(filmIcon.x + filmIcon.width + 2, 0, Std.string(player.film));
+		filmText.y = filmIcon.y + (filmIcon.height / 2) - (filmText.height / 2);
 		filmText.scrollFactor.set(0, 0);
-		filmText.setFormat(null, 8, 0xFFFFFFFF, "left");
 		add(filmText);
 
 		// flash icon placeholder (12x12 to match film icon)
-		flashIcon = new FlxSprite(textX + 48, iconY);
+		flashIcon = new FlxSprite(filmText.x + 32 + 48, iconY);
 		flashIcon.loadGraphic("assets/images/hud_bulb.png");
 		flashIcon.scrollFactor.set(0, 0);
+
 		add(flashIcon);
 
 		// cooldown meter implemented using FlxBar (yellow while filling, white when full)

@@ -1,5 +1,7 @@
 package;
 
+import flixel.util.FlxColor;
+import flixel.FlxCamera;
 import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.FlxState;
@@ -16,6 +18,12 @@ class PlayState extends FlxState
 	// enemies group (rendered above player, below reticle)
 	public var enemies:FlxTypedGroup<Enemy>;
 
+	public var mainCam:FlxCamera;
+	public var overCam:FlxCamera;
+	public var hudCam:FlxCamera;
+
+	public var atmosphereHue:FlxColor;
+
 	// HUD
 	public var hud:Hud;
 
@@ -23,6 +31,10 @@ class PlayState extends FlxState
 	{
 		Actions.init();
 		Actions.switchSet(Actions.gameplayIndex);
+
+		atmosphereHue = FlxG.random.int(0, 359);
+
+		createCameras();
 
 		tilemap = new GameMap();
 		tilemap.generate();
@@ -37,14 +49,21 @@ class PlayState extends FlxState
 		spawnEnemies();
 
 		reticle = new Reticle(player);
+
 		add(reticle);
 
 		// HUD group (separate class)
 		hud = new Hud(player);
 		add(hud);
 
-		FlxG.camera.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
-		FlxG.camera.follow(player);
+		tilemap.cameras = player.cameras = enemies.cameras = [mainCam];
+		reticle.cameras = [overCam];
+		hud.cameras = [hudCam];
+
+		mainCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
+		mainCam.follow(player);
+		overCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
+		overCam.follow(player);
 		super.create();
 	}
 
@@ -54,7 +73,7 @@ class PlayState extends FlxState
 	{
 		playerMovement(elapsed);
 		if (reticle != null)
-			reticle.updateFromPlayer(player);
+			reticle.updateFromPlayer(player, overCam);
 		// HUD updates handled by Hud.update()
 		super.update(elapsed);
 		FlxG.collide(player, tilemap.wallsMap);
@@ -140,6 +159,7 @@ class PlayState extends FlxState
 			}
 		}
 	}
+
 	// spawn enemies into rooms (skip portal room and corridors)
 	private function spawnEnemies():Void
 	{
@@ -240,5 +260,20 @@ class PlayState extends FlxState
 				totalSpawned++;
 			}
 		}
+	}
+	private function createCameras():Void
+	{
+		mainCam = new FlxCamera(0, 18, FlxG.width, FlxG.height - 18);
+		overCam = new FlxCamera(0, 18, FlxG.width, FlxG.height - 18);
+		hudCam = new FlxCamera(0, 0, FlxG.width, 18);
+		FlxG.cameras.add(mainCam);
+		FlxG.cameras.add(overCam);
+		FlxG.cameras.add(hudCam);
+		FlxG.camera = mainCam;
+		hudCam.bgColor = FlxColor.TRANSPARENT;
+		overCam.bgColor = FlxColor.TRANSPARENT;
+		mainCam.pixelPerfectRender = true;
+		hudCam.pixelPerfectRender = true;
+		overCam.pixelPerfectRender = true;
 	}
 }
