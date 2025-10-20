@@ -4,6 +4,7 @@ import flixel.util.FlxColor;
 import flixel.FlxCamera;
 import flixel.FlxG;
 import flixel.FlxSprite;
+import flixel.math.FlxMath;
 import flixel.FlxState;
 import flixel.group.FlxGroup.FlxTypedGroup;
 import flixel.math.FlxPoint;
@@ -27,6 +28,13 @@ class PlayState extends FlxState
 	// HUD
 	public var hud:Hud;
 
+	// fog overlay
+	public var fog:FlxSprite;
+	public var fogShader:shaders.Fog;
+
+	// cache last hue applied to tilemaps to detect changes
+	private var _lastTileHue:Int = -1;
+
 	override public function create():Void
 	{
 		Actions.init();
@@ -37,8 +45,13 @@ class PlayState extends FlxState
 		createCameras();
 
 		tilemap = new GameMap();
-		tilemap.generate();
+		// generate map and recolor tilesets using atmosphereHue before loading tilemaps
+		tilemap.generate((cast atmosphereHue : Int));
 		add(tilemap);
+		// We rely on the GPU hue shader for recoloring (faster and HTML5-friendly).
+		// Avoid the CPU recolor fallback here (it can cause issues on some targets).
+
+		// fog sprite will be created after entities so it renders on top of the world
 
 		player = new Player(tilemap.portalTileX * Constants.TILE_SIZE, tilemap.portalTileY * Constants.TILE_SIZE);
 		add(player);
@@ -56,9 +69,23 @@ class PlayState extends FlxState
 		hud = new Hud(player);
 		add(hud);
 
+		// set cameras for world objects BEFORE creating the fog so draw order is correct
 		tilemap.cameras = player.cameras = enemies.cameras = [mainCam];
 		reticle.cameras = [overCam];
 		hud.cameras = [hudCam];
+
+		// now create fog sprite so it renders above world objects on mainCam
+		try
+		{
+			fog = new FlxSprite(0, 0);
+			fog.makeGraphic(Std.int(mainCam.width), Std.int(mainCam.height), FlxColor.TRANSPARENT);
+			fogShader = new shaders.Fog();
+			fog.shader = fogShader;
+			fog.cameras = [mainCam];
+			fog.scrollFactor.set(0, 0);
+			add(fog);
+		}
+		catch (e:Dynamic) {}
 
 		mainCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		mainCam.follow(player);
@@ -77,6 +104,74 @@ class PlayState extends FlxState
 		// HUD updates handled by Hud.update()
 		super.update(elapsed);
 		FlxG.collide(player, tilemap.wallsMap);
+		// update fog shader uniforms
+		try
+		{
+			if (fogShader != null && player != null)
+			{
+				// increment time
+				fogShader.time += elapsed;
+				// hue from PlayState.atmosphereHue (cast to Float)
+				var hueF:Float = (cast atmosphereHue : Int);
+				fogShader.hue = hueF;
+				// convert player world position to normalized screen UV (0..1)
+				var cam = mainCam;
+				var screenX = (player.x + player.width * 0.5) - cam.scroll.x;
+				var screenY = (player.y + player.height * 0.5) - cam.scroll.y;
+				// convert to 0..1 in camera viewport
+				var px = screenX / cam.width;
+				var py = screenY / cam.height;
+				fogShader.playerX = FlxMath.bound(px, 0.0, 1.0);
+				fogShader.playerY = FlxMath.bound(py, 0.0, 1.0);
+				// ensure circular hole by setting scale to compensate for aspect
+				var camMin:Float = Math.min(cam.width, cam.height);
+				fogShader.scaleX = cam.width / camMin;
+				fogShader.scaleY = cam.height / camMin;
+				// radii: 1/3 camera height -> in normalized space relative to min(width,height)
+				var radiusPixels = Std.int(cam.height / 3.0);
+				var rInner = (radiusPixels * 0.66) / camMin; // 2/3 fully transparent
+				var rOuter = (radiusPixels) / camMin;
+				fogShader.innerRadius = rInner;
+				fogShader.outerRadius = rOuter;
+				// also update tilemap hue shaders if present
+				try
+				{
+					if (tilemap != null && (cast tilemap.floorMap : Dynamic).hueShader != null)
+					{
+						(cast tilemap.floorMap : Dynamic).hueShader.hue = hueF;
+					}
+				}
+				catch (e:Dynamic) {}
+				try
+				{
+					if (tilemap != null && (cast tilemap.wallsMap : Dynamic).hueShader != null)
+					{
+						(cast tilemap.wallsMap : Dynamic).hueShader.hue = hueF;
+					}
+				}
+				catch (e:Dynamic) {}
+
+				// Force a quick redraw of the tilemaps when hue changes (toggles visibility once)
+				var hueInt:Int = Std.int(hueF) % 360;
+				if (hueInt != _lastTileHue)
+				{
+					_lastTileHue = hueInt;
+					try
+					{
+						tilemap.floorMap.visible = false;
+						tilemap.wallsMap.visible = false;
+					}
+					catch (e:Dynamic) {}
+					try
+					{
+						tilemap.floorMap.visible = true;
+						tilemap.wallsMap.visible = true;
+					}
+					catch (e:Dynamic) {}
+				}
+			}
+		}
+		catch (e:Dynamic) {}
 	}
 
 	private function playerMovement(elapsed:Float):Void
