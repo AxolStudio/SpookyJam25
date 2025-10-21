@@ -113,9 +113,10 @@ class GameMap extends FlxGroup
 
 		// BSP: many partitions
 		// increase the number of BSP leaves so we get more partitions -> more rooms
-		var targetLeaves:Int = Std.int((totalW * totalH) / 1600);
-		if (targetLeaves < 12)
-			targetLeaves = 18;
+		// reduce divisor to create more leaves for denser partitioning
+		var targetLeaves:Int = Std.int((totalW * totalH) / 900);
+		if (targetLeaves < 20)
+			targetLeaves = 24;
 
 		var leaves:Array<Dynamic> = [];
 		var root:Dynamic = {
@@ -130,7 +131,7 @@ class GameMap extends FlxGroup
 		};
 		leaves.push(root);
 
-		var minLeaf:Int = 10; // allow slightly smaller leaves
+		var minLeaf:Int = 7; // allow slightly smaller leaves so more splits occur
 		var attempts:Int = 0;
 		while (leaves.length < targetLeaves && attempts < targetLeaves * 8)
 		{
@@ -239,9 +240,12 @@ class GameMap extends FlxGroup
 			if (maxRW < 3 || maxRH < 3)
 				continue;
 
-			// make rooms a bit smaller fraction of partition (50% - 75%) so more rooms fit in
-			var rW = Std.int(Math.max(3, maxRW * (0.50 + FlxG.random.float() * 0.25)));
-			var rH = Std.int(Math.max(3, maxRH * (0.50 + FlxG.random.float() * 0.25)));
+			// make rooms a bit smaller fraction of partition (45% - 70%) so more rooms fit in
+			// also cap room size to be at most leaf size - 1 so rooms never fully fill a leaf
+			var roomFracMin:Float = 0.45;
+			var roomFracRange:Float = 0.25; // up to 0.45 + 0.25 = 0.70
+			var rW = Std.int(Math.max(3, Math.min(maxRW - 1, Std.int(maxRW * (roomFracMin + FlxG.random.float() * roomFracRange)))));
+			var rH = Std.int(Math.max(3, Math.min(maxRH - 1, Std.int(maxRH * (roomFracMin + FlxG.random.float() * roomFracRange)))));
 			// Try to pick a room position that keeps some separation from existing rooms
 			var minRoomSeparation:Int = 8; // increase separation so rooms spread out more
 			var attemptsPos:Int = 0;
@@ -401,7 +405,7 @@ class GameMap extends FlxGroup
 			{
 				var bx = Std.int(mxi + (FlxG.random.float() - 0.5) * dist * 0.5);
 				var by = Std.int(myi + (FlxG.random.float() - 0.5) * dist * 0.5);
-				var bw = Std.int(2 + Std.int(FlxG.random.float() * 6));
+				var bw = Std.int(2 + Std.int(FlxG.random.float() * 3));
 				carveCrooked(mxi, myi, bx, by, bw, depth + 1);
 			}
 		}
@@ -941,12 +945,50 @@ class GameMap extends FlxGroup
 			if (candidateRooms.length == 0)
 				candidateRooms = validRooms;
 
-			var ri:Int = Std.int(FlxG.random.float() * candidateRooms.length);
-			if (ri < 0)
-				ri = 0;
-			if (ri >= candidateRooms.length)
-				ri = candidateRooms.length - 1;
-			portalRoomIndex = candidateRooms[ri];
+			// Prefer candidate rooms that sit near other small rooms (small-room clusters)
+			var bestIdx:Int = -1;
+			var bestScore:Float = -1.0;
+			for (ci in 0...candidateRooms.length)
+			{
+				var idxRoom = candidateRooms[ci];
+				var rroom:RoomInfo = roomsInfo[idxRoom];
+				if (rroom == null)
+					continue;
+				// count nearby small rooms within a radius (tiles)
+				var neighborCount:Int = 0;
+				for (oj in 0...candidateRooms.length)
+				{
+					if (oj == ci)
+						continue;
+					var otherIdx = candidateRooms[oj];
+					var oroom:RoomInfo = roomsInfo[otherIdx];
+					if (oroom == null)
+						continue;
+					var dx = oroom.centroid.x - rroom.centroid.x;
+					var dy = oroom.centroid.y - rroom.centroid.y;
+					var d2 = dx * dx + dy * dy;
+					if (d2 <= 144.0) // within ~12 tiles
+						neighborCount++;
+				}
+				// score = neighborCount + small random to add variance
+				var score:Float = neighborCount + FlxG.random.float() * 0.8;
+				if (score > bestScore)
+				{
+					bestScore = score;
+					bestIdx = idxRoom;
+				}
+			}
+			if (bestIdx >= 0)
+				portalRoomIndex = bestIdx;
+			else
+			{
+				var ri:Int = Std.int(FlxG.random.float() * candidateRooms.length);
+				if (ri < 0)
+					ri = 0;
+				if (ri >= candidateRooms.length)
+					ri = candidateRooms.length - 1;
+				portalRoomIndex = candidateRooms[ri];
+			}
 			var room:RoomInfo = roomsInfo[portalRoomIndex];
 			if (room.tiles.length > 0)
 			{

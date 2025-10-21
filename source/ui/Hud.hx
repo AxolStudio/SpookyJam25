@@ -30,7 +30,7 @@ class Hud extends FlxGroup
 		player = P;
 
 		var hudBack:FlxSprite = new FlxSprite(0, 0);
-		hudBack.makeGraphic(FlxG.width, 18, FlxColor.BLACK);
+		hudBack.makeGraphic(FlxG.width, 18, FlxColor.GRAY);
 		hudBack.scrollFactor.set(0, 0);
 		add(hudBack);
 

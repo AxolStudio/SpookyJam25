@@ -14,6 +14,19 @@ class Enemy extends GameObject
 	public static var VARIANTS:Array<String> = [];
 	public static var VARIANT_FRAMES:StringMap<Array<String>> = null;
 
+	// AI parameters (set randomly at spawn)
+	public var aggression:Float = 0.0; // 0..1, higher => more likely to attack
+	public var skittishness:Float = 0.0; // 0..1, higher => more likely to flee
+	public var wanderSpeed:Float = 40.0; // base wander speed (pixels/sec)
+
+	private var _wanderTimer:Float = 0.0;
+	private var _actionCooldown:Float = 0.0;
+	private var _isWandering:Bool = false;
+	private var _targetX:Float = 0.0;
+	private var _targetY:Float = 0.0;
+	private var _captured:Bool = false;
+	private var _pursuingThrough:Bool = false;
+
 	private static function ensureFrames():Void
 	{
 		if (SHARED_FRAMES != null)
@@ -84,6 +97,7 @@ class Enemy extends GameObject
 			return;
 		velocity.set(0, 0);
 		acceleration.set(0, 0);
+		_captured = true;
 		try
 		{
 			trace("Enemy.capture() start - variant=" + (variant == null ? "null" : variant));
@@ -219,6 +233,248 @@ class Enemy extends GameObject
 		else
 			this.variant = variant;
 		speed = 50;
+		// slightly reduce hitbox so enemies fit corridors better (demo-friendly)
+		try
+		{
+			this.setOffsetAmount(2);
+		}
+		catch (e:Dynamic) {}
+	}
+
+	// Initialize randomized behavior and color. Call after construction (or from spawn code).
+	public function randomizeBehavior(atmosphereHue:Int):Void
+	{
+		// aggression and skittishness: skew towards low-medium values but allow extremes
+		aggression = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
+		skittishness = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
+		// pick wander speed between 20 and 70
+		wanderSpeed = 20 + FlxG.random.float() * 50.0;
+		// set base speed to wanderSpeed
+		speed = wanderSpeed;
+		// color tint using same hue algorithm as GameMap.getHueColoredBmp but applied as a simple tint
+		// choose a hue avoiding atmosphereHue +/- 5 degrees
+		var hAvoidMin = (atmosphereHue - 15 + 360) % 360;
+		var hAvoidMax = (atmosphereHue + 15) % 360;
+		var hue:Int = 0;
+		for (i in 0...8)
+		{
+			var cand = Std.int(FlxG.random.float() * 360);
+			var diff = Math.abs((cand - atmosphereHue + 540) % 360 - 180);
+			if (diff > 5)
+			{
+				hue = cand;
+				break;
+			}
+			// on last attempt just accept
+			if (i == 7)
+				hue = cand;
+		}
+		// convert hue to an approximate RGB tint using same HSV->RGB as GameMap
+		var sat:Float = 0.7;
+		var vLight:Float = 0.60;
+		var vDark:Float = 0.18;
+		var hn:Float = (hue % 360) / 360.0;
+		var hh:Float = (hn - Math.floor(hn)) * 6.0;
+		var ii:Int = Std.int(Math.floor(hh));
+		var ff:Float = hh - ii;
+		var vv:Float = vLight; // use lighter value for a tint
+		var p:Float = vv * (1.0 - sat);
+		var q:Float = vv * (1.0 - sat * ff);
+		var t:Float = vv * (1.0 - sat * (1.0 - ff));
+		var rf:Float = 0.0;
+		var gf:Float = 0.0;
+		var bf:Float = 0.0;
+		if (ii == 0)
+		{
+			rf = vv;
+			gf = t;
+			bf = p;
+		}
+		else if (ii == 1)
+		{
+			rf = q;
+			gf = vv;
+			bf = p;
+		}
+		else if (ii == 2)
+		{
+			rf = p;
+			gf = vv;
+			bf = t;
+		}
+		else if (ii == 3)
+		{
+			rf = p;
+			gf = q;
+			bf = vv;
+		}
+		else if (ii == 4)
+		{
+			rf = t;
+			gf = p;
+			bf = vv;
+		}
+		else
+		{
+			rf = vv;
+			gf = p;
+			bf = q;
+		}
+		var ri:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(rf * 255.0)))));
+		var gi:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(gf * 255.0)))));
+		var bi:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(bf * 255.0)))));
+		color = (0xFF << 24) | (ri << 16) | (gi << 8) | bi;
+	}
+
+	// Basic line-of-sight check against the tilemap's wallGrid (tile coordinates)
+	private function hasLineOfSightTo(px:Float, py:Float, tilemap:GameMap):Bool
+	{
+		if (tilemap == null || tilemap.wallGrid == null)
+			return false;
+		var tx0:Int = Std.int((x + width * 0.5) / Constants.TILE_SIZE);
+		var ty0:Int = Std.int((y + height * 0.5) / Constants.TILE_SIZE);
+		var tx1:Int = Std.int(px / Constants.TILE_SIZE);
+		var ty1:Int = Std.int(py / Constants.TILE_SIZE);
+		// Bresenham-ish step along line in tile-space
+		var rawdx:Int = tx1 - tx0;
+		var rawdy:Int = ty1 - ty0;
+		var dx:Int = rawdx >= 0 ? rawdx : -rawdx;
+		var dy:Int = rawdy >= 0 ? rawdy : -rawdy;
+		var sx:Int = tx0 < tx1 ? 1 : -1;
+		var sy:Int = ty0 < ty1 ? 1 : -1;
+		var err:Int = dx - dy;
+		var cx:Int = tx0;
+		var cy:Int = ty0;
+		while (true)
+		{
+			if (cx < 0 || cy < 0 || cy >= tilemap.wallGrid.length || cx >= tilemap.wallGrid[0].length)
+				return false;
+			if (tilemap.wallGrid[cy][cx] == 1)
+				return false;
+			if (cx == tx1 && cy == ty1)
+				break;
+			var e2:Int = 2 * err;
+			if (e2 > -dy)
+			{
+				err -= dy;
+				cx += sx;
+			}
+			if (e2 < dx)
+			{
+				err += dx;
+				cy += sy;
+			}
+		}
+		return true;
+	}
+
+	// Simple AI update: wander, occasionally roll to chase or flee when player is nearby and visible
+	public override function update(elapsed:Float):Void
+	{
+		super.update(elapsed);
+		if (_captured)
+		{
+			// ensure they're not moving
+			velocity.set(0, 0);
+			acceleration.set(0, 0);
+			return;
+		}
+		// don't run AI for offscreen enemies to save CPU and avoid surprise spawns
+		try
+		{
+			var cam = FlxG.camera;
+			if (cam != null)
+			{
+				var screenX:Float = (x + width * 0.5) - cam.scroll.x;
+				var screenY:Float = (y + height * 0.5) - cam.scroll.y;
+				var margin:Float = 32.0; // pixels offscreen tolerance
+				if (screenX < -margin || screenY < -margin || screenX > cam.width + margin || screenY > cam.height + margin)
+					return;
+			}
+		}
+		catch (e:Dynamic) {}
+		// if we are pursuing through the player's position, continue toward the through-target
+		if (_pursuingThrough)
+		{
+			// compute distance to through-target
+			var dxT:Float = _targetX - (x + width * 0.5);
+			var dyT:Float = _targetY - (y + height * 0.5);
+			var distT:Float = Math.sqrt(dxT * dxT + dyT * dyT);
+			if (distT <= 6 || _actionCooldown <= 0)
+			{
+				_pursuingThrough = false;
+				// stop or resume wander next tick
+				stop();
+			}
+			else
+			{
+				// keep velocity towards target
+				move(Math.atan2(dyT, dxT) * 180.0 / Math.PI);
+				return;
+			}
+		}
+		// decay action cooldown
+		_actionCooldown -= elapsed;
+		_wanderTimer -= elapsed;
+		// get playstate and player if available
+		var ps:PlayState = cast(FlxG.state, PlayState);
+		if (ps == null)
+			return;
+		var player:Player = ps.player;
+		// if player visible and close enough, consider reacting
+		if (player != null)
+		{
+			var dx:Float = (player.x + player.width * 0.5) - (x + width * 0.5);
+			var dy:Float = (player.y + player.height * 0.5) - (y + height * 0.5);
+			var dist:Float = Math.sqrt(dx * dx + dy * dy);
+			var visible:Bool = (dist < 160) && hasLineOfSightTo(player.x + player.width * 0.5, player.y + player.height * 0.5, ps.tilemap);
+			if (visible && _actionCooldown <= 0)
+			{
+				// roll vs aggression and skittishness
+				var aRoll:Float = FlxG.random.float();
+				var sRoll:Float = FlxG.random.float();
+				if (aRoll < aggression && aRoll > skittishness)
+				{
+					// chase: set speed high and set a through-target beyond the player's position
+					speed = wanderSpeed * (1.5 + FlxG.random.float() * 1.0);
+					// compute a point beyond the player so enemy runs through
+					var angleToPlayer:Float = Math.atan2(dy, dx);
+					var extraDistance:Float = 48.0 + FlxG.random.float() * 24.0; // pixels beyond player
+					_targetX = (player.x + player.width * 0.5) + Math.cos(angleToPlayer) * extraDistance;
+					_targetY = (player.y + player.height * 0.5) + Math.sin(angleToPlayer) * extraDistance;
+					_pursuingThrough = true;
+					move(angleToPlayer * 180.0 / Math.PI);
+					_actionCooldown = 0.6 + FlxG.random.float() * 0.8;
+					return;
+				}
+				else if (sRoll < skittishness && sRoll > aggression)
+				{
+					// flee: pick a nearby tile that is not visible (very simple: move opposite direction)
+					speed = wanderSpeed * (1.8 + FlxG.random.float() * 0.6);
+					var fleeAngle = Math.atan2(-dy, -dx) + (FlxG.random.float() - 0.5) * 0.8;
+					move(fleeAngle * 180.0 / Math.PI);
+					_actionCooldown = 0.8 + FlxG.random.float() * 1.2;
+					return;
+				}
+			}
+		}
+		// wander behavior: occasionally pick a random direction and move for a bit
+		if (_wanderTimer <= 0)
+		{
+			_wanderTimer = 0.6 + FlxG.random.float() * 1.6;
+			if (FlxG.random.float() < 0.55)
+			{
+				// move
+				var ang = (FlxG.random.float() * Math.PI * 2);
+				move(ang * 180.0 / Math.PI);
+				speed = wanderSpeed * (0.7 + FlxG.random.float() * 0.8);
+				_actionCooldown = 0.2 + FlxG.random.float() * 0.6;
+			}
+			else
+			{
+				stop();
+			}
+		}
 	}
 
 	public override function buildGraphics():Void

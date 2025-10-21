@@ -16,6 +16,31 @@ class Fog extends FlxShader
 	public var innerRadius(default, set):Float = 0.0; // in screen 0..1 (fraction of smaller dimension)
 	public var outerRadius(default, set):Float = 0.0;
 
+	public var maskTexelX(default, set):Float = 0.0;
+	public var maskTexelY(default, set):Float = 0.0;
+
+	private function set_maskTexelX(v:Float):Float
+	{
+		maskTexelX = v;
+		try
+		{
+			mTexelX.value = [maskTexelX];
+		}
+		catch (e:Dynamic) {}
+		return maskTexelX;
+	}
+
+	private function set_maskTexelY(v:Float):Float
+	{
+		maskTexelY = v;
+		try
+		{
+			mTexelY.value = [maskTexelY];
+		}
+		catch (e:Dynamic) {}
+		return maskTexelY;
+	}
+
 	@:glFragmentSource('
 	#pragma header
 	uniform float iTime;
@@ -31,6 +56,9 @@ class Fog extends FlxShader
 	uniform float rInner;
 	uniform float rOuter;
 
+	uniform float mTexelX;
+	uniform float mTexelY;
+
         // simple hash
         float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
         // value noise
@@ -45,20 +73,18 @@ class Fog extends FlxShader
             return mix(a, b, u.x) + (c - a)*u.y*(1.0 - u.x) + (d - b)*u.x*u.y;
         }
 
-        // fractal noise (FBM)
-        float fbm(vec2 p){
-                float v = 0.0;
-                float amp = 0.5;
-                // unrolled 4-octave FBM
-                v += amp * noise(p);
-                p *= 2.0; amp *= 0.5;
-                v += amp * noise(p);
-                p *= 2.0; amp *= 0.5;
-                v += amp * noise(p);
-                p *= 2.0; amp *= 0.5;
-                v += amp * noise(p);
-            return v;
-        }
+		// fractal noise (FBM) - 3 octaves for lower ALU cost
+		float fbm(vec2 p){
+				float v = 0.0;
+				float amp = 0.5;
+				// unrolled 3-octave FBM
+				v += amp * noise(p);
+				p *= 2.0; amp *= 0.5;
+				v += amp * noise(p);
+				p *= 2.0; amp *= 0.5;
+				v += amp * noise(p);
+			return v;
+		}
 
 		// convert HSV (h 0..1, s 0..1, v 0..1) to RGB
 		vec3 hsv2rgb(vec3 c){
@@ -120,16 +146,42 @@ class Fog extends FlxShader
                 hole = t;
             }
 
-			// Use the CPU-generated visibility mask alpha directly (legacy behavior):
-			// maskSample.a == 1.0 means fog/opaque, 0.0 means visible. The mask already
-			// encodes the circular hole in VisibilityMask.buildMask(), so sample it.
+			// Sample CPU mask which now provides smooth alpha (0..1)
 			vec4 maskSample = flixel_texture2D(bitmap, uv);
-			float finalAlpha = maskSample.a;
-			// Use fog color modulated by clouds
-			vec3 finalColor = fogCol * mix(0.9, 1.05, clouds);
+			float maskAlpha = maskSample.a;
+			// compute desired alpha from CPU mask only (mask already encodes the circular hole)
+			float desiredAlpha = maskAlpha;
+			// If fully inside or outside, skip dithering
+			if (desiredAlpha <= 0.0) {
+				gl_FragColor = vec4(vec3(0.0), 0.0);
+				return;
+			}
+			if (desiredAlpha >= 1.0) {
+				vec3 finalColor = fogCol * mix(0.9, 1.05, clouds);
+				gl_FragColor = vec4(finalColor, 1.0);
+				return;
+			}
 
-			// Output premultiplied alpha so we fully occlude where alpha==1
-			gl_FragColor = vec4(finalColor * finalAlpha, finalAlpha);
+			// compute mask-space pixel coordinates so dither matches mask texel size
+			vec2 maskPosF = floor(uv / vec2(mTexelX, mTexelY));
+			int bx = int(mod(maskPosF.x, 8.0));
+			int by = int(mod(maskPosF.y, 8.0));
+			int idx = bx + by * 8;
+			int thr = 0;
+			// 8x8 Bayer mapping (values 0..63)
+			if (idx == 0) thr = 0; else if (idx == 1) thr = 48; else if (idx == 2) thr = 12; else if (idx == 3) thr = 60; else if (idx == 4) thr = 3; else if (idx == 5) thr = 51; else if (idx == 6) thr = 15; else if (idx == 7) thr = 63;
+			else if (idx == 8) thr = 32; else if (idx == 9) thr = 16; else if (idx == 10) thr = 44; else if (idx == 11) thr = 28; else if (idx == 12) thr = 35; else if (idx == 13) thr = 19; else if (idx == 14) thr = 47; else if (idx == 15) thr = 31;
+			else if (idx == 16) thr = 8; else if (idx == 17) thr = 56; else if (idx == 18) thr = 4; else if (idx == 19) thr = 52; else if (idx == 20) thr = 11; else if (idx == 21) thr = 59; else if (idx == 22) thr = 7; else if (idx == 23) thr = 55;
+			else if (idx == 24) thr = 40; else if (idx == 25) thr = 24; else if (idx == 26) thr = 36; else if (idx == 27) thr = 20; else if (idx == 28) thr = 43; else if (idx == 29) thr = 27; else if (idx == 30) thr = 39; else if (idx == 31) thr = 23;
+			else if (idx == 32) thr = 2; else if (idx == 33) thr = 50; else if (idx == 34) thr = 14; else if (idx == 35) thr = 62; else if (idx == 36) thr = 1; else if (idx == 37) thr = 49; else if (idx == 38) thr = 13; else if (idx == 39) thr = 61;
+			else if (idx == 40) thr = 34; else if (idx == 41) thr = 18; else if (idx == 42) thr = 46; else if (idx == 43) thr = 30; else if (idx == 44) thr = 33; else if (idx == 45) thr = 17; else if (idx == 46) thr = 45; else if (idx == 47) thr = 29;
+			else if (idx == 48) thr = 10; else if (idx == 49) thr = 58; else if (idx == 50) thr = 6; else if (idx == 51) thr = 54; else if (idx == 52) thr = 9; else if (idx == 53) thr = 57; else if (idx == 54) thr = 5; else if (idx == 55) thr = 53;
+			else if (idx == 56) thr = 42; else if (idx == 57) thr = 26; else if (idx == 58) thr = 38; else if (idx == 59) thr = 22; else if (idx == 60) thr = 41; else if (idx == 61) thr = 25; else if (idx == 62) thr = 37; else if (idx == 63) thr = 21;
+			float threshold = (float(thr) + 0.5) / 64.0;
+
+			float outAlpha = desiredAlpha > threshold ? 1.0 : 0.0;
+			vec3 finalColor = fogCol * mix(0.9, 1.05, clouds);
+			gl_FragColor = vec4(finalColor * outAlpha, outAlpha);
         }
     ')
 	public function new()

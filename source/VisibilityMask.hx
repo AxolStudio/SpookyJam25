@@ -7,11 +7,33 @@ class VisibilityMask
 {
 	public var tileGrid:Array<Array<Int>>;
 	public var tileSize:Int;
-	public var maskScale:Float = 0.5; // render mask at half resolution by default for perf
+	public var maskScale:Float = 0.25; // render mask at one-quarter resolution by default for perf
 	public var debug:Bool = false;
 
 	// configurable blur radius in full-resolution pixels (default 8). Set higher for stronger blur.
-	public var blurRadiusFull:Int = 24;
+	// default reduced for cheaper blur; lower value tightens the soft band
+	public var blurRadiusFull:Int = 16;
+
+	// 8x8 Bayer matrix for ordered dithering of softened edges (values 0..63)
+	private static var _bayer8:Array<Int> = null;
+
+	private static function getBayer8():Array<Int>
+	{
+		if (_bayer8 == null)
+		{
+			_bayer8 = [
+				 0, 48, 12, 60,  3, 51, 15, 63,
+				32, 16, 44, 28, 35, 19, 47, 31,
+				 8, 56,  4, 52, 11, 59,  7, 55,
+				40, 24, 36, 20, 43, 27, 39, 23,
+				 2, 50, 14, 62,  1, 49, 13, 61,
+				34, 18, 46, 30, 33, 17, 45, 29,
+				10, 58,  6, 54,  9, 57,  5, 53,
+				42, 26, 38, 22, 41, 25, 37, 21
+			];
+		}
+		return _bayer8;
+	}
 
 	// simple cache to avoid recomputing when player/camera don't move
 	private var _cachedBmp:BitmapData = null;
@@ -225,10 +247,8 @@ class VisibilityMask
 			return bmp;
 		}
 
-		// Simple symmetric inward blur: brute-force search of transparent pixels within radius r
-		// Use Felzenszwalb EDT to compute exact euclidean distance to nearest transparent pixel.
-		var blurRadiusFull:Int = 24; // in full-resolution pixels
-		var blurRadiusScaled:Int = Std.int(blurRadiusFull * maskScale);
+		// Simple symmetric inward blur: use EDT to compute distance to nearest transparent pixel.
+		var blurRadiusScaled:Int = Std.int(this.blurRadiusFull * maskScale);
 		if (blurRadiusScaled < 1)
 			blurRadiusScaled = 1;
 		var r:Int = blurRadiusScaled;
@@ -248,21 +268,27 @@ class VisibilityMask
 					continue;
 				}
 				var d:Float = distArr[idx];
-				// distArr is in mask pixels (since we fed f=0/INF per mask cell), but computeEDT returns distances in cells
-				// So compare against r (mask-space radius)
+				// fully outside softened radius -> opaque
 				if (d >= r)
-					bmp.setPixel32(px, py, (255 << 24));
-				else
 				{
-					var t:Float = d / r;
-					// smootherstep inward fade
-					t = t * t * (3.0 - 2.0 * t);
-					var a:Int = Std.int(255.0 * t);
-					if (a <= 0)
-						bmp.setPixel32(px, py, 0x00000000);
-					else
-						bmp.setPixel32(px, py, (a << 24));
+					bmp.setPixel32(px, py, (255 << 24));
+					continue;
 				}
+				// strictly inside -> visible
+				if (d <= 0)
+				{
+					bmp.setPixel32(px, py, 0x00000000);
+					continue;
+				}
+				// in the softened band: compute smooth alpha (0..1) and encode it as 0..255
+				var t:Float = d / r;
+				// smootherstep inward fade
+				t = t * t * (3.0 - 2.0 * t);
+				var a:Int = Std.int(255.0 * t);
+				if (a <= 0)
+					bmp.setPixel32(px, py, 0x00000000);
+				else
+					bmp.setPixel32(px, py, (a << 24));
 			}
 		}
 

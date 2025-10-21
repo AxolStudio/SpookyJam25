@@ -41,12 +41,12 @@ class PlayState extends FlxState
 	{
 		Actions.init();
 		Actions.switchSet(Actions.gameplayIndex);
-
 		atmosphereHue = FlxG.random.int(0, 359);
 
 		createCameras();
 
 		tilemap = new GameMap();
+		// generate map using global RNG (no explicit seed)
 		tilemap.generate(atmosphereHue);
 		add(tilemap);
 
@@ -144,6 +144,8 @@ class PlayState extends FlxState
 		// HUD updates handled by Hud.update()
 		super.update(elapsed);
 		FlxG.collide(player, tilemap.wallsMap);
+		// ensure enemies also collide with walls so they don't pass through geometry
+		FlxG.collide(enemies, tilemap.wallsMap);
 		// update fog shader uniforms
 		try
 		{
@@ -183,7 +185,40 @@ class PlayState extends FlxState
 						var mask:VisibilityMask = Reflect.getProperty(fog, "__visibilityMask");
 						var worldPlayerX = player.x + player.width * 0.5;
 						var worldPlayerY = player.y + player.height * 0.5;
-						var bmp = mask.buildMask(cam, worldPlayerX, worldPlayerY);
+						// Implement a small mask-age cache to avoid rebuilding mask every frame
+						var __lastMaskBmp:openfl.display.BitmapData = Reflect.getProperty(fog, "__lastMaskBmp");
+						var __maskAge:Int = Reflect.getProperty(fog, "__maskAge") == null ? 0 : Reflect.getProperty(fog, "__maskAge");
+						var __maskMaxAge:Int = Reflect.getProperty(fog, "__maskMaxAge") == null ? 3 : Reflect.getProperty(fog, "__maskMaxAge");
+						var __lastPlayerX:Float = Reflect.getProperty(fog, "__lastPlayerX") == null ? -1 : Reflect.getProperty(fog, "__lastPlayerX");
+						var __lastPlayerY:Float = Reflect.getProperty(fog, "__lastPlayerY") == null ? -1 : Reflect.getProperty(fog, "__lastPlayerY");
+						var __moveThreshold:Float = 1.0; // in pixels: small movement allowed before rebuild
+
+						var needRebuild:Bool = true;
+						if (__lastMaskBmp != null)
+						{
+							// if player hasn't moved much and mask age is below max, reuse
+							var dx = Math.abs(__lastPlayerX - worldPlayerX);
+							var dy = Math.abs(__lastPlayerY - worldPlayerY);
+							if ((__maskAge < __maskMaxAge) && dx <= __moveThreshold && dy <= __moveThreshold)
+								needRebuild = false;
+						}
+
+						var bmp:openfl.display.BitmapData;
+						if (!needRebuild)
+						{
+							bmp = __lastMaskBmp;
+							__maskAge++;
+							Reflect.setProperty(fog, "__maskAge", __maskAge);
+						}
+						else
+						{
+							bmp = mask.buildMask(cam, worldPlayerX, worldPlayerY);
+							// store cache
+							Reflect.setProperty(fog, "__lastMaskBmp", bmp);
+							Reflect.setProperty(fog, "__maskAge", 0);
+							Reflect.setProperty(fog, "__lastPlayerX", worldPlayerX);
+							Reflect.setProperty(fog, "__lastPlayerY", worldPlayerY);
+						}
 						// assign mask pixels to fog sprite (scaled back to full resolution if needed)
 						// If mask is scaled, stretch to camera size by drawing into a full-res BitmapData
 						if (bmp.width != Std.int(cam.width) || bmp.height != Std.int(cam.height))
@@ -197,6 +232,16 @@ class PlayState extends FlxState
 								fog.pixels = full;
 							}
 							catch (e:Dynamic) {}
+							// set mask texel size for shader dither
+							try
+							{
+								if (fogShader != null)
+								{
+									fogShader.maskTexelX = 1.0 / full.width;
+									fogShader.maskTexelY = 1.0 / full.height;
+								}
+							}
+							catch (e:Dynamic) {}
 						}
 						else
 						{
@@ -206,6 +251,16 @@ class PlayState extends FlxState
 							}
 							catch (e:Dynamic) {}
 						}
+						// if we assigned the bmp directly, set texel size from bmp
+						try
+						{
+							if (fogShader != null)
+							{
+								fogShader.maskTexelX = 1.0 / bmp.width;
+								fogShader.maskTexelY = 1.0 / bmp.height;
+							}
+						}
+						catch (e:Dynamic) {}
 						try
 						{
 							fog.dirty = true;
@@ -347,8 +402,8 @@ class PlayState extends FlxState
 				continue;
 			if (room.isPortal)
 				continue;
-			if (room.isCorridor)
-				continue;
+			// allow spawning in corridors too so enemies are distributed along paths
+			// but give corridors a small target so they don't get overloaded
 
 			// explicit per-area mapping requested:
 			// area < 5 -> 0
@@ -370,6 +425,28 @@ class PlayState extends FlxState
 
 			if (desired > maxPerRoom)
 				desired = maxPerRoom;
+
+			// special-case corridors: ensure at least one spawn in longer corridors
+			if (room.isCorridor)
+			{
+				// corridors have small area but we want some coverage
+				var tmpDesired:Int = Std.int(room.area / (tilesPerEnemy * 2));
+				if (tmpDesired < 1)
+					tmpDesired = 1;
+				desired = tmpDesired;
+				if (desired > 3)
+					desired = 3;
+			}
+
+			// Bias: if room is near the portal, increase desired density so player sees more enemies nearby
+			var portalDistTiles:Float = Math.pow(room.centroid.x - tilemap.portalTileX, 2) + Math.pow(room.centroid.y - tilemap.portalTileY, 2);
+			if (portalDistTiles <= 144.0) // within ~12 tiles
+			{
+				// small rooms near the portal get a bonus
+				desired += 2;
+				if (desired > maxPerRoom)
+					desired = maxPerRoom;
+			}
 
 			// apply a screen-based cap so we don't overcrowd the visible area
 			var screenCap:Int = 0;
@@ -396,9 +473,13 @@ class PlayState extends FlxState
 					continue;
 				var tx:Int = Std.int(t.x);
 				var ty:Int = Std.int(t.y);
-				if (tx == tilemap.portalTileX && ty == tilemap.portalTileY)
+				// avoid spawning directly on or too close to the portal tile/player spawn
+				var avoidRadius:Int = 6; // tiles (reduced buffer so player sees enemies sooner)
+				if (Math.abs(tx - tilemap.portalTileX) <= avoidRadius && Math.abs(ty - tilemap.portalTileY) <= avoidRadius)
 					continue;
 
+				// ensure enemies are not spawned too close to each other (min spacing)
+				var minSpacingTiles:Int = 4;
 				var ok:Bool = true;
 				for (existing in enemies.members)
 				{
@@ -406,7 +487,7 @@ class PlayState extends FlxState
 						continue;
 					var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
 					var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
-					if (Math.abs(ex - tx) <= 1 && Math.abs(ey - ty) <= 1)
+					if (Math.abs(ex - tx) <= minSpacingTiles && Math.abs(ey - ty) <= minSpacingTiles)
 					{
 						ok = false;
 						break;
@@ -416,8 +497,158 @@ class PlayState extends FlxState
 					continue;
 
 				var variant:String = Enemy.pickVariant();
-				var e:Enemy = enemies.add(new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant));
+				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
+				enemies.add(eObj);
+				// randomize enemy behavior and tint to avoid atmosphere hue
+				try
+				{
+					if (eObj != null)
+						eObj.randomizeBehavior(atmosphereHue);
+				}
+				catch (eDyn:Dynamic) {}
 				placed++;
+				totalSpawned++;
+			}
+		}
+		// Coverage pass: ensure roughly one enemy per 10x10 tile cell across the map
+		// so there are no very large empty regions. This will also place enemies in
+		// corridors if missing.
+		try
+		{
+			var grid:Dynamic = tilemap.wallGrid;
+			if (grid != null && grid.length > 0)
+			{
+				var gridH:Int = grid.length;
+				var gridW:Int = grid[0].length;
+				var cellSize:Int = 10;
+				for (gy in 0...Std.int((gridH + cellSize - 1) / cellSize))
+				{
+					for (gx in 0...Std.int((gridW + cellSize - 1) / cellSize))
+					{
+						var startY = gy * cellSize;
+						var startX = gx * cellSize;
+						// skip if portal is in or near this cell
+						var cxTile = startX + Std.int(cellSize / 2);
+						var cyTile = startY + Std.int(cellSize / 2);
+						if (Math.abs(cxTile - tilemap.portalTileX) <= 6 && Math.abs(cyTile - tilemap.portalTileY) <= 6)
+							continue;
+						// check if any enemy exists within this cell or nearby
+						var hasEnemy:Bool = false;
+						for (existing in enemies.members)
+						{
+							if (existing == null)
+								continue;
+							var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+							var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
+							if (ex >= startX && ex < startX + cellSize && ey >= startY && ey < startY + cellSize)
+							{
+								hasEnemy = true;
+								break;
+							}
+						}
+						if (hasEnemy)
+							continue;
+						// find a walkable tile in this cell to spawn
+						var placedInCell:Bool = false;
+						for (yy in startY...Std.int(Math.min(startY + cellSize, gridH)))
+						{
+							for (xx in startX...Std.int(Math.min(startX + cellSize, gridW)))
+							{
+								if (grid[yy][xx] == 0)
+								{
+									// ensure spacing and avoid portal buffer
+									var tooClose:Bool = false;
+									if (Math.abs(xx - tilemap.portalTileX) <= 10 && Math.abs(yy - tilemap.portalTileY) <= 10)
+										tooClose = true;
+									for (existing in enemies.members)
+									{
+										if (existing == null)
+											continue;
+										var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+										var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
+										if (Math.abs(ex - xx) <= 4 && Math.abs(ey - yy) <= 4)
+										{
+											tooClose = true;
+											break;
+										}
+									}
+									if (!tooClose && totalSpawned < globalMax)
+									{
+										var variant:String = Enemy.pickVariant();
+										var eObj:Enemy = new Enemy(xx * TILE_SIZE, yy * TILE_SIZE, variant);
+										enemies.add(eObj);
+										try
+										{
+											if (eObj != null)
+												eObj.randomizeBehavior(atmosphereHue);
+										}
+										catch (d:Dynamic) {}
+										placedInCell = true;
+										totalSpawned++;
+										break;
+									}
+								}
+							}
+							if (placedInCell)
+								break;
+						}
+					}
+				}
+			}
+		}
+		catch (e:Dynamic) {}
+		// Additionally spawn a small dense cluster around the portal so the player sees immediate threats
+		var portalClusterSize:Int = 6;
+		var portalRoom:Dynamic = tilemap.roomsInfo[tilemap.portalRoomIndex];
+		if (portalRoom != null)
+		{
+			var clusterPlaced = 0;
+			var tries = 0;
+			while (clusterPlaced < portalClusterSize && tries < portalClusterSize * 8 && totalSpawned < globalMax)
+			{
+				tries++;
+				var ti:Int = Std.int(FlxG.random.float() * Std.int(portalRoom.tiles.length));
+				if (ti < 0)
+					ti = 0;
+				var prLen:Int = Std.int(portalRoom.tiles.length);
+				if (ti >= prLen)
+					ti = prLen - 1;
+				var t:Dynamic = portalRoom.tiles[ti];
+				if (t == null)
+					continue;
+				var tx:Int = Std.int(t.x);
+				var ty:Int = Std.int(t.y);
+				// avoid exact portal tile and immediate surrounding area so player isn't swarmed
+				var avoidRadiusCluster:Int = 6; // keep consistent with main spawn buffer
+				if (Math.abs(tx - tilemap.portalTileX) <= avoidRadiusCluster && Math.abs(ty - tilemap.portalTileY) <= avoidRadiusCluster)
+					continue;
+				// ensure enemies are not spawned too close to each other (min spacing)
+				var minSpacingTiles:Int = 4;
+				var ok:Bool = true;
+				for (existing in enemies.members)
+				{
+					if (existing == null)
+						continue;
+					var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+					var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
+					if (Math.abs(ex - tx) <= minSpacingTiles && Math.abs(ey - ty) <= minSpacingTiles)
+					{
+						ok = false;
+						break;
+					}
+				}
+				if (!ok)
+					continue;
+				var variant:String = Enemy.pickVariant();
+				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
+				enemies.add(eObj);
+				try
+				{
+					if (eObj != null)
+						eObj.randomizeBehavior(atmosphereHue);
+				}
+				catch (d:Dynamic) {}
+				clusterPlaced++;
 				totalSpawned++;
 			}
 		}
