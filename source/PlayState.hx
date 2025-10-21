@@ -47,12 +47,9 @@ class PlayState extends FlxState
 		createCameras();
 
 		tilemap = new GameMap();
-		// generate map and recolor tilesets using atmosphereHue before loading tilemaps
-		// We always perform a one-time CPU recolor (tiles are static for the run).
-		tilemap.generate((cast atmosphereHue : Int));
+		tilemap.generate(atmosphereHue);
 		add(tilemap);
 
-		// fog sprite will be created after entities so it renders on top of the world
 
 		player = new Player(tilemap.portalTileX * Constants.TILE_SIZE, tilemap.portalTileY * Constants.TILE_SIZE);
 		add(player);

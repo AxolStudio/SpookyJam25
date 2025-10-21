@@ -179,15 +179,9 @@ class Fog extends FlxShader
 
 	private function set_hue(v:Float):Float
 	{
-		var hv:Float = v % 360.0;
-		if (hv < 0)
-			hv += 360.0;
-		hue = hv;
-		try
-		{
-			fHue.value = [hue / 360.0];
-		}
-		catch (e:Dynamic) {}
+		hue = v;
+		fHue.value = [hue / 360.0];
+
 		return hue;
 	}
 
