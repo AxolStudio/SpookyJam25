@@ -105,7 +105,26 @@ class PlayState extends FlxState
 			fog.scrollFactor.set(0, 0);
 			add(fog);
 		}
-		catch (e:Dynamic) {}
+		// After spawning enemies, build a debug bitmap (1px = 1 tile) and add to bitmap log
+		try
+		{
+			var TILE:Int = Constants.TILE_SIZE;
+			var enemyTiles:Array<Dynamic> = [];
+			for (member in enemies.members)
+			{
+				var ent:Enemy = cast(member, Enemy);
+				if (ent == null)
+					continue;
+				var etx:Int = Std.int((ent.x + ent.width * 0.5) / TILE);
+				var ety:Int = Std.int((ent.y + ent.height * 0.5) / TILE);
+				enemyTiles.push({x: etx, y: ety});
+			}
+			var px:Int = tilemap.portalTileX;
+			var py:Int = tilemap.portalTileY;
+			var dbg:openfl.display.BitmapData = tilemap.buildDebugBitmap(px, py, enemyTiles);
+			FlxG.bitmapLog.add(dbg);
+		}
+		catch (err:Dynamic) {}
 
 		mainCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		mainCam.follow(player);
@@ -290,10 +309,10 @@ class PlayState extends FlxState
 		if (tilemap == null || tilemap.roomsInfo == null)
 			return;
 		var TILE_SIZE:Int = Constants.TILE_SIZE;
-		// increase enemy density: fewer tiles per enemy and higher caps
-		var tilesPerEnemy:Int = 6; // was 14
-		var maxPerRoom:Int = 12; // was 7
-		var globalMax:Int = 240; // increased from 120
+		// increase enemy density: fewer tiles per enemy and higher caps (~25% more density)
+		var tilesPerEnemy:Int = 5; // lower => more enemies per room (was 6)
+		var maxPerRoom:Int = 15; // allow slightly more per room (was 12)
+		var globalMax:Int = 300; // raise overall cap (was 240)
 		var totalSpawned:Int = 0;
 
 		// screen-based density cap: no more than 1 enemy per quarter-screen area
@@ -301,11 +320,29 @@ class PlayState extends FlxState
 		var screenTilesH:Int = Std.int(FlxG.height / TILE_SIZE);
 		var quarterScreenTiles:Int = Std.int(Math.max(1, (screenTilesW * screenTilesH) / 4));
 
-		for (i in 0...tilemap.roomsInfo.length)
+		// Prefer filling rooms closer to the portal/player spawn first so player finds enemies sooner
+		var roomOrder:Array<Int> = [];
+		for (ri in 0...tilemap.roomsInfo.length)
+			roomOrder.push(ri);
+		// compute distances to portal
+		var px:Int = tilemap.portalTileX;
+		var py:Int = tilemap.portalTileY;
+		roomOrder.sort(function(a:Int, b:Int):Int
 		{
+			var ra:Dynamic = tilemap.roomsInfo[a];
+			var rb:Dynamic = tilemap.roomsInfo[b];
+			if (ra == null || rb == null)
+				return 0;
+			var da:Float = Math.pow(ra.centroid.x - px, 2) + Math.pow(ra.centroid.y - py, 2);
+			var db:Float = Math.pow(rb.centroid.x - px, 2) + Math.pow(rb.centroid.y - py, 2);
+			return da < db ? -1 : (da > db ? 1 : 0);
+		});
+		for (i in 0...roomOrder.length)
+		{
+			var idx = roomOrder[i];
 			if (totalSpawned >= globalMax)
 				break;
-			var room:Dynamic = tilemap.roomsInfo[i];
+			var room:Dynamic = tilemap.roomsInfo[idx];
 			if (room == null || room.area <= 0)
 				continue;
 			if (room.isPortal)
