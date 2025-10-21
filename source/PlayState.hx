@@ -81,6 +81,12 @@ class PlayState extends FlxState
 			fog.makeGraphic(Std.int(mainCam.width), Std.int(mainCam.height), FlxColor.TRANSPARENT);
 			fogShader = new shaders.Fog();
 			fog.shader = fogShader;
+			// set static hue once (atmosphereHue never changes after start)
+			try
+			{
+				fogShader.hue = (cast atmosphereHue : Int);
+			}
+			catch (e:Dynamic) {}
 			fog.cameras = [mainCam];
 			fog.scrollFactor.set(0, 0);
 			add(fog);
@@ -92,6 +98,22 @@ class PlayState extends FlxState
 		overCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		overCam.follow(player);
 		super.create();
+		// Ensure hue shader on tilemaps is set (fallback in case generate() didn't set shader hue)
+		try
+		{
+			var hueVal:Float = (cast atmosphereHue : Int);
+			try
+			{
+				(cast tilemap.floorMap : Dynamic).hueShader.hue = hueVal;
+			}
+			catch (e:Dynamic) {}
+			try
+			{
+				(cast tilemap.wallsMap : Dynamic).hueShader.hue = hueVal;
+			}
+			catch (e:Dynamic) {}
+		}
+		catch (e:Dynamic) {}
 	}
 
 	// ...existing code...
@@ -111,9 +133,6 @@ class PlayState extends FlxState
 			{
 				// increment time
 				fogShader.time += elapsed;
-				// hue from PlayState.atmosphereHue (cast to Float)
-				var hueF:Float = (cast atmosphereHue : Int);
-				fogShader.hue = hueF;
 				// convert player world position to normalized screen UV (0..1)
 				var cam = mainCam;
 				var screenX = (player.x + player.width * 0.5) - cam.scroll.x;
@@ -133,42 +152,51 @@ class PlayState extends FlxState
 				var rOuter = (radiusPixels) / camMin;
 				fogShader.innerRadius = rInner;
 				fogShader.outerRadius = rOuter;
-				// also update tilemap hue shaders if present
+				// Build CPU visibility mask and apply to fog sprite to allow walls to occlude vision
 				try
 				{
-					if (tilemap != null && (cast tilemap.floorMap : Dynamic).hueShader != null)
+					if (tilemap != null && (cast tilemap : GameMap) != null && (cast tilemap : GameMap).wallGrid != null)
 					{
-						(cast tilemap.floorMap : Dynamic).hueShader.hue = hueF;
+						// lazy create mask helper on fog shader object for lifetime
+						var existingMask = Reflect.getProperty(fog, "__visibilityMask");
+						if (existingMask == null)
+							Reflect.setProperty(fog, "__visibilityMask",
+								new VisibilityMask((cast tilemap : GameMap).wallGrid, Constants.TILE_SIZE, 1.0, false));
+						var mask:VisibilityMask = Reflect.getProperty(fog, "__visibilityMask");
+						var worldPlayerX = player.x + player.width * 0.5;
+						var worldPlayerY = player.y + player.height * 0.5;
+						var bmp = mask.buildMask(cam, worldPlayerX, worldPlayerY);
+						// assign mask pixels to fog sprite (scaled back to full resolution if needed)
+						// If mask is scaled, stretch to camera size by drawing into a full-res BitmapData
+						if (bmp.width != Std.int(cam.width) || bmp.height != Std.int(cam.height))
+						{
+							var full:openfl.display.BitmapData = new openfl.display.BitmapData(Std.int(cam.width), Std.int(cam.height), true, 0x00000000);
+							// draw scaled mask without smoothing (nearest-neighbor) to avoid
+							// bilinear filtering leaking opaque pixels into transparent areas
+							full.draw(bmp, new openfl.geom.Matrix(1 / mask.maskScale, 0, 0, 1 / mask.maskScale), null, null, null, false);
+							try
+							{
+								fog.pixels = full;
+							}
+							catch (e:Dynamic) {}
+						}
+						else
+						{
+							try
+							{
+								fog.pixels = bmp;
+							}
+							catch (e:Dynamic) {}
+						}
+						try
+						{
+							fog.dirty = true;
+						}
+						catch (e:Dynamic) {}
 					}
 				}
 				catch (e:Dynamic) {}
-				try
-				{
-					if (tilemap != null && (cast tilemap.wallsMap : Dynamic).hueShader != null)
-					{
-						(cast tilemap.wallsMap : Dynamic).hueShader.hue = hueF;
-					}
-				}
-				catch (e:Dynamic) {}
-
-				// Force a quick redraw of the tilemaps when hue changes (toggles visibility once)
-				var hueInt:Int = Std.int(hueF) % 360;
-				if (hueInt != _lastTileHue)
-				{
-					_lastTileHue = hueInt;
-					try
-					{
-						tilemap.floorMap.visible = false;
-						tilemap.wallsMap.visible = false;
-					}
-					catch (e:Dynamic) {}
-					try
-					{
-						tilemap.floorMap.visible = true;
-						tilemap.wallsMap.visible = true;
-					}
-					catch (e:Dynamic) {}
-				}
+				// hue is static; tilemap hue shaders were set at generate()/create() time
 			}
 		}
 		catch (e:Dynamic) {}

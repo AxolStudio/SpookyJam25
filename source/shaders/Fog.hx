@@ -114,10 +114,12 @@ class Fog extends FlxShader
                 hole = t;
             }
 
-			// Make fog fully opaque outside the hole. Keep clouds only modulating color (not alpha).
-			float finalAlpha = clamp(hole, 0.0, 1.0);
-			// Slightly modulate color brightness with clouds so there is still visual variation
+			// For walls-only debug: use mask alpha exclusively (ignore circular hole)
+			vec4 maskSample = flixel_texture2D(bitmap, uv);
+			float finalAlpha = maskSample.a;
+			// Use fog color modulated by clouds
 			vec3 finalColor = fogCol * mix(0.9, 1.05, clouds);
+
 			// Output premultiplied alpha so we fully occlude where alpha==1
 			gl_FragColor = vec4(finalColor * finalAlpha, finalAlpha);
         }

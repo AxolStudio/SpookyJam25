@@ -16,6 +16,8 @@ class GameMap extends FlxGroup
 
 	public var floorMap:FlxTilemap;
 	public var wallsMap:FlxTilemap;
+	// parsed wall grid (0 = floor, 1 = wall) for CPU-side visibility tests
+	public var wallGrid:Array<Array<Int>>;
 
 	// store generated CSVs so we can reload tilemaps with recolored bitmaps at runtime
 	private var _floorCsv:String;
@@ -769,6 +771,29 @@ class GameMap extends FlxGroup
 		}
 
 		var csv:String = FlxCaveGenerator.convertMatrixToString(M);
+		// parse CSV into wallGrid for fast CPU queries (rows = totalH, cols = totalW)
+		wallGrid = [];
+		var csvRows = csv.split("\n");
+		for (ry in 0...csvRows.length)
+		{
+			var parts = csvRows[ry].split(",");
+			var rowArr:Array<Int> = [];
+			for (pxi in 0...parts.length)
+			{
+				var v:Int = 1;
+				try
+				{
+					v = Std.int(Std.parseInt(parts[pxi]));
+				}
+				catch (e:Dynamic)
+				{
+					v = 1;
+				}
+				// in our M generation 0=floor, 1=wall; keep same semantics
+				rowArr.push(v);
+			}
+			wallGrid.push(rowArr);
+		}
 		// create floor tilemap (full-extent mockup) and add it below walls
 		var floorCsv:String = generateFloorCSV(totalW, totalH);
 		_floorCsv = floorCsv;
@@ -855,6 +880,12 @@ class GameMap extends FlxGroup
 			floorMap.shader = sh;
 			// expose as a dynamic field so PlayState can access if needed
 			(cast floorMap : Dynamic).hueShader = sh;
+			// pass initial hue to shader (generate was called with hue)
+			try
+			{
+				sh.hue = hue;
+			}
+			catch (e:Dynamic) {}
 		}
 		catch (e:Dynamic) {}
 		this.add(floorMap);
@@ -936,6 +967,12 @@ class GameMap extends FlxGroup
 			var sh2 = new shaders.HueShift();
 			wallsMap.shader = sh2;
 			(cast wallsMap : Dynamic).hueShader = sh2;
+			// if a hue was provided at generate time (we recolored tilesets), ensure shader receives same hue
+			try
+			{
+				sh2.hue = hue;
+			}
+			catch (e:Dynamic) {}
 		}
 		catch (e:Dynamic) {}
 		this.add(wallsMap);
