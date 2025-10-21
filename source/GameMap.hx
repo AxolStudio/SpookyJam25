@@ -1,5 +1,7 @@
 package;
 
+import openfl.geom.Point;
+import openfl.filters.ColorMatrixFilter;
 import flixel.FlxG;
 import flixel.system.FlxAssets;
 import openfl.display.BitmapData;
@@ -46,166 +48,6 @@ class GameMap extends FlxGroup
 	public function new()
 	{
 		super();
-	}
-
-	// Apply a hue shift to floor and walls bitmaps in memory and reload tilemaps
-	public function applyHue(hue:Int):Void
-	{
-		try
-		{
-			var h:Float = (hue % 360) / 360.0;
-			// floor
-			var floorBmp:BitmapData = FlxAssets.getBitmapData("assets/images/floor.png");
-			if (floorBmp != null && _floorCsv != null)
-			{
-				var newFloor:BitmapData = new BitmapData(floorBmp.width, floorBmp.height, true, 0x00000000);
-				newFloor.lock();
-				for (y in 0...floorBmp.height)
-				{
-					for (x in 0...floorBmp.width)
-					{
-						var px:Int = floorBmp.getPixel32(x, y);
-						var a = (px >> 24) & 0xFF;
-						if (a == 0)
-						{
-							newFloor.setPixel32(x, y, px);
-							continue;
-						}
-						// extract RG
-						var r = ((px >> 16) & 0xFF) / 255.0;
-						var g = ((px >> 8) & 0xFF) / 255.0;
-						var b = (px & 0xFF) / 255.0;
-						// convert to HSV-like (we'll use H from hue param, keep S and V)
-						var maxc = Math.max(r, Math.max(g, b));
-						var minc = Math.min(r, Math.min(g, b));
-						var v = maxc;
-						var s = (maxc == 0.0) ? 0.0 : (maxc - minc) / maxc;
-						// convert hsv back to rgb with new hue h
-						var hh = h * 6.0;
-						var i = Std.int(Math.floor(hh)) % 6;
-						var f = hh - Math.floor(hh);
-						var p = v * (1.0 - s);
-						var q = v * (1.0 - f * s);
-						var t = v * (1.0 - (1.0 - f) * s);
-						var nr:Float = 0.0;
-						var ng:Float = 0.0;
-						var nb:Float = 0.0;
-						switch (i)
-						{
-							case 0:
-								nr = v;
-								ng = t;
-								nb = p;
-								break;
-							case 1:
-								nr = q;
-								ng = v;
-								nb = p;
-								break;
-							case 2:
-								nr = p;
-								ng = v;
-								nb = t;
-								break;
-							case 3:
-								nr = p;
-								ng = q;
-								nb = v;
-								break;
-							case 4:
-								nr = t;
-								ng = p;
-								nb = v;
-								break;
-							case 5:
-								nr = v;
-								ng = p;
-								nb = q;
-								break;
-						}
-						var orgb:Int = ((Std.int(nr * 255) & 0xFF) << 16) | ((Std.int(ng * 255) & 0xFF) << 8) | (Std.int(nb * 255) & 0xFF);
-						newFloor.setPixel32(x, y, (a << 24) | orgb);
-					}
-				}
-				newFloor.unlock();
-				// reload floorMap from CSV using newFloor bitmap
-				floorMap.loadMapFromCSV(_floorCsv, newFloor, Constants.TILE_SIZE, Constants.TILE_SIZE, FlxTilemapAutoTiling.OFF);
-			}
-			// walls/autotiles
-			var wallsBmp:BitmapData = FlxAssets.getBitmapData("assets/images/autotiles.png");
-			if (wallsBmp != null && _wallsCsv != null)
-			{
-				var newWalls:BitmapData = new BitmapData(wallsBmp.width, wallsBmp.height, true, 0x00000000);
-				newWalls.lock();
-				for (y in 0...wallsBmp.height)
-				{
-					for (x in 0...wallsBmp.width)
-					{
-						var px:Int = wallsBmp.getPixel32(x, y);
-						var a = (px >> 24) & 0xFF;
-						if (a == 0)
-						{
-							newWalls.setPixel32(x, y, px);
-							continue;
-						}
-						var r = ((px >> 16) & 0xFF) / 255.0;
-						var g = ((px >> 8) & 0xFF) / 255.0;
-						var b = (px & 0xFF) / 255.0;
-						var maxc = Math.max(r, Math.max(g, b));
-						var minc = Math.min(r, Math.min(g, b));
-						var v = maxc;
-						var s = (maxc == 0.0) ? 0.0 : (maxc - minc) / maxc;
-						var hh = h * 6.0;
-						var i = Std.int(Math.floor(hh)) % 6;
-						var f = hh - Math.floor(hh);
-						var p = v * (1.0 - s);
-						var q = v * (1.0 - f * s);
-						var t = v * (1.0 - (1.0 - f) * s);
-						var nr:Float = 0.0;
-						var ng:Float = 0.0;
-						var nb:Float = 0.0;
-						switch (i)
-						{
-							case 0:
-								nr = v;
-								ng = t;
-								nb = p;
-								break;
-							case 1:
-								nr = q;
-								ng = v;
-								nb = p;
-								break;
-							case 2:
-								nr = p;
-								ng = v;
-								nb = t;
-								break;
-							case 3:
-								nr = p;
-								ng = q;
-								nb = v;
-								break;
-							case 4:
-								nr = t;
-								ng = p;
-								nb = v;
-								break;
-							case 5:
-								nr = v;
-								ng = p;
-								nb = q;
-								break;
-						}
-						var orgb:Int = ((Std.int(nr * 255) & 0xFF) << 16) | ((Std.int(ng * 255) & 0xFF) << 8) | (Std.int(nb * 255) & 0xFF);
-						newWalls.setPixel32(x, y, (a << 24) | orgb);
-					}
-				}
-				newWalls.unlock();
-				wallsMap.loadMapFromCSV(_wallsCsv, newWalls, Constants.TILE_SIZE, Constants.TILE_SIZE, FlxTilemapAutoTiling.FULL);
-			}
-		}
-		catch (e:Dynamic) {}
 	}
 
 	// generate map; optional hue parameter (0..359). If hue >= 0, recolor floor/autotile bitmaps
@@ -794,188 +636,85 @@ class GameMap extends FlxGroup
 			}
 			wallGrid.push(rowArr);
 		}
-		// create floor tilemap (full-extent mockup) and add it below walls
 		var floorCsv:String = generateFloorCSV(totalW, totalH);
 		_floorCsv = floorCsv;
+
 		floorMap = new FlxTilemap();
-		// recolor tileset bitmap BEFORE loading tilemap if a hue was provided
-		var floorTileset:Dynamic = "assets/images/floor.png";
-		if (hue >= 0)
-		{
-			var srcFloor:BitmapData = FlxAssets.getBitmapData("assets/images/floor.png");
-			if (srcFloor != null)
-			{
-				var newFloorBmp:BitmapData = new BitmapData(srcFloor.width, srcFloor.height, true, 0x00000000);
-				newFloorBmp.lock();
-				// helper: convert RGB -> HSL and back with new hue
-				for (fy in 0...srcFloor.height)
-				{
-					for (fx in 0...srcFloor.width)
-					{
-						var px:Int = srcFloor.getPixel32(fx, fy);
-						var a = (px >> 24) & 0xFF;
-						if (a == 0)
-						{
-							newFloorBmp.setPixel32(fx, fy, px);
-							continue;
-						}
-						var r = ((px >> 16) & 0xFF) / 255.0;
-						var g = ((px >> 8) & 0xFF) / 255.0;
-						var b = (px & 0xFF) / 255.0;
-						// RGB -> HSL
-						var maxc = Math.max(r, Math.max(g, b));
-						var minc = Math.min(r, Math.min(g, b));
-						var l = (maxc + minc) / 2.0;
-						var s:Float = 0.0;
-						if (maxc != minc)
-						{
-							s = (l < 0.5) ? ((maxc - minc) / (maxc + minc)) : ((maxc - minc) / (2.0 - maxc - minc));
-						}
-						var H:Float = (hue % 360) / 360.0;
-						// HSL -> RGB
-						var rnew:Float;
-						var gnew:Float;
-						var bnew:Float;
-						if (s == 0.0)
-						{
-							rnew = gnew = bnew = l;
-						}
-						else
-						{
-							// hue2rgb helper
-							function hue2rgb(p:Float, q:Float, t:Float):Float
-							{
-								if (t < 0.0)
-									t += 1.0;
-								if (t > 1.0)
-									t -= 1.0;
-								if (t < 1.0 / 6.0)
-									return p + (q - p) * 6.0 * t;
-								if (t < 1.0 / 2.0)
-									return q;
-								if (t < 2.0 / 3.0)
-									return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
-								return p;
-							}
-							var q = (l < 0.5) ? (l * (1.0 + s)) : (l + s - l * s);
-							var p = 2.0 * l - q;
-							rnew = hue2rgb(p, q, H + 1.0 / 3.0);
-							gnew = hue2rgb(p, q, H);
-							bnew = hue2rgb(p, q, H - 1.0 / 3.0);
-						}
-						var orgb:Int = ((Std.int(rnew * 255) & 0xFF) << 16) | ((Std.int(gnew * 255) & 0xFF) << 8) | (Std.int(bnew * 255) & 0xFF);
-						newFloorBmp.setPixel32(fx, fy, (a << 24) | orgb);
-					}
-				}
-				newFloorBmp.unlock();
-				floorTileset = newFloorBmp;
-			}
-		}
-		// use OFF autotiling for the simple floor tileset (4 tiles in floor.png)
-		floorMap.loadMapFromCSV(floorCsv, floorTileset, TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.OFF);
-		// runtime hue shift shader (applied to floor)
-		try
-		{
-			var sh = new shaders.HueShift();
-			floorMap.shader = sh;
-			// expose as a dynamic field so PlayState can access if needed
-			(cast floorMap : Dynamic).hueShader = sh;
-			// pass initial hue to shader (generate was called with hue)
-			try
-			{
-				sh.hue = hue;
-			}
-			catch (e:Dynamic) {}
-		}
-		catch (e:Dynamic) {}
+		var floorTileset:BitmapData = (hue >= 0) ? getHueColoredBmp("assets/images/floor.png", hue) : FlxAssets.getBitmapData("assets/images/floor.png");
+		FlxG.bitmapLog.add(floorTileset);
+		floorMap.loadMapFromCSV(_floorCsv, floorTileset, TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.OFF, 0, 0);
 		this.add(floorMap);
 
-		// create walls tilemap and add on top of floor
 		wallsMap = new FlxTilemap();
 		_wallsCsv = csv;
-		var wallsTileset:Dynamic = "assets/images/autotiles.png";
-		if (hue >= 0)
-		{
-			var srcWalls:BitmapData = FlxAssets.getBitmapData("assets/images/autotiles.png");
-			if (srcWalls != null)
-			{
-				var newWallsBmp:BitmapData = new BitmapData(srcWalls.width, srcWalls.height, true, 0x00000000);
-				newWallsBmp.lock();
-				for (wy in 0...srcWalls.height)
-				{
-					for (wx in 0...srcWalls.width)
-					{
-						var px2:Int = srcWalls.getPixel32(wx, wy);
-						var a2 = (px2 >> 24) & 0xFF;
-						if (a2 == 0)
-						{
-							newWallsBmp.setPixel32(wx, wy, px2);
-							continue;
-						}
-						var rr = ((px2 >> 16) & 0xFF) / 255.0;
-						var gg = ((px2 >> 8) & 0xFF) / 255.0;
-						var bb = (px2 & 0xFF) / 255.0;
-						var maxc2 = Math.max(rr, Math.max(gg, bb));
-						var minc2 = Math.min(rr, Math.min(gg, bb));
-						var ll = (maxc2 + minc2) / 2.0;
-						var ss:Float = 0.0;
-						if (maxc2 != minc2)
-						{
-							ss = (ll < 0.5) ? ((maxc2 - minc2) / (maxc2 + minc2)) : ((maxc2 - minc2) / (2.0 - maxc2 - minc2));
-						}
-						var H2:Float = (hue % 360) / 360.0;
-						var rnew2:Float;
-						var gnew2:Float;
-						var bnew2:Float;
-						if (ss == 0.0)
-						{
-							rnew2 = gnew2 = bnew2 = ll;
-						}
-						else
-						{
-							function hue2rgb2(p:Float, q:Float, t:Float):Float
-							{
-								if (t < 0.0)
-									t += 1.0;
-								if (t > 1.0)
-									t -= 1.0;
-								if (t < 1.0 / 6.0)
-									return p + (q - p) * 6.0 * t;
-								if (t < 1.0 / 2.0)
-									return q;
-								if (t < 2.0 / 3.0)
-									return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
-								return p;
-							}
-							var q2 = (ll < 0.5) ? (ll * (1.0 + ss)) : (ll + ss - ll * ss);
-							var p2 = 2.0 * ll - q2;
-							rnew2 = hue2rgb2(p2, q2, H2 + 1.0 / 3.0);
-							gnew2 = hue2rgb2(p2, q2, H2);
-							bnew2 = hue2rgb2(p2, q2, H2 - 1.0 / 3.0);
-						}
-						var orgb2:Int = ((Std.int(rnew2 * 255) & 0xFF) << 16) | ((Std.int(gnew2 * 255) & 0xFF) << 8) | (Std.int(bnew2 * 255) & 0xFF);
-						newWallsBmp.setPixel32(wx, wy, (a2 << 24) | orgb2);
-					}
-				}
-				newWallsBmp.unlock();
-				wallsTileset = newWallsBmp;
-			}
-		}
-		wallsMap.loadMapFromCSV(csv, wallsTileset, TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.FULL);
-		try
-		{
-			var sh2 = new shaders.HueShift();
-			wallsMap.shader = sh2;
-			(cast wallsMap : Dynamic).hueShader = sh2;
-			// if a hue was provided at generate time (we recolored tilesets), ensure shader receives same hue
-			try
-			{
-				sh2.hue = hue;
-			}
-			catch (e:Dynamic) {}
-		}
-		catch (e:Dynamic) {}
+		wallsMap = new FlxTilemap();
+		var wallsTileset:BitmapData = (hue >= 0) ? getHueColoredBmp("assets/images/autotiles.png",
+			hue) : FlxAssets.getBitmapData("assets/images/autotiles.png");
+		FlxG.bitmapLog.add(wallsTileset);
+		wallsMap.loadMapFromCSV(_wallsCsv, wallsTileset, TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.FULL);
 		this.add(wallsMap);
+	}
+
+	private function getHueColoredBmp(path:String, hue:Int):BitmapData
+	{
+		var src:BitmapData = FlxAssets.getBitmapData(path);
+		if (src == null)
+			throw 'Missing asset: ' + path;
+
+		var radians:Float = (hue % 360) * (Math.PI / 180);
+		var c:Float = Math.cos(radians);
+		var s:Float = Math.sin(radians);
+		var oneMinusC:Float = 1 - c;
+
+		var r0 = c + oneMinusC / 3.0;
+		var r1 = oneMinusC / 3.0 - s;
+		var r2 = oneMinusC / 3.0 + s;
+
+		var sat:Float = 0.85;
+		var lift:Float = 1.06;
+
+		var matrix:Array<Float> = [r0, r1, r2, 0, 0, r2, r0, r1, 0, 0, r1, r2, r0, 0, 0, 0, 0, 0, 1, 0];
+
+		var lumR = 0.299, lumG = 0.587, lumB = 0.114;
+		for (i in 0...3)
+		{
+			var rowStart = i * 5;
+			var rc = matrix[rowStart + 0];
+			var gc = matrix[rowStart + 1];
+			var bc = matrix[rowStart + 2];
+			matrix[rowStart + 0] = lumR * (1 - sat) + rc * sat;
+			matrix[rowStart + 1] = lumG * (1 - sat) + gc * sat;
+			matrix[rowStart + 2] = lumB * (1 - sat) + bc * sat;
+		}
+		matrix[4] = (lift - 1) * 255;
+		matrix[9] = (lift - 1) * 255;
+		matrix[14] = (lift - 1) * 255;
+
+		var hueFilter:ColorMatrixFilter = new ColorMatrixFilter(matrix);
+
+		var result:BitmapData = new BitmapData(src.width, src.height, true, 0x00000000);
+		result.copyPixels(src, src.rect, new Point(0, 0));
+		result.applyFilter(src, src.rect, new Point(0, 0), hueFilter);
+
+		var anyOpaque:Bool = false;
+		for (yy in 0...result.height)
+		{
+			for (xx in 0...result.width)
+			{
+				var px:Int = result.getPixel32(xx, yy);
+				var a:Int = (px >> 24) & 0xFF;
+				if (a != 0)
+				{
+					anyOpaque = true;
+					break;
+				}
+			}
+			if (anyOpaque)
+				break;
+		}
+		if (!anyOpaque)
+			return src;
+		return result;
 	}
 
 	// --- helper: generate a floor CSV using multi-octave value-noise (Perlin-like) ---

@@ -23,7 +23,9 @@ class PlayState extends FlxState
 	public var overCam:FlxCamera;
 	public var hudCam:FlxCamera;
 
-	public var atmosphereHue:FlxColor;
+	public var atmosphereHue:Int;
+
+	// ...existing imports...
 
 	// HUD
 	public var hud:Hud;
@@ -46,10 +48,9 @@ class PlayState extends FlxState
 
 		tilemap = new GameMap();
 		// generate map and recolor tilesets using atmosphereHue before loading tilemaps
+		// We always perform a one-time CPU recolor (tiles are static for the run).
 		tilemap.generate((cast atmosphereHue : Int));
 		add(tilemap);
-		// We rely on the GPU hue shader for recoloring (faster and HTML5-friendly).
-		// Avoid the CPU recolor fallback here (it can cause issues on some targets).
 
 		// fog sprite will be created after entities so it renders on top of the world
 
@@ -85,6 +86,22 @@ class PlayState extends FlxState
 			try
 			{
 				fogShader.hue = (cast atmosphereHue : Int);
+				// tune saturation/value to better match tile recolor (HSV)
+				try
+				{
+					fogShader.sat = 0.7;
+				}
+				catch (e:Dynamic) {}
+				try
+				{
+					fogShader.vDark = 0.18;
+				}
+				catch (e:Dynamic) {}
+				try
+				{
+					fogShader.vLight = 0.60;
+				}
+				catch (e:Dynamic) {}
 			}
 			catch (e:Dynamic) {}
 			fog.cameras = [mainCam];
@@ -98,22 +115,7 @@ class PlayState extends FlxState
 		overCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		overCam.follow(player);
 		super.create();
-		// Ensure hue shader on tilemaps is set (fallback in case generate() didn't set shader hue)
-		try
-		{
-			var hueVal:Float = (cast atmosphereHue : Int);
-			try
-			{
-				(cast tilemap.floorMap : Dynamic).hueShader.hue = hueVal;
-			}
-			catch (e:Dynamic) {}
-			try
-			{
-				(cast tilemap.wallsMap : Dynamic).hueShader.hue = hueVal;
-			}
-			catch (e:Dynamic) {}
-		}
-		catch (e:Dynamic) {}
+		// Hue is static and tiles were recolored above; no runtime tilemap hue shader to set.
 	}
 
 	// ...existing code...
@@ -281,7 +283,9 @@ class PlayState extends FlxState
 				}
 			}
 		}
+
 	}
+
 
 	// spawn enemies into rooms (skip portal room and corridors)
 	private function spawnEnemies():Void
@@ -289,9 +293,10 @@ class PlayState extends FlxState
 		if (tilemap == null || tilemap.roomsInfo == null)
 			return;
 		var TILE_SIZE:Int = Constants.TILE_SIZE;
-		var tilesPerEnemy:Int = 14; // was 18, reduced to increase density (~+20%)
-		var maxPerRoom:Int = 7; // was 6
-		var globalMax:Int = 36; // was 30
+		// increase enemy density: fewer tiles per enemy and higher caps
+		var tilesPerEnemy:Int = 6; // was 14
+		var maxPerRoom:Int = 12; // was 7
+		var globalMax:Int = 240; // increased from 120
 		var totalSpawned:Int = 0;
 
 		// screen-based density cap: no more than 1 enemy per quarter-screen area
@@ -332,7 +337,7 @@ class PlayState extends FlxState
 			if (desired > maxPerRoom)
 				desired = maxPerRoom;
 
-			// Enforce screen-density cap: at most one enemy per quarter-screen area
+			// apply a screen-based cap so we don't overcrowd the visible area
 			var screenCap:Int = 0;
 			if (quarterScreenTiles > 0)
 				screenCap = Std.int(room.area / quarterScreenTiles);
@@ -344,7 +349,7 @@ class PlayState extends FlxState
 			while (placed < desired && attempts < desired * 8 && totalSpawned < globalMax)
 			{
 				attempts++;
-				var tlen:Int = Std.int(room.tiles.length);
+				var tlen:Int = room.tiles.length;
 				if (tlen <= 0)
 					continue;
 				var ti:Int = Std.int(FlxG.random.float() * tlen);
@@ -352,22 +357,21 @@ class PlayState extends FlxState
 					ti = 0;
 				if (ti >= tlen)
 					ti = tlen - 1;
-				var t = room.tiles[ti];
+				var t:Dynamic = room.tiles[ti];
 				if (t == null)
 					continue;
 				var tx:Int = Std.int(t.x);
 				var ty:Int = Std.int(t.y);
-				// avoid portal tile
 				if (tx == tilemap.portalTileX && ty == tilemap.portalTileY)
 					continue;
-				// avoid spawning too close to existing enemies (tile distance < 2)
+
 				var ok:Bool = true;
 				for (existing in enemies.members)
 				{
 					if (existing == null)
 						continue;
-					var ex:Int = Std.int((existing.x + existing.width / 2) / TILE_SIZE);
-					var ey:Int = Std.int((existing.y + existing.height / 2) / TILE_SIZE);
+					var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+					var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
 					if (Math.abs(ex - tx) <= 1 && Math.abs(ey - ty) <= 1)
 					{
 						ok = false;
