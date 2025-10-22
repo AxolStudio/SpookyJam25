@@ -1,5 +1,9 @@
 package;
 
+import Types.TileCoord;
+import Types.Vec2;
+import Types.Rect;
+
 import openfl.geom.Point;
 import openfl.filters.ColorMatrixFilter;
 import flixel.FlxG;
@@ -11,15 +15,31 @@ import flixel.group.FlxGroup;
 import flixel.tile.FlxBaseTilemap.FlxTilemapAutoTiling;
 import flixel.tile.FlxTilemap;
 
+// TreeNode uses shared typedefs from Types.hx (TileCoord, Vec2, Rect)
+// Local typedef for BSP node structure (recursive)
+typedef TreeNode =
+{
+	x:Int,
+	y:Int,
+	w:Int,
+	h:Int,
+	left:TreeNode,
+	right:TreeNode,
+	roomCenter:TileCoord,
+	roomRect:Rect
+};
+
 class GameMap extends FlxGroup
 {
 	public var walkableTiles:Array<Int> = [];
-	public var roomsInfo:Array<RoomInfo> = [];
 
 	public var floorMap:FlxTilemap;
 	public var wallsMap:FlxTilemap;
 	// parsed wall grid (0 = floor, 1 = wall) for CPU-side visibility tests
 	public var wallGrid:Array<Array<Int>>;
+
+	// generated room information after map creation
+	public var roomsInfo:Array<RoomInfo>;
 
 	// store generated CSVs so we can reload tilemaps with recolored bitmaps at runtime
 	private var _floorCsv:String;
@@ -41,8 +61,8 @@ class GameMap extends FlxGroup
 	}
 
 	// Build a debug bitmap where 1px == 1 tile. Colors: black=wall, white=floor, red=enemies, green=player spawn.
-	// Caller should supply player coords (tile) and list of enemies.
-	public function buildDebugBitmap(playerTileX:Int, playerTileY:Int, enemyTiles:Array<Dynamic>):openfl.display.BitmapData
+	// Caller should supply player coords (tile) and list of enemy tile coords.
+	public function buildDebugBitmap(playerTileX:Int, playerTileY:Int, enemyTiles:Array<TileCoord>):openfl.display.BitmapData
 	{
 		if (wallGrid == null || wallGrid.length == 0)
 			throw 'wallGrid not generated';
@@ -90,6 +110,265 @@ class GameMap extends FlxGroup
 		super();
 	}
 
+	// Helper: check if a candidate spawn tile is blocked by portal buffer or nearby enemies
+	private function isSpawnBlocked(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, tx:Int, ty:Int, avoidRadius:Int, minSpacing:Int, TILE_SIZE:Int):Bool
+	{
+		// avoid portal buffer
+		if (Math.abs(tx - this.portalTileX) <= avoidRadius && Math.abs(ty - this.portalTileY) <= avoidRadius)
+			return true;
+		// ensure spacing from existing enemies
+		for (existing in enemies.members)
+		{
+			if (existing == null)
+				continue;
+			var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+			var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
+			if (Math.abs(ex - tx) <= minSpacing && Math.abs(ey - ty) <= minSpacing)
+				return true;
+		}
+		return false;
+	}
+
+	// Spawn enemies into the provided group. This was previously in PlayState; moved
+	// here so the map can control spawn distribution and room/corridor coverage.
+	public function spawnEnemies(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, atmosphereHue:Int):Void
+	{
+		if (this.roomsInfo == null)
+			return;
+		var TILE_SIZE:Int = Constants.TILE_SIZE;
+		var tilesPerEnemy:Int = 5;
+		var maxPerRoom:Int = 15;
+		var globalMax:Int = 300;
+		var totalSpawned:Int = 0;
+
+		var screenTilesW:Int = Std.int(FlxG.width / TILE_SIZE);
+		var screenTilesH:Int = Std.int(FlxG.height / TILE_SIZE);
+		var quarterScreenTiles:Int = Std.int(Math.max(1, (screenTilesW * screenTilesH) / 4));
+
+		var roomOrder:Array<Int> = [];
+		for (ri in 0...this.roomsInfo.length)
+			roomOrder.push(ri);
+		var px:Int = this.portalTileX;
+		var py:Int = this.portalTileY;
+		roomOrder.sort(function(a:Int, b:Int):Int
+		{
+			var ra:RoomInfo = cast this.roomsInfo[a];
+			var rb:RoomInfo = cast this.roomsInfo[b];
+			if (ra == null || rb == null)
+				return 0;
+			var da:Float = Math.pow(ra.centroid.x - px, 2) + Math.pow(ra.centroid.y - px, 2);
+			var db:Float = Math.pow(rb.centroid.x - px, 2) + Math.pow(rb.centroid.y - px, 2);
+			return da < db ? -1 : (da > db ? 1 : 0);
+		});
+
+		for (i in 0...roomOrder.length)
+		{
+			var idx = roomOrder[i];
+			if (totalSpawned >= globalMax)
+				break;
+			var room:RoomInfo = cast this.roomsInfo[idx];
+			if (room == null || room.area <= 0)
+				continue;
+			if (room.isPortal)
+				continue;
+			// allow corridor spawns
+			var desired:Int = 0;
+			if (room.area < 5)
+				desired = 0;
+			else if (room.area < 15)
+				desired = 1;
+			else if (room.area < 30)
+				desired = 2;
+			else if (room.area < 45)
+				desired = 3;
+			else
+				desired = Std.int(room.area / tilesPerEnemy);
+
+			if (desired > maxPerRoom)
+				desired = maxPerRoom;
+
+			var portalDistTiles:Float = Math.pow(room.centroid.x - this.portalTileX, 2) + Math.pow(room.centroid.y - this.portalTileY, 2);
+			if (portalDistTiles <= 144.0)
+			{
+				desired += 2;
+				if (desired > maxPerRoom)
+					desired = maxPerRoom;
+			}
+
+			var screenCap:Int = 0;
+			if (quarterScreenTiles > 0)
+				screenCap = Std.int(room.area / quarterScreenTiles);
+			if (screenCap < desired)
+				desired = screenCap;
+
+			if (room.isCorridor)
+			{
+				var tmpDesired:Int = Std.int(room.area / (tilesPerEnemy * 2));
+				if (tmpDesired < 1)
+					tmpDesired = 1;
+				desired = tmpDesired;
+				if (desired > 3)
+					desired = 3;
+			}
+
+			var attempts:Int = 0;
+			var placed:Int = 0;
+			while (placed < desired && attempts < desired * 8 && totalSpawned < globalMax)
+			{
+				attempts++;
+				var tlen:Int = room.tiles.length;
+				if (tlen <= 0)
+					continue;
+				var ti:Int = Std.int(FlxG.random.float() * tlen);
+				if (ti < 0)
+					ti = 0;
+				if (ti >= tlen)
+					ti = tlen - 1;
+				var t = room.tiles[ti];
+				if (t == null)
+					continue;
+				var tx:Int = Std.int(t.x);
+				var ty:Int = Std.int(t.y);
+				var avoidRadius:Int = 6;
+				var minSpacingTiles:Int = 4;
+				if (isSpawnBlocked(enemies, tx, ty, avoidRadius, minSpacingTiles, TILE_SIZE))
+					continue;
+
+				var variant:String = Enemy.pickVariant();
+				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
+				enemies.add(eObj);
+				try
+				{
+					if (eObj != null)
+						eObj.randomizeBehavior(atmosphereHue);
+				}
+				catch (eDyn:Dynamic) {}
+				placed++;
+				totalSpawned++;
+			}
+		}
+
+		var portalClusterSize:Int = 6;
+		var portalRoom:RoomInfo = cast this.roomsInfo[this.portalRoomIndex];
+		if (portalRoom != null)
+		{
+			var clusterPlaced = 0;
+			var tries = 0;
+			while (clusterPlaced < portalClusterSize && tries < portalClusterSize * 8 && totalSpawned < globalMax)
+			{
+				tries++;
+				var ti:Int = Std.int(FlxG.random.float() * Std.int(portalRoom.tiles.length));
+				if (ti < 0)
+					ti = 0;
+				var prLen:Int = Std.int(portalRoom.tiles.length);
+				if (ti >= prLen)
+					ti = prLen - 1;
+				var t = portalRoom.tiles[ti];
+				if (t == null)
+					continue;
+				var tx:Int = Std.int(t.x);
+				var ty:Int = Std.int(t.y);
+				var avoidRadiusCluster:Int = 6;
+				var minSpacingTiles:Int = 4;
+				if (isSpawnBlocked(enemies, tx, ty, avoidRadiusCluster, minSpacingTiles, TILE_SIZE))
+					continue;
+				var variant:String = Enemy.pickVariant();
+				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
+				enemies.add(eObj);
+				try
+				{
+					if (eObj != null)
+						eObj.randomizeBehavior(atmosphereHue);
+				}
+				catch (d:Dynamic) {}
+				clusterPlaced++;
+				totalSpawned++;
+			}
+		}
+
+		// Coverage pass
+		try
+		{
+			var grid:Array<Array<Int>> = this.wallGrid;
+			if (grid != null && grid.length > 0)
+			{
+				var gridH:Int = grid.length;
+				var gridW:Int = grid[0].length;
+				var cellSize:Int = 10;
+				for (gy in 0...Std.int((gridH + cellSize - 1) / cellSize))
+				{
+					for (gx in 0...Std.int((gridW + cellSize - 1) / cellSize))
+					{
+						var startY = gy * cellSize;
+						var startX = gx * cellSize;
+						var cxTile = startX + Std.int(cellSize / 2);
+						var cyTile = startY + Std.int(cellSize / 2);
+						if (Math.abs(cxTile - this.portalTileX) <= 6 && Math.abs(cyTile - this.portalTileY) <= 6)
+							continue;
+						var hasEnemy:Bool = false;
+						for (existing in enemies.members)
+						{
+							if (existing == null)
+								continue;
+							var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+							var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
+							if (ex >= startX && ex < startX + cellSize && ey >= startY && ey < startY + cellSize)
+							{
+								hasEnemy = true;
+								break;
+							}
+						}
+						if (hasEnemy)
+							continue;
+						var placedInCell:Bool = false;
+						for (yy in startY...Std.int(Math.min(startY + cellSize, gridH)))
+						{
+							for (xx in startX...Std.int(Math.min(startX + cellSize, gridW)))
+							{
+								if (grid[yy][xx] == 0)
+								{
+									var tooClose:Bool = false;
+									if (Math.abs(xx - this.portalTileX) <= 6 && Math.abs(yy - this.portalTileY) <= 6)
+										tooClose = true;
+									for (existing in enemies.members)
+									{
+										if (existing == null)
+											continue;
+										var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+										var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
+										if (Math.abs(ex - xx) <= 4 && Math.abs(ey - yy) <= 4)
+										{
+											tooClose = true;
+											break;
+										}
+									}
+									if (!tooClose && totalSpawned < globalMax)
+									{
+										var variant:String = Enemy.pickVariant();
+										var eObj:Enemy = new Enemy(xx * TILE_SIZE, yy * TILE_SIZE, variant);
+										enemies.add(eObj);
+										try
+										{
+											if (eObj != null)
+												eObj.randomizeBehavior(atmosphereHue);
+										}
+										catch (d:Dynamic) {}
+										placedInCell = true;
+										totalSpawned++;
+										break;
+									}
+								}
+							}
+							if (placedInCell)
+								break;
+						}
+					}
+				}
+			}
+		}
+		catch (e:Dynamic) {}
+	}
+
 	// generate map; optional hue parameter (0..359). If hue >= 0, recolor floor/autotile bitmaps
 	// before creating tilemaps so the tilesets themselves are tinted at load time.
 	public function generate(hue:Int = -1):Void
@@ -118,8 +397,8 @@ class GameMap extends FlxGroup
 		if (targetLeaves < 20)
 			targetLeaves = 24;
 
-		var leaves:Array<Dynamic> = [];
-		var root:Dynamic = {
+		var leaves:Array<TreeNode> = [];
+		var root:TreeNode = {
 			x: 2,
 			y: 2,
 			w: totalW - 4,
@@ -182,7 +461,7 @@ class GameMap extends FlxGroup
 				};
 				node.left = a;
 				node.right = b;
-				var newL:Array<Dynamic> = [];
+				var newL:Array<TreeNode> = [];
 				for (j in 0...pick)
 					newL.push(leaves[j]);
 				newL.push(a);
@@ -216,7 +495,7 @@ class GameMap extends FlxGroup
 				};
 				node.left = a2;
 				node.right = b2;
-				var newL2:Array<Dynamic> = [];
+				var newL2:Array<TreeNode> = [];
 				for (j in 0...pick)
 					newL2.push(leaves[j]);
 				newL2.push(a2);
@@ -330,7 +609,7 @@ class GameMap extends FlxGroup
 				h: rH
 			};
 
-			var tilesList:Array<Dynamic> = [];
+			var tilesList:Array<TileCoord> = [];
 			var by0:Int = Std.int(Math.max(0, ry - 1));
 			var by1:Int = Std.int(Math.min(totalH, ry + rH + 1));
 			var bx0:Int = Std.int(Math.max(0, rx - 1));
@@ -411,26 +690,26 @@ class GameMap extends FlxGroup
 		}
 
 		// traverse tree and connect child rooms
-		function connectNode(node:Dynamic):Void
+		function connectNode(node:TreeNode):Void
 		{
 			if (node == null)
 				return;
 			if (node.left != null && node.right != null)
 			{
 				// find nearest room center in left subtree and right subtree
-				function findCenter(n:Dynamic):Dynamic
+				function findCenter(n:TreeNode):TileCoord
 				{
 					if (n == null)
 						return null;
 					if (n.roomCenter != null)
 						return n.roomCenter;
-					var l:Dynamic = findCenter(n.left);
+					var l:TileCoord = findCenter(n.left);
 					if (l != null)
 						return l;
 					return findCenter(n.right);
 				}
-				var a = findCenter(node.left);
-				var b = findCenter(node.right);
+				var a:TileCoord = findCenter(node.left);
+				var b:TileCoord = findCenter(node.right);
 				if (a != null && b != null)
 				{
 					var w = Std.int(3 + Std.int(FlxG.random.float() * 6));
@@ -498,7 +777,7 @@ class GameMap extends FlxGroup
 			comp.push(crow);
 		}
 
-		var comps:Array<Array<Dynamic>> = [];
+		var comps:Array<Array<TileCoord>> = [];
 		var cid:Int = 0;
 		for (yy in 0...totalH)
 		{
@@ -507,10 +786,10 @@ class GameMap extends FlxGroup
 				if (M[yy][xx] != 0 || comp[yy][xx] != -1)
 					continue;
 				// flood-fill / BFS stack
-				var stack:Array<Dynamic> = [];
+				var stack:Array<TileCoord> = [];
 				stack.push({x: xx, y: yy});
 				comp[yy][xx] = cid;
-				var list:Array<Dynamic> = [];
+				var list:Array<TileCoord> = [];
 				while (stack.length > 0)
 				{
 					var cur = stack.pop();
@@ -685,7 +964,7 @@ class GameMap extends FlxGroup
 					crow2.push(-1);
 				comp2.push(crow2);
 			}
-			var comps2:Array<Array<Dynamic>> = [];
+			var comps2:Array<Array<TileCoord>> = [];
 			var cid2:Int = 0;
 			for (yy in 0...totalH)
 			{
@@ -693,10 +972,10 @@ class GameMap extends FlxGroup
 				{
 					if (M[yy][xx] != 0 || comp2[yy][xx] != -1)
 						continue;
-					var stack2:Array<Dynamic> = [];
+					var stack2:Array<TileCoord> = [];
 					stack2.push({x: xx, y: yy});
 					comp2[yy][xx] = cid2;
-					var list2:Array<Dynamic> = [];
+					var list2:Array<TileCoord> = [];
 					while (stack2.length > 0)
 					{
 						var cur2 = stack2.pop();
@@ -880,7 +1159,7 @@ class GameMap extends FlxGroup
 			var r:RoomInfo = roomsInfo[ri];
 			if (r == null)
 				continue;
-			var newTiles:Array<Dynamic> = [];
+			var newTiles:Array<TileCoord> = [];
 			for (t in r.tiles)
 			{
 				if (t == null)
@@ -993,7 +1272,7 @@ class GameMap extends FlxGroup
 			if (room.tiles.length > 0)
 			{
 				// prefer tiles with 1-tile clearance (all 8 neighbors are floor)
-				var clearance:Array<Dynamic> = [];
+				var clearance:Array<TileCoord> = [];
 				for (t in room.tiles)
 				{
 					var x0:Int = Std.int(t.x);
@@ -1018,7 +1297,7 @@ class GameMap extends FlxGroup
 					if (ok)
 						clearance.push({x: x0, y: y0});
 				}
-				var pickTile:Dynamic = null;
+				var pickTile:TileCoord = null;
 				if (clearance.length > 0)
 				{
 					var ci:Int = Std.int(FlxG.random.float() * clearance.length);
@@ -1293,14 +1572,14 @@ class GameMap extends FlxGroup
 
 class RoomInfo
 {
-	public var tiles:Array<Dynamic>;
+	public var tiles:Array<TileCoord>;
 	public var area:Int;
-	public var centroid:Dynamic;
-	public var bbox:Dynamic;
+	public var centroid:Vec2;
+	public var bbox:Rect;
 	public var isCorridor:Bool;
 	public var isPortal:Bool;
 
-	public function new(tiles:Array<Dynamic>, area:Int, centroid:Dynamic, bbox:Dynamic, isCorridor:Bool)
+	public function new(tiles:Array<TileCoord>, area:Int, centroid:Vec2, bbox:Rect, isCorridor:Bool)
 	{
 		this.tiles = tiles;
 		this.area = area;
