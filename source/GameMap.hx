@@ -206,6 +206,17 @@ class GameMap extends FlxGroup
 				if (desired > maxPerRoom)
 					desired = maxPerRoom;
 			}
+			// bias towards player if provided
+			if (playerTileX >= 0 && playerTileY >= 0)
+			{
+				var playerDistTiles:Float = Math.pow(room.centroid.x - playerTileX, 2) + Math.pow(room.centroid.y - playerTileY, 2);
+				if (playerDistTiles <= 144.0)
+				{
+					desired += 1;
+					if (desired > maxPerRoom)
+						desired = maxPerRoom;
+				}
+			}
 
 			var screenCap:Int = 0;
 			if (quarterScreenTiles > 0)
