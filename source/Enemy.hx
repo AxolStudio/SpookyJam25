@@ -324,20 +324,9 @@ class Enemy extends GameObject
 			acceleration.set(0, 0);
 			return;
 		}
-		// don't run AI for offscreen enemies to save CPU and avoid surprise spawns
-		try
-		{
-			var cam = FlxG.camera;
-			if (cam != null)
-			{
-				var screenX:Float = (x + width * 0.5) - cam.scroll.x;
-				var screenY:Float = (y + height * 0.5) - cam.scroll.y;
-				var margin:Float = 32.0; // pixels offscreen tolerance
-				if (screenX < -margin || screenY < -margin || screenX > cam.width + margin || screenY > cam.height + margin)
-					return;
-			}
-		}
-		catch (e:Dynamic) {}
+		// skip AI when offscreen to save CPU
+		if (ai.EnemyAI.isOffscreen(this))
+			return;
 		// if we are pursuing through the player's position, continue toward the through-target
 		if (_pursuingThrough)
 		{

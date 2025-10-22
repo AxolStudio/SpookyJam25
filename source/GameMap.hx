@@ -133,7 +133,8 @@ class GameMap extends FlxGroup
 
 	// Spawn enemies into the provided group. This was previously in PlayState; moved
 	// here so the map can control spawn distribution and room/corridor coverage.
-	public function spawnEnemies(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, atmosphereHue:Int):Void
+	// Optionally accept player tile coords to bias spawn distribution toward player and portal
+	public function spawnEnemies(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, atmosphereHue:Int, ?playerTileX:Int = -1, ?playerTileY:Int = -1):Void
 	{
 		if (this.roomsInfo == null)
 			return;
@@ -152,14 +153,23 @@ class GameMap extends FlxGroup
 			roomOrder.push(ri);
 		var px:Int = this.portalTileX;
 		var py:Int = this.portalTileY;
+		var ppx:Int = playerTileX;
+		var ppy:Int = playerTileY;
 		roomOrder.sort(function(a:Int, b:Int):Int
 		{
 			var ra:RoomInfo = cast this.roomsInfo[a];
 			var rb:RoomInfo = cast this.roomsInfo[b];
 			if (ra == null || rb == null)
 				return 0;
-			var da:Float = Math.pow(ra.centroid.x - px, 2) + Math.pow(ra.centroid.y - px, 2);
-			var db:Float = Math.pow(rb.centroid.x - px, 2) + Math.pow(rb.centroid.y - px, 2);
+			// distance squared to portal
+			var da_portal:Float = Math.pow(ra.centroid.x - px, 2) + Math.pow(ra.centroid.y - py, 2);
+			var db_portal:Float = Math.pow(rb.centroid.x - px, 2) + Math.pow(rb.centroid.y - py, 2);
+			// optionally include distance to player with moderate weighting
+			var da_player:Float = (ppx >= 0 && ppy >= 0) ? (Math.pow(ra.centroid.x - ppx, 2) + Math.pow(ra.centroid.y - ppy, 2)) : 0;
+			var db_player:Float = (ppx >= 0 && ppy >= 0) ? (Math.pow(rb.centroid.x - ppx, 2) + Math.pow(rb.centroid.y - ppy, 2)) : 0;
+			// combined score: favor rooms close to portal and player (lower score = higher priority)
+			var da:Float = da_portal * 0.7 + da_player * 0.3;
+			var db:Float = db_portal * 0.7 + db_player * 0.3;
 			return da < db ? -1 : (da > db ? 1 : 0);
 		});
 

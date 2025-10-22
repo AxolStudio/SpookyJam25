@@ -44,9 +44,9 @@ class PlayState extends FlxState
 		add(player);
 		enemies = new FlxTypedGroup<Enemy>();
 		add(enemies);
-		// defensive: only spawn if tilemap is present
+		// defensive: only spawn if tilemap is present; pass player's tile coords to bias spawn
 		if (tilemap != null)
-			tilemap.spawnEnemies(enemies, atmosphereHue);
+			tilemap.spawnEnemies(enemies, atmosphereHue, Std.int(player.x / Constants.TILE_SIZE), Std.int(player.y / Constants.TILE_SIZE));
 		reticle = new Reticle(player);
 		add(reticle);
 		hud = new Hud(player);
