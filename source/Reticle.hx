@@ -138,13 +138,22 @@ class Reticle extends FlxSprite
 			// Prefer FlxG.mouse.getWorldPosition(cam) if available (handles viewport & zoom)
 			var mx:Float;
 			var my:Float;
+			// prefer FlxG.mouse.getWorldPosition(cam) if available (handles viewport & zoom)
+			var p = null;
 			try
 			{
-				var p = FlxG.mouse.getWorldPosition(cam);
+				p = FlxG.mouse.getWorldPosition(cam);
+			}
+			catch (e:Dynamic)
+			{
+				p = null;
+			}
+			if (p != null)
+			{
 				mx = p.x;
 				my = p.y;
 			}
-			catch (e:Dynamic)
+			else
 			{
 				// fallback: manually convert view coords for the provided camera
 				mx = cam.scroll.x + (FlxG.mouse.viewX - cam.x) / cam.zoom;

@@ -8,7 +8,9 @@ import openfl.geom.Point;
 import openfl.filters.ColorMatrixFilter;
 import flixel.FlxG;
 import flixel.system.FlxAssets;
+import flixel.math.FlxPoint;
 import openfl.display.BitmapData;
+import MapGenHelpers;
 // no explicit Reflect import needed
 import flixel.addons.tile.FlxCaveGenerator;
 import flixel.group.FlxGroup;
@@ -237,12 +239,8 @@ class GameMap extends FlxGroup
 				var variant:String = Enemy.pickVariant();
 				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
 				enemies.add(eObj);
-				try
-				{
-					if (eObj != null)
-						eObj.randomizeBehavior(atmosphereHue);
-				}
-				catch (eDyn:Dynamic) {}
+				if (eObj != null)
+					eObj.randomizeBehavior(atmosphereHue);
 				placed++;
 				totalSpawned++;
 			}
@@ -275,12 +273,8 @@ class GameMap extends FlxGroup
 				var variant:String = Enemy.pickVariant();
 				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
 				enemies.add(eObj);
-				try
-				{
-					if (eObj != null)
-						eObj.randomizeBehavior(atmosphereHue);
-				}
-				catch (d:Dynamic) {}
+				if (eObj != null)
+					eObj.randomizeBehavior(atmosphereHue);
 				clusterPlaced++;
 				totalSpawned++;
 			}
@@ -347,12 +341,8 @@ class GameMap extends FlxGroup
 										var variant:String = Enemy.pickVariant();
 										var eObj:Enemy = new Enemy(xx * TILE_SIZE, yy * TILE_SIZE, variant);
 										enemies.add(eObj);
-										try
-										{
-											if (eObj != null)
-												eObj.randomizeBehavior(atmosphereHue);
-										}
-										catch (d:Dynamic) {}
+										if (eObj != null)
+											eObj.randomizeBehavior(atmosphereHue);
 										placedInCell = true;
 										totalSpawned++;
 										break;
@@ -640,89 +630,12 @@ class GameMap extends FlxGroup
 		}
 
 		// crooked corridor drawer
-		function carveCrooked(x1:Int, y1:Int, x2:Int, y2:Int, width:Int, depth:Int):Void
-		{
-			if (depth > 8)
-				return;
-			var dx = x2 - x1;
-			var dy = y2 - y1;
-			var dist = Math.sqrt(dx * dx + dy * dy);
-			if (dist < 1)
-				return;
-			if (dist <= 6)
-			{
-				var steps = Std.int(Math.max(1, dist));
-				for (s in 0...steps + 1)
-				{
-					var t:Float = s / Math.max(1, steps);
-					var fx = Std.int(x1 + dx * t);
-					var fy = Std.int(y1 + dy * t);
-					var r = Std.int(Math.max(1, Std.int(width / 2)));
-					for (oy in -r...r + 1)
-						for (ox in -r...r + 1)
-						{
-							var nx = fx + ox;
-							var ny = fy + oy;
-							if (nx <= 0 || ny <= 0 || nx >= totalW - 1 || ny >= totalH - 1)
-								continue;
-							if (ox * ox + oy * oy <= r * r)
-								M[ny][nx] = 0;
-						}
-				}
-				return;
-			}
-
-			var mx = (x1 + x2) / 2.0 + (FlxG.random.float() - 0.5) * dist * 0.6;
-			var my = (y1 + y2) / 2.0 + (FlxG.random.float() - 0.5) * dist * 0.6;
-			var mxi = Std.int(mx);
-			var myi = Std.int(my);
-			carveCrooked(x1, y1, mxi, myi, width, depth + 1);
-			carveCrooked(mxi, myi, x2, y2, width, depth + 1);
-
-			// increase chance of branching corridors for a more connected, curvy network
-			if (FlxG.random.float() < 0.55 && depth < 7)
-			{
-				var bx = Std.int(mxi + (FlxG.random.float() - 0.5) * dist * 0.5);
-				var by = Std.int(myi + (FlxG.random.float() - 0.5) * dist * 0.5);
-				var bw = Std.int(2 + Std.int(FlxG.random.float() * 3));
-				carveCrooked(mxi, myi, bx, by, bw, depth + 1);
-			}
-		}
+		// carving functions moved to MapGenHelpers
 
 		// traverse tree and connect child rooms
-		function connectNode(node:TreeNode):Void
-		{
-			if (node == null)
-				return;
-			if (node.left != null && node.right != null)
-			{
-				// find nearest room center in left subtree and right subtree
-				function findCenter(n:TreeNode):TileCoord
-				{
-					if (n == null)
-						return null;
-					if (n.roomCenter != null)
-						return n.roomCenter;
-					var l:TileCoord = findCenter(n.left);
-					if (l != null)
-						return l;
-					return findCenter(n.right);
-				}
-				var a:TileCoord = findCenter(node.left);
-				var b:TileCoord = findCenter(node.right);
-				if (a != null && b != null)
-				{
-					var w = Std.int(3 + Std.int(FlxG.random.float() * 6));
-					carveCrooked(a.x, a.y, b.x, b.y, w, 0);
-				}
-			}
-			if (node.left != null)
-				connectNode(node.left);
-			if (node.right != null)
-				connectNode(node.right);
-		}
+		// connectNode and findCenter moved to MapGenHelpers
 
-		connectNode(root);
+		MapGenHelpers.connectNode(M, root);
 
 		// smoothing
 		for (iter in 0...2)
@@ -785,27 +698,34 @@ class GameMap extends FlxGroup
 			{
 				if (M[yy][xx] != 0 || comp[yy][xx] != -1)
 					continue;
-				// flood-fill / BFS stack
-				var stack:Array<TileCoord> = [];
-				stack.push({x: xx, y: yy});
+				// flood-fill / BFS stack (use pooled FlxPoint for temporaries)
+				var stack:Array<FlxPoint> = [];
+				var p0:FlxPoint = FlxPoint.get(xx, yy);
+				stack.push(p0);
 				comp[yy][xx] = cid;
 				var list:Array<TileCoord> = [];
 				while (stack.length > 0)
 				{
-					var cur = stack.pop();
-					list.push(cur);
+					var curP:FlxPoint = stack.pop();
+					var curX:Int = Std.int(curP.x);
+					var curY:Int = Std.int(curP.y);
+					// record as TileCoord for RoomInfo
+					list.push({x: curX, y: curY});
+					// return point to pool
+					curP.put();
 					var dxs:Array<Int> = [-1, 1, 0, 0];
 					var dys:Array<Int> = [0, 0, -1, 1];
 					for (k in 0...4)
 					{
-						var nx:Int = cur.x + dxs[k];
-						var ny:Int = cur.y + dys[k];
+						var nx:Int = curX + dxs[k];
+						var ny:Int = curY + dys[k];
 						if (nx < 0 || ny < 0 || nx >= totalW || ny >= totalH)
 							continue;
 						if (M[ny][nx] == 0 && comp[ny][nx] == -1)
 						{
 							comp[ny][nx] = cid;
-							stack.push({x: nx, y: ny});
+							var np:FlxPoint = FlxPoint.get(nx, ny);
+							stack.push(np);
 						}
 					}
 				}
@@ -951,7 +871,7 @@ class GameMap extends FlxGroup
 
 				// carve a small crooked tunnel between src and tgt
 				var w:Int = 2 + Std.int(FlxG.random.float() * 3); // width 2..4
-				carveCrooked(srcX, srcY, tgtX, tgtY, w, 0);
+				MapGenHelpers.carveCrooked(M, srcX, srcY, tgtX, tgtY, w, 0);
 			}
 
 			// After attempting repairs, recompute components so we can fill any remaining orphans
@@ -972,26 +892,31 @@ class GameMap extends FlxGroup
 				{
 					if (M[yy][xx] != 0 || comp2[yy][xx] != -1)
 						continue;
-					var stack2:Array<TileCoord> = [];
-					stack2.push({x: xx, y: yy});
+					var stack2:Array<FlxPoint> = [];
+					var p02:FlxPoint = FlxPoint.get(xx, yy);
+					stack2.push(p02);
 					comp2[yy][xx] = cid2;
 					var list2:Array<TileCoord> = [];
 					while (stack2.length > 0)
 					{
-						var cur2 = stack2.pop();
-						list2.push(cur2);
+						var cur2P:FlxPoint = stack2.pop();
+						var cur2X:Int = Std.int(cur2P.x);
+						var cur2Y:Int = Std.int(cur2P.y);
+						list2.push({x: cur2X, y: cur2Y});
+						cur2P.put();
 						var dxs2:Array<Int> = [-1, 1, 0, 0];
 						var dys2:Array<Int> = [0, 0, -1, 1];
 						for (k2 in 0...4)
 						{
-							var nx2:Int = cur2.x + dxs2[k2];
-							var ny2:Int = cur2.y + dys2[k2];
+							var nx2:Int = cur2X + dxs2[k2];
+							var ny2:Int = cur2Y + dys2[k2];
 							if (nx2 < 0 || ny2 < 0 || nx2 >= totalW || ny2 >= totalH)
 								continue;
 							if (M[ny2][nx2] == 0 && comp2[ny2][nx2] == -1)
 							{
 								comp2[ny2][nx2] = cid2;
-								stack2.push({x: nx2, y: ny2});
+								var np2:FlxPoint = FlxPoint.get(nx2, ny2);
+								stack2.push(np2);
 							}
 						}
 					}
@@ -1093,7 +1018,7 @@ class GameMap extends FlxGroup
 				var ty:Int = Std.int(Math.max(1, Math.min(totalH - 2, Math.round(rb2.centroid.y))));
 				// carve a crooked tunnel; occasionally carve two parallel tunnels for redundancy
 				var width1:Int = 2 + Std.int(FlxG.random.float() * 3);
-				carveCrooked(sx, sy, tx, ty, width1, 0);
+				MapGenHelpers.carveCrooked(M, sx, sy, tx, ty, width1, 0);
 				if (FlxG.random.float() < 0.25)
 				{
 					var width2:Int = 1 + Std.int(FlxG.random.float() * 3);
@@ -1106,7 +1031,7 @@ class GameMap extends FlxGroup
 					var ay:Int = Std.int(Math.max(1, sy + offAy));
 					var bx:Int = Std.int(Math.max(1, tx + offBx));
 					var by:Int = Std.int(Math.max(1, ty + offBy));
-					carveCrooked(ax, ay, bx, by, width2, 0);
+					MapGenHelpers.carveCrooked(M, ax, ay, bx, by, width2, 0);
 				}
 			}
 		}
@@ -1147,7 +1072,7 @@ class GameMap extends FlxGroup
 				}
 				// optionally, connect the pocket back to the room centroid with a short crooked path
 				if (FlxG.random.float() < 0.9)
-					carveCrooked(cx, cy, cx + Std.int((FlxG.random.float() - 0.5) * 6), cy + Std.int((FlxG.random.float() - 0.5) * 6), 2, 0);
+					MapGenHelpers.carveCrooked(M, cx, cy, cx + Std.int((FlxG.random.float() - 0.5) * 6), cy + Std.int((FlxG.random.float() - 0.5) * 6), 2, 0);
 			}
 		}
 

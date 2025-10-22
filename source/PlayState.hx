@@ -44,11 +44,9 @@ class PlayState extends FlxState
 		add(player);
 		enemies = new FlxTypedGroup<Enemy>();
 		add(enemies);
-		try
-		{
+		// defensive: only spawn if tilemap is present
+		if (tilemap != null)
 			tilemap.spawnEnemies(enemies, atmosphereHue);
-		}
-		catch (e:Dynamic) {}
 		reticle = new Reticle(player);
 		add(reticle);
 		hud = new Hud(player);
@@ -56,11 +54,8 @@ class PlayState extends FlxState
 		tilemap.cameras = player.cameras = enemies.cameras = [mainCam];
 		reticle.cameras = [overCam];
 		hud.cameras = [hudCam];
-		try
-		{
-			setupFog();
-		}
-		catch (e:Dynamic) {}
+		// setupFog should exist on this class; call directly
+		setupFog();
 		mainCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		mainCam.follow(player);
 		overCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
@@ -92,82 +87,69 @@ class PlayState extends FlxState
 		super.update(elapsed);
 		FlxG.collide(player, tilemap.wallsMap);
 		FlxG.collide(enemies, tilemap.wallsMap);
-		try
+		if (fogShader != null && player != null)
 		{
-			if (fogShader != null && player != null)
+			fogShader.time += elapsed;
+			var cam = mainCam;
+			var screenX = (player.x + player.width * 0.5) - cam.scroll.x;
+			var screenY = (player.y + player.height * 0.5) - cam.scroll.y;
+			fogShader.playerX = FlxMath.bound(screenX / cam.width, 0.0, 1.0);
+			fogShader.playerY = FlxMath.bound(screenY / cam.height, 0.0, 1.0);
+			var camMin:Float = Math.min(cam.width, cam.height);
+			fogShader.scaleX = cam.width / camMin;
+			fogShader.scaleY = cam.height / camMin;
+			var radiusPixels = Std.int(cam.height / 3.0);
+			fogShader.innerRadius = (radiusPixels * 0.66) / camMin;
+			fogShader.outerRadius = (radiusPixels) / camMin;
+
+			if (tilemap != null && (cast tilemap : GameMap).wallGrid != null)
 			{
-				fogShader.time += elapsed;
-				var cam = mainCam;
-				var screenX = (player.x + player.width * 0.5) - cam.scroll.x;
-				var screenY = (player.y + player.height * 0.5) - cam.scroll.y;
-				fogShader.playerX = FlxMath.bound(screenX / cam.width, 0.0, 1.0);
-				fogShader.playerY = FlxMath.bound(screenY / cam.height, 0.0, 1.0);
-				var camMin:Float = Math.min(cam.width, cam.height);
-				fogShader.scaleX = cam.width / camMin;
-				fogShader.scaleY = cam.height / camMin;
-				var radiusPixels = Std.int(cam.height / 3.0);
-				fogShader.innerRadius = (radiusPixels * 0.66) / camMin;
-				fogShader.outerRadius = (radiusPixels) / camMin;
-
-				if (tilemap != null && (cast tilemap : GameMap).wallGrid != null)
+				if (_visibilityMask == null)
+					_visibilityMask = new VisibilityMask((cast tilemap : GameMap).wallGrid, Constants.TILE_SIZE, 1.0, false);
+				var mask:VisibilityMask = _visibilityMask;
+				var worldPX = player.x + player.width * 0.5;
+				var worldPY = player.y + player.height * 0.5;
+				var needRebuild:Bool = true;
+				var moveThreshold:Float = 1.0;
+				if (_lastMaskBmp != null)
 				{
-					if (_visibilityMask == null)
-						_visibilityMask = new VisibilityMask((cast tilemap : GameMap).wallGrid, Constants.TILE_SIZE, 1.0, false);
-					var mask:VisibilityMask = _visibilityMask;
-					var worldPX = player.x + player.width * 0.5;
-					var worldPY = player.y + player.height * 0.5;
-					var needRebuild:Bool = true;
-					var moveThreshold:Float = 1.0;
-					if (_lastMaskBmp != null)
-					{
-						var dx = Math.abs(_lastPlayerX - worldPX);
-						var dy = Math.abs(_lastPlayerY - worldPY);
-						if ((_maskAge < _maskMaxAge) && dx <= moveThreshold && dy <= moveThreshold)
-							needRebuild = false;
-					}
-
-					var bmp:openfl.display.BitmapData;
-					if (!needRebuild)
-					{
-						bmp = _lastMaskBmp;
-						_maskAge++;
-					}
-					else
-					{
-						bmp = mask.buildMask(cam, worldPX, worldPY);
-						_lastMaskBmp = bmp;
-						_maskAge = 0;
-						_lastPlayerX = worldPX;
-						_lastPlayerY = worldPY;
-					}
-					if (bmp.width != Std.int(cam.width) || bmp.height != Std.int(cam.height))
-					{
-						var full = shaders.VisibilityHelpers.scaleMaskTo(Std.int(cam.width), Std.int(cam.height), bmp, mask.maskScale);
-						try
-						{
-							fog.pixels = full;
-						}
-						catch (e:Dynamic) {}
-						shaders.VisibilityHelpers.setFogMaskTexel(fogShader, full);
-					}
-					else
-					{
-						try
-						{
-							fog.pixels = bmp;
-						}
-						catch (e:Dynamic) {}
-						shaders.VisibilityHelpers.setFogMaskTexel(fogShader, bmp);
-					}
-					try
-					{
-						fog.dirty = true;
-					}
-					catch (e:Dynamic) {}
+					var dx = Math.abs(_lastPlayerX - worldPX);
+					var dy = Math.abs(_lastPlayerY - worldPY);
+					if ((_maskAge < _maskMaxAge) && dx <= moveThreshold && dy <= moveThreshold)
+						needRebuild = false;
 				}
+
+				var bmp:openfl.display.BitmapData;
+				if (!needRebuild)
+				{
+					bmp = _lastMaskBmp;
+					_maskAge++;
+				}
+				else
+				{
+					bmp = mask.buildMask(cam, worldPX, worldPY);
+					_lastMaskBmp = bmp;
+					_maskAge = 0;
+					_lastPlayerX = worldPX;
+					_lastPlayerY = worldPY;
+				}
+				if (bmp.width != Std.int(cam.width) || bmp.height != Std.int(cam.height))
+				{
+					var full = shaders.VisibilityHelpers.scaleMaskTo(Std.int(cam.width), Std.int(cam.height), bmp, mask.maskScale);
+					if (fog != null && full != null)
+						fog.pixels = full;
+					shaders.VisibilityHelpers.setFogMaskTexel(fogShader, full);
+				}
+				else
+				{
+					if (fog != null && bmp != null)
+						fog.pixels = bmp;
+					shaders.VisibilityHelpers.setFogMaskTexel(fogShader, bmp);
+				}
+				if (fog != null)
+					fog.dirty = true;
 			}
 		}
-		catch (e:Dynamic) {}
 	}
 
 	private function playerMovement(elapsed:Float):Void

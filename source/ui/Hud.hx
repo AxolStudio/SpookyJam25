@@ -78,31 +78,27 @@ class Hud extends FlxGroup
 	override public function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
-		try
+		if (filmText != null && player != null)
+			filmText.text = Std.string(player.film);
+		if (player != null)
 		{
-			if (filmText != null && player != null)
-				filmText.text = Std.string(player.film);
-			if (player != null)
+			var val:Float = Constants.PHOTO_COOLDOWN - player.photoCooldown;
+			if (val < 0)
+				val = 0;
+			if (val > Constants.PHOTO_COOLDOWN)
+				val = Constants.PHOTO_COOLDOWN;
+			// Smoothly tween the yellow bar towards the target value
+			if (cooldownBarYellow != null)
 			{
-				var val:Float = Constants.PHOTO_COOLDOWN - player.photoCooldown;
-				if (val < 0)
-					val = 0;
-				if (val > Constants.PHOTO_COOLDOWN)
-					val = Constants.PHOTO_COOLDOWN;
-				// Smoothly tween the yellow bar towards the target value
-				if (cooldownBarYellow != null)
+				if (Math.abs(cooldownTarget - val) > 0.01)
 				{
-					if (Math.abs(cooldownTarget - val) > 0.01)
-					{
-						cooldownTarget = val;
-						// cancel any existing tween by starting a new one on the same target
-						FlxTween.tween(cooldownBarYellow, {value: cooldownTarget}, 0.18, {ease: FlxEase.quadOut});
-					}
+					cooldownTarget = val;
+					// cancel any existing tween by starting a new one on the same target
+					FlxTween.tween(cooldownBarYellow, {value: cooldownTarget}, 0.18, {ease: FlxEase.quadOut});
 				}
-				if (cooldownBarWhite != null)
-					cooldownBarWhite.visible = (val >= Constants.PHOTO_COOLDOWN);
 			}
+			if (cooldownBarWhite != null)
+				cooldownBarWhite.visible = (val >= Constants.PHOTO_COOLDOWN);
 		}
-		catch (e:Dynamic) {}
 	}
 }

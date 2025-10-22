@@ -75,13 +75,9 @@ class Player extends GameObject
 		var dirNames = ["up_left", "up", "up_right", "left", "right", "down_left", "down", "down_right"];
 		var animName = "walk_" + dirNames[dir];
 		var curName:String = "";
-		try
+		if (animation != null && animation.curAnim != null)
 		{
-			curName = animation.curAnim != null ? animation.curAnim.name : "";
-		}
-		catch (e:Dynamic)
-		{
-			curName = "";
+			curName = animation.curAnim.name;
 		}
 		if (curName != animName)
 		{
@@ -94,18 +90,12 @@ class Player extends GameObject
 	{
 		super.stop();
 		// stop animation and show the stopped frame for current direction
-		try
-		{
+		if (animation != null)
 			animation.stop();
-		}
-		catch (e:Dynamic) {}
 		// play the idle animation for currentDir so the correct stopped frame shows
 		var idleName = "idle_" + ["up_left", "up", "up_right", "left", "right", "down_left", "down", "down_right"][currentDir];
-		try
-		{
+		if (animation != null)
 			animation.play(idleName);
-		}
-		catch (e:Dynamic) {}
 	}
 	public override function update(elapsed:Float):Void
 	{
