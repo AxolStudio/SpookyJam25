@@ -250,7 +250,29 @@ class GameMap extends FlxGroup
 				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
 				enemies.add(eObj);
 				if (eObj != null)
+				{
 					eObj.randomizeBehavior(atmosphereHue);
+					// small extra variability: occasional extreme/aggressive or skittish variants
+					var rv:Float = FlxG.random.float();
+					if (rv < 0.10)
+					{
+						// aggressive runner
+						eObj.aggression = Math.min(1.0, eObj.aggression + 0.4 + FlxG.random.float() * 0.4);
+						eObj.wanderSpeed *= 1.4 + FlxG.random.float() * 0.6;
+					}
+					else if (rv < 0.20)
+					{
+						// skittish and erratic
+						eObj.skittishness = Math.min(1.0, eObj.skittishness + 0.35 + FlxG.random.float() * 0.5);
+						eObj.wanderSpeed *= 0.6 + FlxG.random.float() * 0.6;
+					}
+					else
+					{
+						// normal small speed jitter
+						eObj.wanderSpeed *= 0.85 + FlxG.random.float() * 0.4;
+						eObj.speed = eObj.wanderSpeed;
+					}
+				}
 				placed++;
 				totalSpawned++;
 			}
@@ -284,7 +306,22 @@ class GameMap extends FlxGroup
 				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
 				enemies.add(eObj);
 				if (eObj != null)
+				{
 					eObj.randomizeBehavior(atmosphereHue);
+					var rv2:Float = FlxG.random.float();
+					if (rv2 < 0.12)
+					{
+						eObj.aggression = Math.min(1.0, eObj.aggression + 0.35 + FlxG.random.float() * 0.35);
+						eObj.wanderSpeed *= 1.2 + FlxG.random.float() * 0.6;
+					}
+					else if (rv2 < 0.22)
+					{
+						eObj.skittishness = Math.min(1.0, eObj.skittishness + 0.3 + FlxG.random.float() * 0.5);
+						eObj.wanderSpeed *= 0.7 + FlxG.random.float() * 0.4;
+					}
+					else
+						eObj.wanderSpeed *= 0.9 + FlxG.random.float() * 0.3;
+				}
 				clusterPlaced++;
 				totalSpawned++;
 			}
@@ -352,7 +389,22 @@ class GameMap extends FlxGroup
 										var eObj:Enemy = new Enemy(xx * TILE_SIZE, yy * TILE_SIZE, variant);
 										enemies.add(eObj);
 										if (eObj != null)
+										{
 											eObj.randomizeBehavior(atmosphereHue);
+											var rv3:Float = FlxG.random.float();
+											if (rv3 < 0.08)
+											{
+												eObj.aggression = Math.min(1.0, eObj.aggression + 0.5);
+												eObj.wanderSpeed *= 1.6;
+											}
+											else if (rv3 < 0.18)
+											{
+												eObj.skittishness = Math.min(1.0, eObj.skittishness + 0.45);
+												eObj.wanderSpeed *= 0.65;
+											}
+											else
+												eObj.wanderSpeed *= 0.9 + FlxG.random.float() * 0.3;
+										}
 										placedInCell = true;
 										totalSpawned++;
 										break;
