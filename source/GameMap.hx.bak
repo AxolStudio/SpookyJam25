@@ -1,7 +1,6 @@
 package;
 
 import Types.TileCoord;
-import Types.Vec2;
 import Types.Rect;
 
 import openfl.geom.Point;
@@ -24,101 +23,125 @@ typedef TreeNode =
 	h:Int,
 	left:TreeNode,
 	right:TreeNode,
-	roomCenter:TileCoord,
-	roomRect:Rect
-};
-
-class GameMap extends FlxGroup
-{
-	public var walkableTiles:Array<Int> = [];
-
-	public var floorMap:FlxTilemap;
-	public var wallsMap:FlxTilemap;
-	public var wallGrid:Array<Array<Int>>;
-
-	public var roomsInfo:Array<RoomInfo>;
-
-	private var _floorCsv:String;
-	private var _wallsCsv:String;
-
-	public var portalRoomIndex:Int = -1;
-	public var portalTileX:Int = -1;
-	public var portalTileY:Int = -1;
-	public var portalPixelX:Float = -1;
-	public var portalPixelY:Float = -1;
-
-	public var width(get, never):Int;
-	public var height(get, never):Int;
-
-	private function get_width():Int
+	var grid:Array<Array<Int>> = this.wallGrid;
+	if (grid != null && grid.length > 0)
 	{
-		return wallsMap != null ? Std.int(wallsMap.width) : 0;
-	}
-
-	public function buildDebugBitmap(playerTileX:Int, playerTileY:Int, enemyTiles:Array<TileCoord>):openfl.display.BitmapData
-	{
-		if (wallGrid == null || wallGrid.length == 0)
-			throw 'wallGrid not generated';
-		var h = wallGrid.length;
-		var w = wallGrid[0].length;
-		var bmp:openfl.display.BitmapData = new openfl.display.BitmapData(w, h, true, 0x00000000);
-
-		for (y in 0...h)
+		var gridH:Int = grid.length;
+		var gridW:Int = grid[0].length;
+		var cellSize:Int = 10;
+		for
+		(gy in 0...Std.int((gridH + cellSize - 1) / cellSize))
 		{
-			for (x in 0...w)
+			for
+			(gx in 0...Std.int((gridW + cellSize - 1) / cellSize))
 			{
-				var v:Int = wallGrid[y][x];
-				if (v == 1)
-					bmp.setPixel32(x, y, 0xFF000000);
-				else
-					bmp.setPixel32(x, y, 0xFFFFFFFF);
+				var startY = gy * cellSize;
+				var startX = gx * cellSize;
+				var cxTile = startX + Std.int(cellSize / 2);
+				var cyTile = startY + Std.int(cellSize / 2);
+				if
+				(Math.abs(cxTile - this.portalTileX) <= 6 && Math.abs(cyTile - this.portalTileY) <= 6)
+				continue;
+				var hasEnemy:Bool = false;
+				for
+				(existing in enemies.members)
+				{
+					if
+					(existing == null)
+					continue;
+					var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+					var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
+					if
+					(ex >= startX && ex < startX + cellSize && ey >= startY && ey < startY + cellSize)
+					{
+						hasEnemy = true;
+						break;
+					}
+				}
+				if
+				(hasEnemy)
+				continue;
+				var placedInCell:Bool = false;
+				for
+				(yy in startY...Std.int(Math.min(startY + cellSize, gridH)))
+				{
+					for
+					(xx in startX...Std.int(Math.min(startX + cellSize, gridW)))
+					{
+						if
+						(grid[yy][xx] == 0)
+						{
+							var tooClose:Bool = false;
+							if
+							(Math.abs(xx - this.portalTileX) <= 6 && Math.abs(yy - this.portalTileY) <= 6)
+							tooClose = true;
+							for
+							(existing in enemies.members)
+							{
+								if
+								(existing == null)
+								continue;
+								var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+								var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
+								if
+								(Math.abs(ex - xx) <= 4 && Math.abs(ey - yy) <= 4)
+								{
+									tooClose = true;
+									break;
+								}
+							}
+							if
+							(!tooClose && totalSpawned < globalMax)
+							{
+								var variant:String = Enemy.pickVariant();
+								var eObj:Enemy = new Enemy(xx * TILE_SIZE, yy * TILE_SIZE, variant);
+								enemies.add
+								(eObj);
+								if
+								(eObj != null)
+								{
+									eObj.randomizeBehavior
+									(atmosphereHue);
+									var rv3:Float = FlxG.random.float();
+									if
+									(rv3 < 0.08)
+									{
+										eObj.aggression = Math.min(1.0, eObj.aggression + 0.5);
+										eObj.wanderSpeed
+										*=
+										1.6;
+									}
+								else if
+									(rv3 < 0.18)
+									{
+										eObj.skittishness = Math.min(1.0, eObj.skittishness + 0.45);
+										eObj.wanderSpeed
+										*=
+										0.65;
+									}
+								else
+									eObj.wanderSpeed
+									*=
+									0.9
+									+
+									FlxG.random.float
+									()
+									*
+									0.3;
+								}
+								placedInCell = true;
+								totalSpawned
+								++;
+								break;
+							}
+						}
+					}
+					if
+					(placedInCell)
+					break;
+				}
 			}
 		}
-
-		for (e in enemyTiles)
-		{
-			if (e == null)
-				continue;
-			var ex:Int = Std.int(e.x);
-			var ey:Int = Std.int(e.y);
-			if (ex >= 0 && ex < w && ey >= 0 && ey < h)
-				bmp.setPixel32(ex, ey, 0xFFFF0000);
-		}
-
-		if (playerTileX >= 0 && playerTileX < w && playerTileY >= 0 && playerTileY < h)
-			bmp.setPixel32(playerTileX, playerTileY, 0xFF00FF00);
-
-		return bmp;
-	}
-
-	private function get_height():Int
-	{
-		return wallsMap != null ? Std.int(wallsMap.height) : 0;
-	}
-
-	public function new()
-	{
-		super();
-	}
-
-	private function isSpawnBlocked(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, tx:Int, ty:Int, avoidRadius:Int, minSpacing:Int, TILE_SIZE:Int):Bool
-	{
-
-		if (Math.abs(tx - this.portalTileX) <= avoidRadius && Math.abs(ty - this.portalTileY) <= avoidRadius)
-			return true;
-
-		for (existing in enemies.members)
-		{
-			if (existing == null)
-				continue;
-			var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
-			var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
-			if (Math.abs(ex - tx) <= minSpacing && Math.abs(ey - ty) <= minSpacing)
-				return true;
-		}
-		return false;
-	}
-
 	public function spawnEnemies(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, atmosphereHue:Int, ?playerTileX:Int = -1, ?playerTileY:Int = -1):Void
 	{
 		if (this.roomsInfo == null)
@@ -397,7 +420,7 @@ class GameMap extends FlxGroup
 												eObj.wanderSpeed *= 0.65;
 											}
 											else
-											 eObj.wanderSpeed *= 0.9 + FlxG.random.float() * 0.3;
+												eObj.wanderSpeed *= 0.9 + FlxG.random.float() * 0.3;
 										}
 										placedInCell = true;
 										totalSpawned++;
@@ -739,12 +762,14 @@ class GameMap extends FlxGroup
 					if (M[yy][xx] == 0)
 						tilesList.push({x: xx, y: yy});
 
-			roomsInfo.push(new RoomInfo(tilesList, tilesList.length, {x: cx, y: cy}, {
+				var centroidPoint:FlxPoint = FlxPoint.get(cx, cy);
+				roomsInfo.push(new RoomInfo(tilesList, tilesList.length, centroidPoint, {
 				x: rx,
 				y: ry,
 				w: rW,
 				h: rH
 			}, false));
+				centroidPoint.put();
 		}
 
 		for (x in 0...totalW)
@@ -1188,7 +1213,9 @@ class GameMap extends FlxGroup
 			}
 			var cx:Float = sx / Math.max(1, newTiles.length);
 			var cy:Float = sy / Math.max(1, newTiles.length);
-			newRooms.push(new RoomInfo(newTiles, newTiles.length, {x: cx, y: cy}, r.bbox, r.isCorridor));
+				var centroidPoint2:FlxPoint = FlxPoint.get(cx, cy);
+				newRooms.push(new RoomInfo(newTiles, newTiles.length, centroidPoint2, r.bbox, r.isCorridor));
+				centroidPoint2.put();
 		}
 		roomsInfo = newRooms;
 
@@ -1468,12 +1495,12 @@ class RoomInfo
 {
 	public var tiles:Array<TileCoord>;
 	public var area:Int;
-	public var centroid:Vec2;
+		public var centroid:flixel.math.FlxPoint;
 	public var bbox:Rect;
 	public var isCorridor:Bool;
 	public var isPortal:Bool;
 
-	public function new(tiles:Array<TileCoord>, area:Int, centroid:Vec2, bbox:Rect, isCorridor:Bool)
+		public function new(tiles:Array<TileCoord>, area:Int, centroid:flixel.math.FlxPoint, bbox:Rect, isCorridor:Bool)
 	{
 		this.tiles = tiles;
 		this.area = area;

@@ -18,6 +18,12 @@ class Player extends GameObject
 		super(tileX, tileY);
 		speed = SPEED;
 		moveAngle = 90;
+		width = height = 12;
+		offset.x = 2;
+		offset.y = 7;
+		x += 2;
+		y += 7;
+		
 	}
 
 	public override function buildGraphics():Void

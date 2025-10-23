@@ -10,6 +10,7 @@ import haxe.ds.StringMap;
 class Enemy extends GameObject
 {
 	public var variant:String;
+
 	public static var SHARED_FRAMES:FlxAtlasFrames = null;
 	public static var VARIANTS:Array<String> = [];
 	public static var VARIANT_FRAMES:StringMap<Array<String>> = null;
@@ -93,13 +94,22 @@ class Enemy extends GameObject
 		if (animation != null)
 			animation.stop();
 
+		var shaderOk:Bool = false;
 		try
 		{
 			var sh = new shaders.PhotoDissolve();
 			sh.desat = 1.0;
 			sh.dissolve = 0.0;
 			this.shader = sh;
-			FlxTween.tween(sh, {dissolve: 1.0}, Constants.PHOTO_DISSOLVE_DURATION, {
+			shaderOk = true;
+		}
+		catch (e:Dynamic)
+		{
+			shaderOk = false;
+		}
+		if (shaderOk)
+		{
+			FlxTween.tween(this.shader, {dissolve: 1.0}, Constants.PHOTO_DISSOLVE_DURATION, {
 				startDelay: Constants.PHOTO_DISSOLVE_DELAY,
 				type: FlxTweenType.ONESHOT,
 				ease: FlxEase.quadOut,
@@ -117,9 +127,8 @@ class Enemy extends GameObject
 				}
 			});
 		}
-		catch (e:Dynamic)
+		else
 		{
-
 			color = 0xAAAAAA;
 			if (animation != null)
 				animation.stop();
@@ -162,12 +171,15 @@ class Enemy extends GameObject
 		else
 			this.variant = variant;
 		speed = 50;
-		this.setOffsetAmount(2);
+		width = height = 12;
+		offset.x = 2;
+		offset.y = 4;
+		x += 2;
+		y += 4;
 	}
 
 	public function randomizeBehavior(atmosphereHue:Int):Void
 	{
-
 		aggression = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
 		skittishness = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
 
@@ -243,55 +255,11 @@ class Enemy extends GameObject
 		color = (ri << 16) | (gi << 8) | bi;
 	}
 
-
-	private function hasLineOfSightTo(px:Float, py:Float, tilemap:GameMap):Bool
-	{
-		if (tilemap == null || tilemap.wallGrid == null)
-			return false;
-		var tx0:Int = Std.int((x + width * 0.5) / Constants.TILE_SIZE);
-		var ty0:Int = Std.int((y + height * 0.5) / Constants.TILE_SIZE);
-		var tx1:Int = Std.int(px / Constants.TILE_SIZE);
-		var ty1:Int = Std.int(py / Constants.TILE_SIZE);
-
-		var rawdx:Int = tx1 - tx0;
-		var rawdy:Int = ty1 - ty0;
-		var dx:Int = rawdx >= 0 ? rawdx : -rawdx;
-		var dy:Int = rawdy >= 0 ? rawdy : -rawdy;
-		var sx:Int = tx0 < tx1 ? 1 : -1;
-		var sy:Int = ty0 < ty1 ? 1 : -1;
-		var err:Int = dx - dy;
-		var cx:Int = tx0;
-		var cy:Int = ty0;
-		while (true)
-		{
-			if (cx < 0 || cy < 0 || cy >= tilemap.wallGrid.length || cx >= tilemap.wallGrid[0].length)
-				return false;
-			if (tilemap.wallGrid[cy][cx] == 1)
-				return false;
-			if (cx == tx1 && cy == ty1)
-				break;
-			var e2:Int = 2 * err;
-			if (e2 > -dy)
-			{
-				err -= dy;
-				cx += sx;
-			}
-			if (e2 < dx)
-			{
-				err += dx;
-				cy += sy;
-			}
-		}
-		return true;
-	}
-
-
 	public override function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
 		if (_captured)
 		{
-
 			velocity.set(0, 0);
 			acceleration.set(0, 0);
 			return;
@@ -301,7 +269,6 @@ class Enemy extends GameObject
 
 		if (_pursuingThrough)
 		{
-
 			var dxT:Float = _targetX - (x + width * 0.5);
 			var dyT:Float = _targetY - (y + height * 0.5);
 			var distT:Float = Math.sqrt(dxT * dxT + dyT * dyT);
@@ -313,7 +280,6 @@ class Enemy extends GameObject
 			}
 			else
 			{
-
 				move(Math.atan2(dyT, dxT) * 180.0 / Math.PI);
 				return;
 			}
@@ -332,15 +298,13 @@ class Enemy extends GameObject
 			var dx:Float = (player.x + player.width * 0.5) - (x + width * 0.5);
 			var dy:Float = (player.y + player.height * 0.5) - (y + height * 0.5);
 			var dist:Float = Math.sqrt(dx * dx + dy * dy);
-			var visible:Bool = (dist < 160) && hasLineOfSightTo(player.x + player.width * 0.5, player.y + player.height * 0.5, ps.tilemap);
+			var visible:Bool = (dist < 160);
 			if (visible && _actionCooldown <= 0)
 			{
-
 				var aRoll:Float = FlxG.random.float();
 				var sRoll:Float = FlxG.random.float();
 				if (aRoll < aggression && aRoll > skittishness)
 				{
-
 					speed = wanderSpeed * (1.5 + FlxG.random.float() * 1.0);
 
 					var angleToPlayer:Float = Math.atan2(dy, dx);
@@ -354,7 +318,6 @@ class Enemy extends GameObject
 				}
 				else if (sRoll < skittishness && sRoll > aggression)
 				{
-
 					speed = wanderSpeed * (1.8 + FlxG.random.float() * 0.6);
 					var fleeAngle = Math.atan2(-dy, -dx) + (FlxG.random.float() - 0.5) * 0.8;
 					move(fleeAngle * 180.0 / Math.PI);
@@ -369,7 +332,6 @@ class Enemy extends GameObject
 			_wanderTimer = 0.6 + FlxG.random.float() * 1.6;
 			if (FlxG.random.float() < 0.55)
 			{
-
 				var ang = (FlxG.random.float() * Math.PI * 2);
 				move(ang * 180.0 / Math.PI);
 				speed = wanderSpeed * (0.7 + FlxG.random.float() * 0.8);

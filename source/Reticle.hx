@@ -129,16 +129,16 @@ class Reticle extends FlxSprite
 			var my:Float;
 
 			var p = null;
-			try
+			if (FlxG.mouse != null)
 			{
-				p = FlxG.mouse.getWorldPosition(cam);
-			}
-			catch (e:Dynamic)
-			{
-				#if (debug)
-				trace('Reticle.updateFromPlayer: getWorldPosition failed: ' + Std.string(e));
-				#end
-				p = null;
+				try
+				{
+					p = FlxG.mouse.getWorldPosition(cam);
+				}
+				catch (e:Dynamic)
+				{
+					p = null;
+				}
 			}
 			if (p != null)
 			{
