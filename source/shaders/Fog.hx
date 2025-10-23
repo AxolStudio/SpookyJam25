@@ -1,45 +1,27 @@
 package shaders;
 
 import flixel.math.FlxMath;
+import flixel.FlxG;
 import flixel.system.FlxAssets.FlxShader;
 
 @:keep
 class Fog extends FlxShader
 {
 	public var time(default, set):Float = 0.0;
-	public var hue(default, set):Float = 0.0; // degrees 0..359
-	public var sat(default, set):Float = 0.5; // 0..1
+	public var hue(default, set):Float = 0.0;
+	public var sat(default, set):Float = 0.5;
 	public var vDark(default, set):Float = 0.10;
 	public var vLight(default, set):Float = 0.40;
-	public var playerX(default, set):Float = 0.0; // screen-space 0..1
-	public var playerY(default, set):Float = 0.0; // screen-space 0..1
-	public var innerRadius(default, set):Float = 0.0; // in screen 0..1 (fraction of smaller dimension)
+	public var playerX(default, set):Float = 0.0;
+	public var playerY(default, set):Float = 0.0;
+	public var innerRadius(default, set):Float = 0.0;
 	public var outerRadius(default, set):Float = 0.0;
 
 	public var maskTexelX(default, set):Float = 0.0;
 	public var maskTexelY(default, set):Float = 0.0;
 
-	private function set_maskTexelX(v:Float):Float
-	{
-		maskTexelX = v;
-		try
-		{
-			mTexelX.value = [maskTexelX];
-		}
-		catch (e:Dynamic) {}
-		return maskTexelX;
-	}
-
-	private function set_maskTexelY(v:Float):Float
-	{
-		maskTexelY = v;
-		try
-		{
-			mTexelY.value = [maskTexelY];
-		}
-		catch (e:Dynamic) {}
-		return maskTexelY;
-	}
+	public var scaleX(default, set):Float = 1.0;
+	public var scaleY(default, set):Float = 1.0;
 
 	@:glFragmentSource('
 	#pragma header
@@ -59,9 +41,9 @@ class Fog extends FlxShader
 	uniform float mTexelX;
 	uniform float mTexelY;
 
-        // simple hash
+        
         float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
-        // value noise
+        
         float noise(vec2 p){
             vec2 i = floor(p);
             vec2 f = fract(p);
@@ -73,11 +55,11 @@ class Fog extends FlxShader
             return mix(a, b, u.x) + (c - a)*u.y*(1.0 - u.x) + (d - b)*u.x*u.y;
         }
 
-		// fractal noise (FBM) - 3 octaves for lower ALU cost
+        
 		float fbm(vec2 p){
 				float v = 0.0;
 				float amp = 0.5;
-				// unrolled 3-octave FBM
+                
 				v += amp * noise(p);
 				p *= 2.0; amp *= 0.5;
 				v += amp * noise(p);
@@ -86,7 +68,7 @@ class Fog extends FlxShader
 			return v;
 		}
 
-		// convert HSV (h 0..1, s 0..1, v 0..1) to RGB
+        
 		vec3 hsv2rgb(vec3 c){
 			float h = c.x;
 			float s = c.y;
@@ -108,28 +90,24 @@ class Fog extends FlxShader
 
         void main(){
             vec2 uv = openfl_TextureCoordv;
-            // generate noise in world-space by scaling UV
-            float aspect = 1.0; // screen aspect handled by main
-			// world-space noise with slow motion
+            
+			float aspect = 1.0;
+            
 			vec2 npos = uv * vec2(1.2, 1.2);
 			npos += vec2(iTime * 0.04, iTime * 0.03);
 			float clouds = fbm(npos * 2.0);
 
-			// compute fog colors using the same base hue (atmosphereHue) but in HSV
-			// so hue mapping matches the tile recolor algorithm more closely.
+            
 			float h = fHue; // 0..1 (same hue as tilemap/floor/walls)
 			float sat = fSat; // uniform-set saturation
 			float vDark = fVDark;
 			float vLight = fVLight;
 			vec3 darkCol = hsv2rgb(vec3(h, sat, vDark));
 			vec3 lightCol = hsv2rgb(vec3(h, sat, vLight));
-			// blend between dark and light based on cloud noise (so clouds brighten/darken)
+            
 			vec3 fogCol = mix(darkCol, lightCol, clouds);
 
-            // player-centered cutout
-            vec2 p = vec2(pX, pY);
-            // compute screen-space scaled radius (we consider 0..1 space where 1 is min(width,height))
-			// account for non-square viewport so the hole is circular in pixel space
+			vec2 p = vec2(pX, pY);
 			vec2 d = vec2((uv.x - p.x) * sX, (uv.y - p.y) * sY);
 			float dist = length(d);
 
@@ -142,16 +120,15 @@ class Fog extends FlxShader
                 hole = 1.0; // fully fog
             } else {
                 float t = smoothstep(inner, outer, dist);
-                // ensure 2/3 center fully transparent by making inner smaller than outer*2/3 from caller
+                
                 hole = t;
             }
 
-			// Sample CPU mask which now provides smooth alpha (0..1)
 			vec4 maskSample = flixel_texture2D(bitmap, uv);
 			float maskAlpha = maskSample.a;
-			// compute desired alpha from CPU mask only (mask already encodes the circular hole)
+            
 			float desiredAlpha = maskAlpha;
-			// If fully inside or outside, skip dithering
+            
 			if (desiredAlpha <= 0.0) {
 				gl_FragColor = vec4(vec3(0.0), 0.0);
 				return;
@@ -162,13 +139,13 @@ class Fog extends FlxShader
 				return;
 			}
 
-			// compute mask-space pixel coordinates so dither matches mask texel size
+            
 			vec2 maskPosF = floor(uv / vec2(mTexelX, mTexelY));
 			int bx = int(mod(maskPosF.x, 8.0));
 			int by = int(mod(maskPosF.y, 8.0));
 			int idx = bx + by * 8;
 			int thr = 0;
-			// 8x8 Bayer mapping (values 0..63)
+            
 			if (idx == 0) thr = 0; else if (idx == 1) thr = 48; else if (idx == 2) thr = 12; else if (idx == 3) thr = 60; else if (idx == 4) thr = 3; else if (idx == 5) thr = 51; else if (idx == 6) thr = 15; else if (idx == 7) thr = 63;
 			else if (idx == 8) thr = 32; else if (idx == 9) thr = 16; else if (idx == 10) thr = 44; else if (idx == 11) thr = 28; else if (idx == 12) thr = 35; else if (idx == 13) thr = 19; else if (idx == 14) thr = 47; else if (idx == 15) thr = 31;
 			else if (idx == 16) thr = 8; else if (idx == 17) thr = 56; else if (idx == 18) thr = 4; else if (idx == 19) thr = 52; else if (idx == 20) thr = 11; else if (idx == 21) thr = 59; else if (idx == 22) thr = 7; else if (idx == 23) thr = 55;
@@ -187,35 +164,56 @@ class Fog extends FlxShader
 	public function new()
 	{
 		super();
+		time = 0.0;
+		if (iTime != null)
+			iTime.value = [time];
+
+		hue = 0.0;
+		if (fHue != null)
+			fHue.value = [hue / 360.0];
+
+		playerX = 0.5;
+		playerY = 0.5;
+		if (pX != null)
+			pX.value = [playerX];
+		if (pY != null)
+			pY.value = [playerY];
+		innerRadius = 0.15;
+		outerRadius = 0.30;
+		if (rInner != null)
+			rInner.value = [innerRadius];
+		if (rOuter != null)
+			rOuter.value = [outerRadius];
+		sat = 0.5;
+		vDark = 0.10;
+		vLight = 0.40;
+		if (fSat != null)
+			fSat.value = [sat];
+		if (fVDark != null)
+			fVDark.value = [vDark];
+		if (fVLight != null)
+			fVLight.value = [vLight];
+	}
+	private function set_maskTexelX(v:Float):Float
+	{
+		maskTexelX = v;
 		try
 		{
-			time = 0.0;
+			mTexelX.value = [maskTexelX];
 		}
 		catch (e:Dynamic) {}
+		return maskTexelX;
+	}
+
+	private function set_maskTexelY(v:Float):Float
+	{
+		maskTexelY = v;
 		try
 		{
-			hue = 0.0;
+			mTexelY.value = [maskTexelY];
 		}
 		catch (e:Dynamic) {}
-		try
-		{
-			playerX = 0.5;
-			playerY = 0.5;
-		}
-		catch (e:Dynamic) {}
-		try
-		{
-			innerRadius = 0.15;
-			outerRadius = 0.30;
-		}
-		catch (e:Dynamic) {}
-		try
-		{
-			sat = 0.5;
-			vDark = 0.10;
-			vLight = 0.40;
-		}
-		catch (e:Dynamic) {}
+		return maskTexelY;
 	}
 
 	private function set_time(v:Float):Float
@@ -314,10 +312,6 @@ class Fog extends FlxShader
 		return outerRadius;
 	}
 
-	// scale setters (for non-square viewports)
-	public var scaleX(default, set):Float = 1.0;
-	public var scaleY(default, set):Float = 1.0;
-
 	private function set_scaleX(v:Float):Float
 	{
 		scaleX = v;
@@ -338,5 +332,71 @@ class Fog extends FlxShader
 		}
 		catch (e:Dynamic) {}
 		return scaleY;
+	}
+	public function updateFog(cam:flixel.FlxCamera, playerWorldX:Float, playerWorldY:Float, fogSprite:flixel.FlxSprite, maskState:MaskState,
+			?tileGrid:Array<Array<Int>>):Void
+	{
+		if (cam == null || fogSprite == null)
+			return;
+
+		time += FlxG.elapsed;
+
+		var screenX = (playerWorldX) - cam.scroll.x;
+		var screenY = (playerWorldY) - cam.scroll.y;
+		playerX = FlxMath.bound(screenX / cam.width, 0.0, 1.0);
+		playerY = FlxMath.bound(screenY / cam.height, 0.0, 1.0);
+
+		var camMin:Float = Math.min(cam.width, cam.height);
+		scaleX = cam.width / camMin;
+		scaleY = cam.height / camMin;
+
+		var radiusPixels = Std.int(cam.height / 3.0);
+		innerRadius = (radiusPixels * 0.66) / camMin;
+		outerRadius = (radiusPixels) / camMin;
+
+		if (maskState == null)
+			return;
+		if (maskState.mask == null)
+			maskState.mask = new VisibilityMask(tileGrid, Constants.TILE_SIZE, 1.0, false);
+		var needRebuild:Bool = true;
+		var moveThreshold:Float = 1.0;
+		if (maskState.lastBmp != null)
+		{
+			var dx = Math.abs(maskState.lastPlayerX - playerWorldX);
+			var dy = Math.abs(maskState.lastPlayerY - playerWorldY);
+			if ((maskState.age < maskState.maxAge) && dx <= moveThreshold && dy <= moveThreshold)
+				needRebuild = false;
+		}
+
+		var bmp:openfl.display.BitmapData;
+		if (!needRebuild)
+		{
+			bmp = maskState.lastBmp;
+			maskState.age++;
+		}
+		else
+		{
+			bmp = maskState.mask.buildMask(cam, playerWorldX, playerWorldY);
+			maskState.lastBmp = bmp;
+			maskState.age = 0;
+			maskState.lastPlayerX = playerWorldX;
+			maskState.lastPlayerY = playerWorldY;
+		}
+
+		if (bmp != null && (bmp.width != Std.int(cam.width) || bmp.height != Std.int(cam.height)))
+		{
+			var full = shaders.VisibilityHelpers.scaleMaskTo(Std.int(cam.width), Std.int(cam.height), bmp, maskState.mask.maskScale);
+			if (fogSprite != null && full != null)
+				fogSprite.pixels = full;
+			shaders.VisibilityHelpers.setFogMaskTexel(this, full);
+		}
+		else
+		{
+			if (fogSprite != null && bmp != null)
+				fogSprite.pixels = bmp;
+			shaders.VisibilityHelpers.setFogMaskTexel(this, bmp);
+		}
+		if (fogSprite != null)
+			fogSprite.dirty = true;
 	}
 }

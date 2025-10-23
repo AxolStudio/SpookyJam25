@@ -25,11 +25,7 @@ class PlayState extends FlxState
 	public var fogShader:shaders.Fog;
 
 	private var _visibilityMask:VisibilityMask;
-	private var _lastMaskBmp:openfl.display.BitmapData;
-	private var _maskAge:Int = 0;
-	private var _maskMaxAge:Int = 3;
-	private var _lastPlayerX:Float = -1;
-	private var _lastPlayerY:Float = -1;
+	private var _maskState:MaskState;
 
 	override public function create():Void
 	{
@@ -44,11 +40,8 @@ class PlayState extends FlxState
 		add(player);
 		enemies = new FlxTypedGroup<Enemy>();
 		add(enemies);
-		try
-		{
-			tilemap.spawnEnemies(enemies, atmosphereHue);
-		}
-		catch (e:Dynamic) {}
+		if (tilemap != null)
+			tilemap.spawnEnemies(enemies, atmosphereHue, Std.int(player.x / Constants.TILE_SIZE), Std.int(player.y / Constants.TILE_SIZE));
 		reticle = new Reticle(player);
 		add(reticle);
 		hud = new Hud(player);
@@ -56,11 +49,7 @@ class PlayState extends FlxState
 		tilemap.cameras = player.cameras = enemies.cameras = [mainCam];
 		reticle.cameras = [overCam];
 		hud.cameras = [hudCam];
-		try
-		{
-			setupFog();
-		}
-		catch (e:Dynamic) {}
+		setupFog();
 		mainCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		mainCam.follow(player);
 		overCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
@@ -74,14 +63,22 @@ class PlayState extends FlxState
 		fog.makeGraphic(Std.int(mainCam.width), Std.int(mainCam.height), FlxColor.TRANSPARENT);
 		fogShader = new shaders.Fog();
 		fog.shader = fogShader;
-		try
-		{
+		if (fogShader != null)
 			fogShader.hue = (cast atmosphereHue : Int);
-		}
-		catch (e:Dynamic) {}
 		fog.cameras = [mainCam];
 		fog.scrollFactor.set(0, 0);
 		add(fog);
+	}
+
+	private function updateFogAndMask():Void
+	{
+		if (fogShader == null || player == null)
+			return;
+		if (_maskState == null)
+			_maskState = new MaskState();
+		var cam = mainCam;
+		var grid = tilemap != null ? tilemap.wallGrid : null;
+		fogShader.updateFog(cam, player.x + player.width * 0.5, player.y + player.height * 0.5, fog, _maskState, grid);
 	}
 
 	override public function update(elapsed:Float):Void
@@ -92,82 +89,10 @@ class PlayState extends FlxState
 		super.update(elapsed);
 		FlxG.collide(player, tilemap.wallsMap);
 		FlxG.collide(enemies, tilemap.wallsMap);
-		try
+		if (fogShader != null && player != null)
 		{
-			if (fogShader != null && player != null)
-			{
-				fogShader.time += elapsed;
-				var cam = mainCam;
-				var screenX = (player.x + player.width * 0.5) - cam.scroll.x;
-				var screenY = (player.y + player.height * 0.5) - cam.scroll.y;
-				fogShader.playerX = FlxMath.bound(screenX / cam.width, 0.0, 1.0);
-				fogShader.playerY = FlxMath.bound(screenY / cam.height, 0.0, 1.0);
-				var camMin:Float = Math.min(cam.width, cam.height);
-				fogShader.scaleX = cam.width / camMin;
-				fogShader.scaleY = cam.height / camMin;
-				var radiusPixels = Std.int(cam.height / 3.0);
-				fogShader.innerRadius = (radiusPixels * 0.66) / camMin;
-				fogShader.outerRadius = (radiusPixels) / camMin;
-
-				if (tilemap != null && (cast tilemap : GameMap).wallGrid != null)
-				{
-					if (_visibilityMask == null)
-						_visibilityMask = new VisibilityMask((cast tilemap : GameMap).wallGrid, Constants.TILE_SIZE, 1.0, false);
-					var mask:VisibilityMask = _visibilityMask;
-					var worldPX = player.x + player.width * 0.5;
-					var worldPY = player.y + player.height * 0.5;
-					var needRebuild:Bool = true;
-					var moveThreshold:Float = 1.0;
-					if (_lastMaskBmp != null)
-					{
-						var dx = Math.abs(_lastPlayerX - worldPX);
-						var dy = Math.abs(_lastPlayerY - worldPY);
-						if ((_maskAge < _maskMaxAge) && dx <= moveThreshold && dy <= moveThreshold)
-							needRebuild = false;
-					}
-
-					var bmp:openfl.display.BitmapData;
-					if (!needRebuild)
-					{
-						bmp = _lastMaskBmp;
-						_maskAge++;
-					}
-					else
-					{
-						bmp = mask.buildMask(cam, worldPX, worldPY);
-						_lastMaskBmp = bmp;
-						_maskAge = 0;
-						_lastPlayerX = worldPX;
-						_lastPlayerY = worldPY;
-					}
-					if (bmp.width != Std.int(cam.width) || bmp.height != Std.int(cam.height))
-					{
-						var full = shaders.VisibilityHelpers.scaleMaskTo(Std.int(cam.width), Std.int(cam.height), bmp, mask.maskScale);
-						try
-						{
-							fog.pixels = full;
-						}
-						catch (e:Dynamic) {}
-						shaders.VisibilityHelpers.setFogMaskTexel(fogShader, full);
-					}
-					else
-					{
-						try
-						{
-							fog.pixels = bmp;
-						}
-						catch (e:Dynamic) {}
-						shaders.VisibilityHelpers.setFogMaskTexel(fogShader, bmp);
-					}
-					try
-					{
-						fog.dirty = true;
-					}
-					catch (e:Dynamic) {}
-				}
-			}
+			updateFogAndMask();
 		}
-		catch (e:Dynamic) {}
 	}
 
 	private function playerMovement(elapsed:Float):Void
@@ -184,6 +109,7 @@ class PlayState extends FlxState
 
 		var moveAngle:Float = 0;
 		var move:FlxPoint = FlxPoint.get();
+		var analogOrigSpeed:Float = -1.0;
 
 		if (Actions.leftStick.check() && (Math.abs(Actions.leftStick.x) > 0.1 || Math.abs(Actions.leftStick.y) > 0.1))
 		{
@@ -191,6 +117,12 @@ class PlayState extends FlxState
 			move.y = Actions.leftStick.y;
 			moveAngle = Math.atan2(move.y, move.x);
 			any = true;
+			var stickMag:Float = Math.sqrt(move.x * move.x + move.y * move.y);
+			if (stickMag > 1.0)
+				stickMag = 1.0;
+
+			analogOrigSpeed = player.speed;
+			player.speed = analogOrigSpeed * stickMag;
 		}
 		else if (any)
 		{
@@ -217,7 +149,13 @@ class PlayState extends FlxState
 		}
 
 		if (any)
+		{
 			player.move(moveAngle * 180.0 / Math.PI);
+			if (analogOrigSpeed >= 0)
+			{
+				player.speed = analogOrigSpeed;
+			}
+		}
 		else
 			player.stop();
 		move.put();

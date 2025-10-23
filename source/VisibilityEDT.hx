@@ -1,28 +1,20 @@
+package;
 class VisibilityEDT
 {
-	// Compute Euclidean Distance Transform for a binary mask represented by alpha array (0 = feature/transparent, 255 = object/opaque)
-	// Returns an Array<Float> of distances (in pixels) for each cell (length = w*h).
 	public static function computeEDT(w:Int, h:Int, alpha:Array<Int>):Array<Float>
 	{
 		var N:Int = w * h;
 		var INF:Float = 1e20;
 
-		// f holds initial values: 0 for feature pixels (alpha==0), INF otherwise
 		var f:Array<Float> = new Array<Float>();
 		f.resize(N);
 		for (i in 0...N)
 		{
 			f[i] = (alpha[i] == 0) ? 0.0 : INF;
 		}
-
-		// intermediate array after column pass
 		var d:Array<Float> = new Array<Float>();
-		d.resize(N);
 
-		// 1D EDT on an array of floats (returns squared distances array)
-		// Implemented as a private static helper below.
 
-		// Column pass
 		var col:Array<Float>;
 		for (x in 0...w)
 		{
@@ -35,7 +27,7 @@ class VisibilityEDT
 				d[y * w + x] = colRes[y];
 		}
 
-		// Row pass -> produce final distances (sqrt of squared distances)
+
 		var row:Array<Float>;
 		for (y in 0...h)
 		{
@@ -51,7 +43,6 @@ class VisibilityEDT
 		return d;
 	}
 
-	// private 1D EDT helper - returns squared distances array for 1D input
 	private static function edt1d(g:Array<Float>, n:Int):Array<Float>
 	{
 		var res:Array<Float> = new Array<Float>();
