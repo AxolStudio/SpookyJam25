@@ -10,15 +10,12 @@ import flixel.FlxG;
 import flixel.system.FlxAssets;
 import flixel.math.FlxPoint;
 import openfl.display.BitmapData;
-import MapGenHelpers;
-// no explicit Reflect import needed
+import util.ColorHelpers;
 import flixel.addons.tile.FlxCaveGenerator;
 import flixel.group.FlxGroup;
 import flixel.tile.FlxBaseTilemap.FlxTilemapAutoTiling;
 import flixel.tile.FlxTilemap;
 
-// TreeNode uses shared typedefs from Types.hx (TileCoord, Vec2, Rect)
-// Local typedef for BSP node structure (recursive)
 typedef TreeNode =
 {
 	x:Int,
@@ -37,17 +34,13 @@ class GameMap extends FlxGroup
 
 	public var floorMap:FlxTilemap;
 	public var wallsMap:FlxTilemap;
-	// parsed wall grid (0 = floor, 1 = wall) for CPU-side visibility tests
 	public var wallGrid:Array<Array<Int>>;
 
-	// generated room information after map creation
 	public var roomsInfo:Array<RoomInfo>;
 
-	// store generated CSVs so we can reload tilemaps with recolored bitmaps at runtime
 	private var _floorCsv:String;
 	private var _wallsCsv:String;
 
-	// portal info
 	public var portalRoomIndex:Int = -1;
 	public var portalTileX:Int = -1;
 	public var portalTileY:Int = -1;
@@ -62,8 +55,6 @@ class GameMap extends FlxGroup
 		return wallsMap != null ? Std.int(wallsMap.width) : 0;
 	}
 
-	// Build a debug bitmap where 1px == 1 tile. Colors: black=wall, white=floor, red=enemies, green=player spawn.
-	// Caller should supply player coords (tile) and list of enemy tile coords.
 	public function buildDebugBitmap(playerTileX:Int, playerTileY:Int, enemyTiles:Array<TileCoord>):openfl.display.BitmapData
 	{
 		if (wallGrid == null || wallGrid.length == 0)
@@ -71,20 +62,19 @@ class GameMap extends FlxGroup
 		var h = wallGrid.length;
 		var w = wallGrid[0].length;
 		var bmp:openfl.display.BitmapData = new openfl.display.BitmapData(w, h, true, 0x00000000);
-		// draw base: walls=black, floor=white
+
 		for (y in 0...h)
 		{
 			for (x in 0...w)
 			{
 				var v:Int = wallGrid[y][x];
 				if (v == 1)
-					bmp.setPixel32(x, y, 0xFF000000); // black
+					bmp.setPixel32(x, y, 0xFF000000);
 				else
-					bmp.setPixel32(x, y, 0xFFFFFFFF); // white
+					bmp.setPixel32(x, y, 0xFFFFFFFF);
 			}
 		}
 
-		// draw enemies (red)
 		for (e in enemyTiles)
 		{
 			if (e == null)
@@ -95,7 +85,6 @@ class GameMap extends FlxGroup
 				bmp.setPixel32(ex, ey, 0xFFFF0000);
 		}
 
-		// draw player spawn (green)
 		if (playerTileX >= 0 && playerTileX < w && playerTileY >= 0 && playerTileY < h)
 			bmp.setPixel32(playerTileX, playerTileY, 0xFF00FF00);
 
@@ -112,13 +101,12 @@ class GameMap extends FlxGroup
 		super();
 	}
 
-	// Helper: check if a candidate spawn tile is blocked by portal buffer or nearby enemies
 	private function isSpawnBlocked(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, tx:Int, ty:Int, avoidRadius:Int, minSpacing:Int, TILE_SIZE:Int):Bool
 	{
-		// avoid portal buffer
+
 		if (Math.abs(tx - this.portalTileX) <= avoidRadius && Math.abs(ty - this.portalTileY) <= avoidRadius)
 			return true;
-		// ensure spacing from existing enemies
+
 		for (existing in enemies.members)
 		{
 			if (existing == null)
@@ -131,9 +119,6 @@ class GameMap extends FlxGroup
 		return false;
 	}
 
-	// Spawn enemies into the provided group. This was previously in PlayState; moved
-	// here so the map can control spawn distribution and room/corridor coverage.
-	// Optionally accept player tile coords to bias spawn distribution toward player and portal
 	public function spawnEnemies(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, atmosphereHue:Int, ?playerTileX:Int = -1, ?playerTileY:Int = -1):Void
 	{
 		if (this.roomsInfo == null)
@@ -161,13 +146,13 @@ class GameMap extends FlxGroup
 			var rb:RoomInfo = cast this.roomsInfo[b];
 			if (ra == null || rb == null)
 				return 0;
-			// distance squared to portal
+
 			var da_portal:Float = Math.pow(ra.centroid.x - px, 2) + Math.pow(ra.centroid.y - py, 2);
 			var db_portal:Float = Math.pow(rb.centroid.x - px, 2) + Math.pow(rb.centroid.y - py, 2);
-			// optionally include distance to player with moderate weighting
+
 			var da_player:Float = (ppx >= 0 && ppy >= 0) ? (Math.pow(ra.centroid.x - ppx, 2) + Math.pow(ra.centroid.y - ppy, 2)) : 0;
 			var db_player:Float = (ppx >= 0 && ppy >= 0) ? (Math.pow(rb.centroid.x - ppx, 2) + Math.pow(rb.centroid.y - ppy, 2)) : 0;
-			// combined score: favor rooms close to portal and player (lower score = higher priority)
+
 			var da:Float = da_portal * 0.7 + da_player * 0.3;
 			var db:Float = db_portal * 0.7 + db_player * 0.3;
 			return da < db ? -1 : (da > db ? 1 : 0);
@@ -183,7 +168,6 @@ class GameMap extends FlxGroup
 				continue;
 			if (room.isPortal)
 				continue;
-			// allow corridor spawns
 			var desired:Int = 0;
 			if (room.area < 5)
 				desired = 0;
@@ -206,7 +190,7 @@ class GameMap extends FlxGroup
 				if (desired > maxPerRoom)
 					desired = maxPerRoom;
 			}
-			// bias towards player if provided
+
 			if (playerTileX >= 0 && playerTileY >= 0)
 			{
 				var playerDistTiles:Float = Math.pow(room.centroid.x - playerTileX, 2) + Math.pow(room.centroid.y - playerTileY, 2);
@@ -260,26 +244,25 @@ class GameMap extends FlxGroup
 				var variant:String = Enemy.pickVariant();
 				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
 				enemies.add(eObj);
-				if (eObj != null)
 				{
 					eObj.randomizeBehavior(atmosphereHue);
-					// small extra variability: occasional extreme/aggressive or skittish variants
+
 					var rv:Float = FlxG.random.float();
 					if (rv < 0.10)
 					{
-						// aggressive runner
+
 						eObj.aggression = Math.min(1.0, eObj.aggression + 0.4 + FlxG.random.float() * 0.4);
 						eObj.wanderSpeed *= 1.4 + FlxG.random.float() * 0.6;
 					}
 					else if (rv < 0.20)
 					{
-						// skittish and erratic
+
 						eObj.skittishness = Math.min(1.0, eObj.skittishness + 0.35 + FlxG.random.float() * 0.5);
 						eObj.wanderSpeed *= 0.6 + FlxG.random.float() * 0.6;
 					}
 					else
 					{
-						// normal small speed jitter
+
 						eObj.wanderSpeed *= 0.85 + FlxG.random.float() * 0.4;
 						eObj.speed = eObj.wanderSpeed;
 					}
@@ -338,7 +321,7 @@ class GameMap extends FlxGroup
 			}
 		}
 
-		// Coverage pass
+
 		try
 		{
 			var grid:Array<Array<Int>> = this.wallGrid;
@@ -429,21 +412,105 @@ class GameMap extends FlxGroup
 				}
 			}
 		}
-		catch (e:Dynamic) {}
+		catch (e:Dynamic)
+		{
+			#if (debug)
+			trace('GameMap.generate: coverage-pass failure: ' + Std.string(e));
+			#end
+		}
 	}
 
-	// generate map; optional hue parameter (0..359). If hue >= 0, recolor floor/autotile bitmaps
-	// before creating tilemaps so the tilesets themselves are tinted at load time.
+	public static function carveCrooked(M:Array<Array<Int>>, x1:Int, y1:Int, x2:Int, y2:Int, width:Int, depth:Int):Void
+	{
+		if (depth > 8)
+			return;
+		var dx = x2 - x1;
+		var dy = y2 - y1;
+		var dist = Math.sqrt(dx * dx + dy * dy);
+		if (dist < 1)
+			return;
+		if (dist <= 6)
+		{
+			var steps = Std.int(Math.max(1, dist));
+			for (s in 0...steps + 1)
+			{
+				var t:Float = s / Math.max(1, steps);
+				var fx = Std.int(x1 + dx * t);
+				var fy = Std.int(y1 + dy * t);
+				var r = Std.int(Math.max(1, Std.int(width / 2)));
+				for (oy in -r...r + 1)
+					for (ox in -r...r + 1)
+					{
+						var nx = fx + ox;
+						var ny = fy + oy;
+						if (nx <= 0 || ny <= 0 || nx >= M[0].length - 1 || ny >= M.length - 1)
+							continue;
+						if (ox * ox + oy * oy <= r * r)
+							M[ny][nx] = 0;
+					}
+			}
+			return;
+		}
+
+		var mx = (x1 + x2) / 2.0 + (FlxG.random.float() - 0.5) * dist * 0.6;
+		var my = (y1 + y2) / 2.0 + (FlxG.random.float() - 0.5) * dist * 0.6;
+		var mxi = Std.int(mx);
+		var myi = Std.int(my);
+		GameMap.carveCrooked(M, x1, y1, mxi, myi, width, depth + 1);
+		GameMap.carveCrooked(M, mxi, myi, x2, y2, width, depth + 1);
+
+		if (FlxG.random.float() < 0.55 && depth < 7)
+		{
+			var bx = Std.int(mxi + (FlxG.random.float() - 0.5) * dist * 0.5);
+			var by = Std.int(myi + (FlxG.random.float() - 0.5) * dist * 0.5);
+			var bw = Std.int(2 + Std.int(FlxG.random.float() * 3));
+			GameMap.carveCrooked(M, mxi, myi, bx, by, bw, depth + 1);
+		}
+	}
+
+	public static function findCenter(node:Dynamic):TileCoord
+	{
+		if (node == null)
+			return null;
+		if (node.roomCenter != null)
+			return node.roomCenter;
+		var l:TileCoord = GameMap.findCenter(node.left);
+		if (l != null)
+			return l;
+		return GameMap.findCenter(node.right);
+	}
+
+	public static function connectNode(M:Array<Array<Int>>, node:Dynamic):Void
+	{
+		if (node == null)
+			return;
+		if (node.left != null && node.right != null)
+		{
+			var a:TileCoord = GameMap.findCenter(node.left);
+			var b:TileCoord = GameMap.findCenter(node.right);
+			if (a != null && b != null)
+			{
+				var w = Std.int(3 + Std.int(FlxG.random.float() * 6));
+				GameMap.carveCrooked(M, a.x, a.y, b.x, b.y, w, 0);
+			}
+		}
+		if (node.left != null)
+			GameMap.connectNode(M, node.left);
+		if (node.right != null)
+			GameMap.connectNode(M, node.right);
+	}
+
+
 	public function generate(hue:Int = -1):Void
 	{
 		var TILE_SIZE:Int = Constants.TILE_SIZE;
 		var tilesWide:Int = Std.int(FlxG.width / TILE_SIZE);
 		var tilesHigh:Int = Std.int(FlxG.height / TILE_SIZE);
-		// increase overall map size: make map larger so rooms can be smaller and more spread out
+
 		var totalW:Int = Std.int(Math.max(96, tilesWide * 8));
 		var totalH:Int = Std.int(Math.max(96, tilesHigh * 8));
 
-		// init matrix (1 = wall)
+
 		var M:Array<Array<Int>> = [];
 		for (y in 0...totalH)
 		{
@@ -453,9 +520,6 @@ class GameMap extends FlxGroup
 			M.push(row);
 		}
 
-		// BSP: many partitions
-		// increase the number of BSP leaves so we get more partitions -> more rooms
-		// reduce divisor to create more leaves for denser partitioning
 		var targetLeaves:Int = Std.int((totalW * totalH) / 900);
 		if (targetLeaves < 20)
 			targetLeaves = 24;
@@ -473,7 +537,7 @@ class GameMap extends FlxGroup
 		};
 		leaves.push(root);
 
-		var minLeaf:Int = 7; // allow slightly smaller leaves so more splits occur
+		var minLeaf:Int = 7;
 		var attempts:Int = 0;
 		while (leaves.length < targetLeaves && attempts < targetLeaves * 8)
 		{
@@ -569,27 +633,23 @@ class GameMap extends FlxGroup
 			}
 		}
 
-		// carve blobby rooms inside each leaf (rooms take most of the partition)
 		roomsInfo = [];
 		for (leaf in leaves)
 		{
 			if (leaf.left != null || leaf.right != null)
 				continue;
-			// increase margin so rooms stay away from partition edges
+
 			var margin = 3;
 			var maxRW = Math.max(3, leaf.w - margin * 2);
 			var maxRH = Math.max(3, leaf.h - margin * 2);
 			if (maxRW < 3 || maxRH < 3)
 				continue;
 
-			// make rooms a bit smaller fraction of partition (45% - 70%) so more rooms fit in
-			// also cap room size to be at most leaf size - 1 so rooms never fully fill a leaf
 			var roomFracMin:Float = 0.45;
-			var roomFracRange:Float = 0.25; // up to 0.45 + 0.25 = 0.70
+			var roomFracRange:Float = 0.25;
 			var rW = Std.int(Math.max(3, Math.min(maxRW - 1, Std.int(maxRW * (roomFracMin + FlxG.random.float() * roomFracRange)))));
 			var rH = Std.int(Math.max(3, Math.min(maxRH - 1, Std.int(maxRH * (roomFracMin + FlxG.random.float() * roomFracRange)))));
-			// Try to pick a room position that keeps some separation from existing rooms
-			var minRoomSeparation:Int = 8; // increase separation so rooms spread out more
+			var minRoomSeparation:Int = 8;
 			var attemptsPos:Int = 0;
 			var rx:Int = 0;
 			var ry:Int = 0;
@@ -602,7 +662,6 @@ class GameMap extends FlxGroup
 				var cxTry = rx + Std.int(rW / 2);
 				var cyTry = ry + Std.int(rH / 2);
 				var okPos:Bool = true;
-				// check against already placed rooms' centroids
 				for (existingRoom in roomsInfo)
 				{
 					if (existingRoom == null)
@@ -622,16 +681,14 @@ class GameMap extends FlxGroup
 			var cx = rx + Std.int(rW / 2);
 			var cy = ry + Std.int(rH / 2);
 
-			// more circles and slightly larger radii for richer blobs
-			// slightly fewer circles but keep variety
-			var circles = 4 + Std.int(FlxG.random.float() * 6); // 4..9
+			var circles = 4 + Std.int(FlxG.random.float() * 6);
 			for (c in 0...circles)
 			{
 				var angle = FlxG.random.float() * Math.PI * 2;
-				var edgeBias = 0.35 + FlxG.random.float() * 0.55; // push toward edge moderately
+				var edgeBias = 0.35 + FlxG.random.float() * 0.55;
 				var ox = cx + Std.int((rW / 2) * Math.cos(angle) * edgeBias) + Std.int((FlxG.random.float() - 0.5) * 4);
 				var oy = cy + Std.int((rH / 2) * Math.sin(angle) * edgeBias) + Std.int((FlxG.random.float() - 0.5) * 4);
-				var maxRad = Math.max(2, Std.int(Math.min(rW, rH) * (0.18 + FlxG.random.float() * 0.50))); // larger circles
+				var maxRad = Math.max(2, Std.int(Math.min(rW, rH) * (0.18 + FlxG.random.float() * 0.50)));
 
 				var minx:Int = Std.int(Math.max(1, ox - maxRad - 1));
 				var maxx:Int = Std.int(Math.min(totalW - 2, ox + maxRad + 1));
@@ -648,7 +705,7 @@ class GameMap extends FlxGroup
 					}
 			}
 
-			// optional small noise fill
+
 			var yy0:Int = Std.int(ry);
 			var yy1:Int = Std.int(ry + rH);
 			var xx0:Int = Std.int(rx);
@@ -658,7 +715,7 @@ class GameMap extends FlxGroup
 					if (xx > 0 && yy > 0 && xx < totalW - 1 && yy < totalH - 1 && FlxG.random.float() < 0.02)
 						M[yy][xx] = 0;
 
-			// central guarantee
+
 			for (yy in cy - 1...cy + 2)
 				for (xx in cx - 1...cx + 2)
 					if (xx > 0 && yy > 0 && xx < totalW - 1 && yy < totalH - 1)
@@ -690,7 +747,6 @@ class GameMap extends FlxGroup
 			}, false));
 		}
 
-		// keep borders as walls
 		for (x in 0...totalW)
 		{
 			M[0][x] = 1;
@@ -702,15 +758,10 @@ class GameMap extends FlxGroup
 			M[y][totalW - 1] = 1;
 		}
 
-		// crooked corridor drawer
-		// carving functions moved to MapGenHelpers
 
-		// traverse tree and connect child rooms
-		// connectNode and findCenter moved to MapGenHelpers
 
-		MapGenHelpers.connectNode(M, root);
+		GameMap.connectNode(M, root);
 
-		// smoothing
 		for (iter in 0...2)
 		{
 			var buf:Array<Array<Int>> = [];
@@ -740,7 +791,6 @@ class GameMap extends FlxGroup
 			M = buf;
 		}
 
-		// finalize borders
 		for (x in 0...totalW)
 		{
 			M[0][x] = 1;
@@ -752,8 +802,6 @@ class GameMap extends FlxGroup
 			M[y][totalW - 1] = 1;
 		}
 
-		// --- Remove orphan (disconnected) floor regions, keeping the largest connected area ---
-		// Build component id grid initialized to -1
 		var comp:Array<Array<Int>> = [];
 		for (yy in 0...totalH)
 		{
@@ -771,7 +819,6 @@ class GameMap extends FlxGroup
 			{
 				if (M[yy][xx] != 0 || comp[yy][xx] != -1)
 					continue;
-				// flood-fill / BFS stack (use pooled FlxPoint for temporaries)
 				var stack:Array<FlxPoint> = [];
 				var p0:FlxPoint = FlxPoint.get(xx, yy);
 				stack.push(p0);
@@ -782,9 +829,7 @@ class GameMap extends FlxGroup
 					var curP:FlxPoint = stack.pop();
 					var curX:Int = Std.int(curP.x);
 					var curY:Int = Std.int(curP.y);
-					// record as TileCoord for RoomInfo
 					list.push({x: curX, y: curY});
-					// return point to pool
 					curP.put();
 					var dxs:Array<Int> = [-1, 1, 0, 0];
 					var dys:Array<Int> = [0, 0, -1, 1];
@@ -807,7 +852,6 @@ class GameMap extends FlxGroup
 			}
 		}
 
-		// find largest component
 		var keepId:Int = -1;
 		var bestSize:Int = -1;
 		for (i in 0...comps.length)
@@ -819,14 +863,8 @@ class GameMap extends FlxGroup
 			}
 		}
 
-		// Attempt to repair (connect) pruned components back to the main component
-		// Strategy: for each component that would be pruned, pick a room that lies
-		// inside that component (if any) and connect its centroid to a room in the
-		// main component using a small crooked tunnel. This helps keep interesting
-		// rooms from being destroyed while preserving pruning for tiny isolated blobs.
 		if (comps.length > 1 && keepId >= 0)
 		{
-			// build mapping from comp id -> list of room indices that intersect it
 			var compRooms:Array<Array<Int>> = [];
 			for (ci in 0...comps.length)
 				compRooms.push([]);
@@ -835,7 +873,6 @@ class GameMap extends FlxGroup
 				var r:RoomInfo = roomsInfo[ri];
 				if (r == null || r.tiles == null || r.tiles.length == 0)
 					continue;
-				// find any tile of the room and get its component id
 				for (t in r.tiles)
 				{
 					var tx:Int = Std.int(t.x);
@@ -845,7 +882,6 @@ class GameMap extends FlxGroup
 						var cidVal:Int = comp[ty][tx];
 						if (cidVal >= 0 && cidVal < compRooms.length)
 						{
-							// add if not already present
 							var present:Bool = false;
 							for (ei in 0...compRooms[cidVal].length)
 								if (compRooms[cidVal][ei] == ri)
@@ -861,12 +897,10 @@ class GameMap extends FlxGroup
 				}
 			}
 
-			// for each pruned component, try to connect to the main component
 			for (ci in 0...comps.length)
 			{
 				if (ci == keepId)
 					continue;
-				// pick a source coordinate: prefer a room centroid inside this comp
 				var srcX:Int = -1;
 				var srcY:Int = -1;
 				if (compRooms[ci].length > 0)
@@ -882,7 +916,6 @@ class GameMap extends FlxGroup
 				}
 				else
 				{
-					// fallback: pick a random tile from the component
 					var compTiles = comps[ci];
 					if (compTiles.length > 0)
 					{
@@ -898,7 +931,6 @@ class GameMap extends FlxGroup
 				if (srcX < 0 || srcY < 0)
 					continue;
 
-				// pick target: choose nearest room in the keepId component if possible
 				var tgtX:Int = -1;
 				var tgtY:Int = -1;
 				if (compRooms[keepId].length > 0)
@@ -924,7 +956,6 @@ class GameMap extends FlxGroup
 						tgtY = Std.int(Math.max(1, Math.min(totalH - 2, Math.round(bestRoom.centroid.y))));
 					}
 				}
-				// fallback: pick any tile from main comp
 				if (tgtX < 0 || tgtY < 0)
 				{
 					var mainTiles = comps[keepId];
@@ -942,13 +973,10 @@ class GameMap extends FlxGroup
 				if (tgtX < 0 || tgtY < 0)
 					continue;
 
-				// carve a small crooked tunnel between src and tgt
-				var w:Int = 2 + Std.int(FlxG.random.float() * 3); // width 2..4
-				MapGenHelpers.carveCrooked(M, srcX, srcY, tgtX, tgtY, w, 0);
+				var w:Int = 2 + Std.int(FlxG.random.float() * 3);
+				GameMap.carveCrooked(M, srcX, srcY, tgtX, tgtY, w, 0);
 			}
 
-			// After attempting repairs, recompute components so we can fill any remaining orphans
-			// Build component id grid initialized to -1 (again)
 			var comp2:Array<Array<Int>> = [];
 			for (yy in 0...totalH)
 			{
@@ -998,7 +1026,6 @@ class GameMap extends FlxGroup
 				}
 			}
 
-			// find new largest component id
 			var keepId2:Int = -1;
 			var bestSize2:Int = -1;
 			for (i2 in 0...comps2.length)
@@ -1010,7 +1037,6 @@ class GameMap extends FlxGroup
 				}
 			}
 
-			// fill (turn to wall) any component that is not the main one (after repairs)
 			for (i2 in 0...comps2.length)
 			{
 				if (i2 == keepId2)
@@ -1018,26 +1044,21 @@ class GameMap extends FlxGroup
 				for (t in comps2[i2])
 					M[t.y][t.x] = 1;
 			}
-			// swap comp2/comps2 into comp/comps so downstream code uses the updated values
 			comp = comp2;
 			comps = comps2;
 			keepId = keepId2;
 		}
 
-		// --- Extra connectivity: add additional loops between rooms in the main component ---
-		// This reduces strict bifurcation by creating alternate paths (loops) between rooms.
 		{
-			var EXTRA_LOOPS:Int = 4; // try 3..6 for moderate loops
+			var EXTRA_LOOPS:Int = 4;
 			var mainRoomIndices:Array<Int> = [];
 			if (keepId >= 0)
 			{
-				// collect rooms that are part of the main component
 				for (ri in 0...roomsInfo.length)
 				{
 					var r:RoomInfo = roomsInfo[ri];
 					if (r == null || r.tiles == null || r.tiles.length == 0)
 						continue;
-					// pick a tile of the room and check its comp id
 					var t0 = r.tiles[Std.int(r.tiles.length * 0.5)];
 					var cx0:Int = Std.int(Math.max(0, Math.min(totalW - 1, Math.round(t0.x))));
 					var cy0:Int = Std.int(Math.max(0, Math.min(totalH - 1, Math.round(t0.y))));
@@ -1045,19 +1066,16 @@ class GameMap extends FlxGroup
 						mainRoomIndices.push(ri);
 				}
 			}
-			// create some loops by connecting nearby or random pairs of main rooms
 			for (l in 0...EXTRA_LOOPS)
 			{
 				if (mainRoomIndices.length < 2)
 					break;
-				// pick two rooms biased toward being not already adjacent: pick random then nearest among some sample
 				var aIdx:Int = Std.int(FlxG.random.float() * mainRoomIndices.length);
 				if (aIdx < 0)
 					aIdx = 0;
 				if (aIdx >= mainRoomIndices.length)
 					aIdx = mainRoomIndices.length - 1;
 				var ra:RoomInfo = roomsInfo[mainRoomIndices[aIdx]];
-				// find a candidate b by sampling a subset and choosing one with mid-range distance
 				var bestB:Int = -1;
 				var bestScore:Float = -1;
 				var sampleCount:Int = Std.int(Math.min(8, mainRoomIndices.length));
@@ -1074,8 +1092,7 @@ class GameMap extends FlxGroup
 					var dx = rb.centroid.x - ra.centroid.x;
 					var dy = rb.centroid.y - ra.centroid.y;
 					var d2 = dx * dx + dy * dy;
-					// prefer not-too-close and not-too-far (mid-range): score = d2 / (1 + abs(d2 - median))
-					var score:Float = d2; // simple prefer larger separation for interesting loops
+					var score:Float = d2;
 					if (score > bestScore)
 					{
 						bestScore = score;
@@ -1089,13 +1106,11 @@ class GameMap extends FlxGroup
 				var sy:Int = Std.int(Math.max(1, Math.min(totalH - 2, Math.round(ra.centroid.y))));
 				var tx:Int = Std.int(Math.max(1, Math.min(totalW - 2, Math.round(rb2.centroid.x))));
 				var ty:Int = Std.int(Math.max(1, Math.min(totalH - 2, Math.round(rb2.centroid.y))));
-				// carve a crooked tunnel; occasionally carve two parallel tunnels for redundancy
 				var width1:Int = 2 + Std.int(FlxG.random.float() * 3);
-				MapGenHelpers.carveCrooked(M, sx, sy, tx, ty, width1, 0);
+				GameMap.carveCrooked(M, sx, sy, tx, ty, width1, 0);
 				if (FlxG.random.float() < 0.25)
 				{
 					var width2:Int = 1 + Std.int(FlxG.random.float() * 3);
-					// offset endpoints slightly for a second path
 					var offAx:Int = Std.int((FlxG.random.float() - 0.5) * 6);
 					var offAy:Int = Std.int((FlxG.random.float() - 0.5) * 6);
 					var offBx:Int = Std.int((FlxG.random.float() - 0.5) * 6);
@@ -1104,14 +1119,13 @@ class GameMap extends FlxGroup
 					var ay:Int = Std.int(Math.max(1, sy + offAy));
 					var bx:Int = Std.int(Math.max(1, tx + offBx));
 					var by:Int = Std.int(Math.max(1, ty + offBy));
-					MapGenHelpers.carveCrooked(M, ax, ay, bx, by, width2, 0);
+					GameMap.carveCrooked(M, ax, ay, bx, by, width2, 0);
 				}
 			}
 		}
 
-		// --- Gnarly pockets: for a random subset of rooms carve small twisted clusters nearby ---
 		{
-			var POCKET_CHANCE:Float = 0.08; // ~8% of rooms get a gnarly pocket
+			var POCKET_CHANCE:Float = 0.08;
 			for (ri in 0...roomsInfo.length)
 			{
 				if (FlxG.random.float() > POCKET_CHANCE)
@@ -1121,15 +1135,14 @@ class GameMap extends FlxGroup
 					continue;
 				var cx:Int = Std.int(Math.round(r.centroid.x));
 				var cy:Int = Std.int(Math.round(r.centroid.y));
-				// carve a small cluster of overlapping circles around the room centroid
-				var pocketCircles:Int = 3 + Std.int(FlxG.random.float() * 4); // 3..6
+				var pocketCircles:Int = 3 + Std.int(FlxG.random.float() * 4);
 				for (pc in 0...pocketCircles)
 				{
 					var angle = FlxG.random.float() * Math.PI * 2;
-					var dist = 2 + Std.int(FlxG.random.float() * 6); // distance from centroid
+					var dist = 2 + Std.int(FlxG.random.float() * 6);
 					var ox = cx + Std.int(Math.cos(angle) * dist) + Std.int((FlxG.random.float() - 0.5) * 3);
 					var oy = cy + Std.int(Math.sin(angle) * dist) + Std.int((FlxG.random.float() - 0.5) * 3);
-					var rad = 2 + Std.int(FlxG.random.float() * 4); // 2..6 small radii
+					var rad = 2 + Std.int(FlxG.random.float() * 4);
 					var minx:Int = Std.int(Math.max(1, ox - rad - 1));
 					var maxx:Int = Std.int(Math.min(totalW - 2, ox + rad + 1));
 					var miny:Int = Std.int(Math.max(1, oy - rad - 1));
@@ -1143,14 +1156,11 @@ class GameMap extends FlxGroup
 								M[yy][xx] = 0;
 						}
 				}
-				// optionally, connect the pocket back to the room centroid with a short crooked path
 				if (FlxG.random.float() < 0.9)
-					MapGenHelpers.carveCrooked(M, cx, cy, cx + Std.int((FlxG.random.float() - 0.5) * 6), cy + Std.int((FlxG.random.float() - 0.5) * 6), 2, 0);
+					GameMap.carveCrooked(M, cx, cy, cx + Std.int((FlxG.random.float() - 0.5) * 6), cy + Std.int((FlxG.random.float() - 0.5) * 6), 2, 0);
 			}
 		}
 
-		// Recompute each room's tile list based on final map (roomsInfo built earlier may be stale)
-		// Filter out rooms that were destroyed by the pruning step and recompute centroids/areas
 		var newRooms:Array<RoomInfo> = [];
 		for (ri in 0...roomsInfo.length)
 		{
@@ -1169,7 +1179,6 @@ class GameMap extends FlxGroup
 			}
 			if (newTiles.length == 0)
 				continue;
-			// recompute centroid
 			var sx:Int = 0;
 			var sy:Int = 0;
 			for (nt in newTiles)
@@ -1183,7 +1192,6 @@ class GameMap extends FlxGroup
 		}
 		roomsInfo = newRooms;
 
-		// build a list of valid room indices (non-empty rooms)
 		var validRooms:Array<Int> = [];
 		for (i in 0...roomsInfo.length)
 		{
@@ -1194,7 +1202,6 @@ class GameMap extends FlxGroup
 
 		if (validRooms.length > 0)
 		{
-			// Compute a size cutoff around the 60th percentile to prefer small/medium rooms
 			var areas:Array<Int> = [];
 			for (idx in validRooms)
 				areas.push(roomsInfo[idx].area);
@@ -1209,7 +1216,6 @@ class GameMap extends FlxGroup
 				cutoffIndex = areas.length - 1;
 			var cutoffArea:Int = areas[cutoffIndex];
 
-			// Choose candidate rooms that are <= cutoffArea but not trivially small
 			var candidateRooms:Array<Int> = [];
 			for (idx in validRooms)
 			{
@@ -1218,11 +1224,9 @@ class GameMap extends FlxGroup
 					candidateRooms.push(idx);
 			}
 
-			// Fallback: if none match the heuristic, use all valid rooms
 			if (candidateRooms.length == 0)
 				candidateRooms = validRooms;
 
-			// Prefer candidate rooms that sit near other small rooms (small-room clusters)
 			var bestIdx:Int = -1;
 			var bestScore:Float = -1.0;
 			for (ci in 0...candidateRooms.length)
@@ -1231,7 +1235,6 @@ class GameMap extends FlxGroup
 				var rroom:RoomInfo = roomsInfo[idxRoom];
 				if (rroom == null)
 					continue;
-				// count nearby small rooms within a radius (tiles)
 				var neighborCount:Int = 0;
 				for (oj in 0...candidateRooms.length)
 				{
@@ -1244,10 +1247,9 @@ class GameMap extends FlxGroup
 					var dx = oroom.centroid.x - rroom.centroid.x;
 					var dy = oroom.centroid.y - rroom.centroid.y;
 					var d2 = dx * dx + dy * dy;
-					if (d2 <= 144.0) // within ~12 tiles
+					if (d2 <= 144.0)
 						neighborCount++;
 				}
-				// score = neighborCount + small random to add variance
 				var score:Float = neighborCount + FlxG.random.float() * 0.8;
 				if (score > bestScore)
 				{
@@ -1269,7 +1271,6 @@ class GameMap extends FlxGroup
 			var room:RoomInfo = roomsInfo[portalRoomIndex];
 			if (room.tiles.length > 0)
 			{
-				// prefer tiles with 1-tile clearance (all 8 neighbors are floor)
 				var clearance:Array<TileCoord> = [];
 				for (t in room.tiles)
 				{
@@ -1307,7 +1308,6 @@ class GameMap extends FlxGroup
 				}
 				else
 				{
-					// fallback: pick any tile in the room
 					var ti:Int = Std.int(FlxG.random.float() * room.tiles.length);
 					if (ti < 0)
 						ti = 0;
@@ -1317,15 +1317,13 @@ class GameMap extends FlxGroup
 				}
 				portalTileX = Std.int(pickTile.x);
 				portalTileY = Std.int(pickTile.y);
-				portalPixelX = portalTileX * TILE_SIZE + TILE_SIZE / 2.0; // center of tile
+				portalPixelX = portalTileX * TILE_SIZE + TILE_SIZE / 2.0;
 				portalPixelY = portalTileY * TILE_SIZE + TILE_SIZE / 2.0;
-				// mark room as portal room
 				room.isPortal = true;
 			}
 		}
 
 		var csv:String = FlxCaveGenerator.convertMatrixToString(M);
-		// parse CSV into wallGrid for fast CPU queries (rows = totalH, cols = totalW)
 		wallGrid = [];
 		var csvRows = csv.split("\n");
 		for (ry in 0...csvRows.length)
@@ -1343,7 +1341,6 @@ class GameMap extends FlxGroup
 				{
 					v = 1;
 				}
-				// in our M generation 0=floor, 1=wall; keep same semantics
 				rowArr.push(v);
 			}
 			wallGrid.push(rowArr);
@@ -1352,7 +1349,8 @@ class GameMap extends FlxGroup
 		_floorCsv = floorCsv;
 
 		floorMap = new FlxTilemap();
-		var floorTileset:BitmapData = (hue >= 0) ? getHueColoredBmp("assets/images/floor.png", hue) : FlxAssets.getBitmapData("assets/images/floor.png");
+		var floorTileset:BitmapData = (hue >= 0) ? ColorHelpers.getHueColoredBmp("assets/images/floor.png",
+			hue) : FlxAssets.getBitmapData("assets/images/floor.png");
 		FlxG.bitmapLog.add(floorTileset);
 		floorMap.loadMapFromCSV(_floorCsv, floorTileset, TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.OFF, 0, 0);
 		this.add(floorMap);
@@ -1360,124 +1358,26 @@ class GameMap extends FlxGroup
 		wallsMap = new FlxTilemap();
 		_wallsCsv = csv;
 		wallsMap = new FlxTilemap();
-		var wallsTileset:BitmapData = (hue >= 0) ? getHueColoredBmp("assets/images/autotiles.png",
+		var wallsTileset:BitmapData = (hue >= 0) ? ColorHelpers.getHueColoredBmp("assets/images/autotiles.png",
 			hue) : FlxAssets.getBitmapData("assets/images/autotiles.png");
 		FlxG.bitmapLog.add(wallsTileset);
 		wallsMap.loadMapFromCSV(_wallsCsv, wallsTileset, TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.FULL);
 		this.add(wallsMap);
 	}
 
-	private function getHueColoredBmp(path:String, hue:Int):BitmapData
-	{
-		var src:BitmapData = FlxAssets.getBitmapData(path);
-		if (src == null)
-			throw 'Missing asset: ' + path;
 
-		var result:BitmapData = new BitmapData(src.width, src.height, true, 0x00000000);
-		// copy original pixels to result as base
-		result.copyPixels(src, src.rect, new Point(0, 0));
-
-		// Parameters chosen to match shader defaults in PlayState (tweak there if needed)
-		var sat:Float = 0.7; // shader sat
-		var vLight:Float = 0.60; // shader vLight
-		var vDark:Float = 0.18; // shader vDark
-		var hn:Float = (hue % 360) / 360.0;
-
-		for (yy in 0...result.height)
-		{
-			for (xx in 0...result.width)
-			{
-				var px:Int = src.getPixel32(xx, yy);
-				var a:Int = (px >> 24) & 0xFF;
-				if (a == 0)
-					continue; // preserve transparency
-				var r:Int = (px >> 16) & 0xFF;
-				var g:Int = (px >> 8) & 0xFF;
-				var b:Int = px & 0xFF;
-				// value = max(r,g,b)
-				var vf:Float = Math.max(r / 255.0, Math.max(g / 255.0, b / 255.0));
-				var v:Float = vDark + vf * (vLight - vDark);
-
-				var h:Float = hn;
-				var s:Float = sat;
-				if (s <= 0.0)
-				{
-					var gray:Int = Std.int(Math.round(v * 255.0));
-					var outCol:Int = (a << 24) | (gray << 16) | (gray << 8) | gray;
-					result.setPixel32(xx, yy, outCol);
-					continue;
-				}
-				var hh:Float = (h - Math.floor(h)) * 6.0;
-				var i:Int = Std.int(Math.floor(hh));
-				var f:Float = hh - i;
-				var p:Float = v * (1.0 - s);
-				var q:Float = v * (1.0 - s * f);
-				var t:Float = v * (1.0 - s * (1.0 - f));
-				var rf:Float = 0.0;
-				var gf:Float = 0.0;
-				var bf:Float = 0.0;
-				if (i == 0)
-				{
-					rf = v;
-					gf = t;
-					bf = p;
-				}
-				else if (i == 1)
-				{
-					rf = q;
-					gf = v;
-					bf = p;
-				}
-				else if (i == 2)
-				{
-					rf = p;
-					gf = v;
-					bf = t;
-				}
-				else if (i == 3)
-				{
-					rf = p;
-					gf = q;
-					bf = v;
-				}
-				else if (i == 4)
-				{
-					rf = t;
-					gf = p;
-					bf = v;
-				}
-				else
-				{
-					rf = v;
-					gf = p;
-					bf = q;
-				}
-				var ri:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(rf * 255.0)))));
-				var gi:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(gf * 255.0)))));
-				var bi:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(bf * 255.0)))));
-				var out:Int = (a << 24) | (ri << 16) | (gi << 8) | bi;
-				result.setPixel32(xx, yy, out);
-			}
-		}
-		return result;
-	}
-
-	// --- helper: generate a floor CSV using multi-octave value-noise (Perlin-like) ---
 	private function generateFloorCSV(w:Int, h:Int):String
 	{
-		// simple value-noise: grid of random values sampled with bilinear interpolation
 
-		// sample with multiple octaves (tuned for more coherence)
 		var octaves = 4;
-		var persistence = 0.62; // stronger low-frequency contribution
-		var lacunarity = 1.7; // slower frequency increase -> bigger features
-		var baseFreq:Float = 0.6; // start at a lower base frequency for larger patches
+		var persistence = 0.62;
+		var lacunarity = 1.7;
+		var baseFreq:Float = 0.6;
 
 		var maxAmp:Float = 0.0;
 		for (o in 0...octaves)
 			maxAmp += Math.pow(persistence, o);
 
-		// first build a float grid of values
 		var vals:Array<Array<Float>> = [];
 		for (j in 0...h)
 		{
@@ -1502,12 +1402,10 @@ class GameMap extends FlxGroup
 					var iy:Int = Std.int(Math.floor(sy));
 					var fx:Float = sx - ix;
 					var fy:Float = sy - iy;
-					// four corner values (value noise)
 					var v00:Float = FlxG.random.float();
 					var v10:Float = FlxG.random.float();
 					var v01:Float = FlxG.random.float();
 					var v11:Float = FlxG.random.float();
-					// bilinear interpolation
 					var a:Float = v00 * (1 - fx) + v10 * fx;
 					var b:Float = v01 * (1 - fx) + v11 * fx;
 					var s:Float = a * (1 - fy) + b * fy;
@@ -1519,7 +1417,6 @@ class GameMap extends FlxGroup
 			}
 		}
 
-		// apply a couple of light smoothing passes (3x3 box blur) to increase coherence
 		for (p in 0...2)
 		{
 			var buf:Array<Array<Float>> = [];
@@ -1547,7 +1444,6 @@ class GameMap extends FlxGroup
 			vals = buf;
 		}
 
-		// quantize to 0..3 and build CSV
 		var rows:Array<String> = [];
 		for (j in 0...h)
 		{

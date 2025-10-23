@@ -1,3 +1,5 @@
+package;
+
 import openfl.display.BitmapData;
 import openfl.geom.Rectangle;
 import openfl.geom.Point;
@@ -7,14 +9,12 @@ class VisibilityMask
 {
 	public var tileGrid:Array<Array<Int>>;
 	public var tileSize:Int;
-	public var maskScale:Float = 0.25; // render mask at one-quarter resolution by default for perf
+	public var maskScale:Float = 0.25;
 	public var debug:Bool = false;
 
-	// configurable blur radius in full-resolution pixels (default 8). Set higher for stronger blur.
-	// default reduced for cheaper blur; lower value tightens the soft band
 	public var blurRadiusFull:Int = 16;
 
-	// 8x8 Bayer matrix for ordered dithering of softened edges (values 0..63)
+
 	private static var _bayer8:Array<Int> = null;
 
 	private static function getBayer8():Array<Int>
@@ -35,7 +35,7 @@ class VisibilityMask
 		return _bayer8;
 	}
 
-	// simple cache to avoid recomputing when player/camera don't move
+
 	private var _cachedBmp:BitmapData = null;
 	private var _lastPlayerX:Float = -1e9;
 	private var _lastPlayerY:Float = -1e9;
@@ -44,11 +44,11 @@ class VisibilityMask
 	private var _lastMaskScale:Float = -1.0;
 	private var _lastBlurRadiusFull:Int = -1;
 
-	// Set how many full-resolution pixels of wall should remain revealed (inward fade radius).
+
 	public function setRevealPixels(px:Int):Void
 	{
 		this.blurRadiusFull = px;
-		// invalidate cache so next build recomputes with new radius
+
 		if (_cachedBmp != null)
 		{
 			_cachedBmp.dispose();
@@ -58,7 +58,7 @@ class VisibilityMask
 
 	public function new(tileGrid:Array<Array<Int>>, tileSize:Int, ?maskScale:Float, ?debug:Bool)
 	{
-		this.tileGrid = tileGrid;
+		this.tileGrid = (tileGrid == null) ? [] : tileGrid;
 		this.tileSize = tileSize;
 		if (maskScale != null)
 			this.maskScale = maskScale;
@@ -66,8 +66,6 @@ class VisibilityMask
 			this.debug = debug;
 	}
 
-	// worldPlayerX/Y are world coords in pixels; camera is FlxCamera for viewport transform
-	// returns an openfl BitmapData with ARGB where alpha=255 means fog (opaque) and alpha=0 means visible
 	public function buildMask(cam:FlxCamera, worldPlayerX:Float, worldPlayerY:Float):BitmapData
 	{
 		var w:Int = Std.int(cam.width * maskScale);
@@ -78,44 +76,45 @@ class VisibilityMask
 			h = 1;
 		var bmp:BitmapData = new BitmapData(w, h, true, 0x00000000);
 
-		// compute player position in full-resolution screen pixels (camera space)
-		// Do NOT mix scaled and full coords — use full-res for distance checks and ray steps
+
 		var playerScreenFullX:Float = (worldPlayerX - cam.scroll.x);
 		var playerScreenFullY:Float = (worldPlayerY - cam.scroll.y);
 
-		// simple cache: if nothing relevant changed, return cached BitmapData
+
 		if (_cachedBmp != null && _lastPlayerX == worldPlayerX && _lastPlayerY == worldPlayerY && _lastCamX == cam.scroll.x && _lastCamY == cam.scroll.y
 			&& _lastMaskScale == maskScale && _lastBlurRadiusFull == blurRadiusFull)
 		{
-			return _cachedBmp.clone(); // return a copy so callers can safely modify pixels if needed
+			return _cachedBmp.clone();
 		}
 
-		// circle radius: use 40% of the min dimension, but reduce by 8 full-resolution pixels per request
+
 		var fullMin:Float = Math.min(cam.width, cam.height);
 		var radiusFull:Float = fullMin * 0.33;
 		if (radiusFull < 0)
 			radiusFull = 0;
 		var radiusScaled:Float = radiusFull * maskScale;
-		var radiusSq:Float = radiusFull * radiusFull; // use full-res radius for checks below
+		var radiusSq:Float = radiusFull * radiusFull;
 
-		// helper: get tile at world pixel coords, return 1=wall, 0=floor, out-of-bounds treated as wall
+
 		function tileAtWorld(wx:Float, wy:Float):Int
 		{
 			var tx:Int = Std.int(Math.floor(wx / tileSize));
 			var ty:Int = Std.int(Math.floor(wy / tileSize));
-			if (ty < 0 || ty >= tileGrid.length)
+			var gridH:Int = tileGrid != null ? tileGrid.length : 0;
+			if (ty < 0 || ty >= gridH)
 				return 1;
 			var row:Array<Int> = tileGrid[ty];
-			if (tx < 0 || tx >= row.length)
+			if (row == null)
+				return 1;
+			var gridW:Int = row.length;
+			if (tx < 0 || tx >= gridW)
 				return 1;
 			return row[tx];
 		}
 
-		// Ray/Tile intersection using Amanatides & Woo grid traversal (integer-robust)
-		// worldTx/worldTy are world-space pixel coords
+
 		function rayHitsWallTo(worldTx:Float, worldTy:Float):Bool
 		{
-			// start tile
 			var x0:Float = worldPlayerX;
 			var y0:Float = worldPlayerY;
 			var tx:Int = Std.int(Math.floor(x0 / tileSize));
@@ -161,14 +160,16 @@ class VisibilityMask
 				tDeltaY = Math.abs(tileSize / dy);
 			}
 
-			// traverse until reaching target tile or hitting a wall
-			var maxSteps:Int = 1024; // safety
+			var gridH:Int = tileGrid != null ? tileGrid.length : 0;
+			var gridW:Int = (gridH > 0 && tileGrid[0] != null) ? tileGrid[0].length : 0;
+
+			var maxSteps:Int = 1024;
 			while (maxSteps-- > 0)
 			{
-				if (tx < 0 || ty < 0 || ty >= tileGrid.length || tx >= tileGrid[0].length)
-					return true; // out of bounds => treat as solid
+				if (tx < 0 || ty < 0 || ty >= gridH || tx >= gridW)
+					return true;
 
-				if (tileGrid[ty][tx] == 1)
+				if (gridH > 0 && gridW > 0 && tileGrid[ty][tx] == 1)
 					return true;
 
 				if (tx == txEnd && ty == tyEnd)
@@ -189,14 +190,14 @@ class VisibilityMask
 			return false;
 		}
 
-		// first pass: binary mask (0 = visible, 255 = shadow)
+
 		var alpha:Array<Int> = [];
 		alpha.resize(w * h);
 		for (py in 0...h)
 		{
 			for (px in 0...w)
 			{
-				// sample pixel center in full-resolution camera coordinates
+
 				var screenXFull:Float = (px + 0.5) / maskScale;
 				var screenYFull:Float = (py + 0.5) / maskScale;
 				var worldX:Float = cam.scroll.x + screenXFull;
@@ -206,9 +207,7 @@ class VisibilityMask
 			}
 		}
 
-		// Clamp visibility to a sharp player-centered circle: pixels are visible only if
-		// (inside circle) AND (not blocked by walls). Everything else becomes shadow.
-		var circleRsq:Float = radiusSq; // radiusFull * radiusFull computed earlier
+		var circleRsq:Float = radiusSq;
 		for (py in 0...h)
 		{
 			for (px in 0...w)
@@ -219,21 +218,21 @@ class VisibilityMask
 				var dy:Float = screenYFull2 - playerScreenFullY;
 				var insideCircle:Bool = (dx * dx + dy * dy <= circleRsq);
 				var idx:Int = py * w + px;
-				// alpha[idx] currently holds 0 for visible (ray not blocked) or 255 for blocked
+
 				if (insideCircle && alpha[idx] == 0)
 				{
-					// remains visible
+
 					alpha[idx] = 0;
 				}
 				else
 				{
-					// outside circle, or blocked inside circle -> shadow
+
 					alpha[idx] = 255;
 				}
 			}
 		}
 
-		// If debug, return the raw binary mask (no softening)
+
 		if (debug)
 		{
 			for (py in 0...h)
@@ -247,13 +246,13 @@ class VisibilityMask
 			return bmp;
 		}
 
-		// Simple symmetric inward blur: use EDT to compute distance to nearest transparent pixel.
+
 		var blurRadiusScaled:Int = Std.int(this.blurRadiusFull * maskScale);
 		if (blurRadiusScaled < 1)
 			blurRadiusScaled = 1;
 		var r:Int = blurRadiusScaled;
 
-		// compute distances (in pixels, scaled-to-mask units) using EDT
+
 		var distArr:Array<Float> = VisibilityEDT.computeEDT(w, h, alpha);
 
 		for (py in 0...h)
@@ -268,21 +267,17 @@ class VisibilityMask
 					continue;
 				}
 				var d:Float = distArr[idx];
-				// fully outside softened radius -> opaque
 				if (d >= r)
 				{
 					bmp.setPixel32(px, py, (255 << 24));
 					continue;
 				}
-				// strictly inside -> visible
 				if (d <= 0)
 				{
 					bmp.setPixel32(px, py, 0x00000000);
 					continue;
 				}
-				// in the softened band: compute smooth alpha (0..1) and encode it as 0..255
 				var t:Float = d / r;
-				// smootherstep inward fade
 				t = t * t * (3.0 - 2.0 * t);
 				var a:Int = Std.int(255.0 * t);
 				if (a <= 0)
@@ -292,7 +287,7 @@ class VisibilityMask
 			}
 		}
 
-		// update cache
+
 		if (_cachedBmp != null)
 			_cachedBmp.dispose();
 		_cachedBmp = bmp.clone();

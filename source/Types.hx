@@ -1,6 +1,5 @@
 package;
 
-// Small project-wide typedefs to avoid Dynamic usage for simple structs.
 typedef TileCoord =
 {
 	x:Int,
