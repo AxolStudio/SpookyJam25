@@ -8,6 +8,7 @@ import flixel.math.FlxMath;
 import flixel.FlxState;
 import flixel.group.FlxGroup.FlxTypedGroup;
 import flixel.math.FlxPoint;
+import flixel.math.FlxAngle;
 import ui.Hud;
 
 class PlayState extends FlxState
@@ -77,7 +78,9 @@ class PlayState extends FlxState
 		if (_maskState == null)
 			_maskState = new MaskState();
 		var cam = mainCam;
-		fogShader.updateFog(cam, player.x + player.width * 0.5, player.y + player.height * 0.5, fog, _maskState, tilemap);
+		var pMid:FlxPoint = player.getMidpoint();
+		fogShader.updateFog(cam, pMid.x, pMid.y, fog, _maskState, tilemap);
+		pMid.put();
 	}
 
 	override public function update(elapsed:Float):Void
@@ -116,7 +119,7 @@ class PlayState extends FlxState
 		{
 			move.x = Actions.leftStick.x;
 			move.y = Actions.leftStick.y;
-			moveAngle = Math.atan2(move.y, move.x);
+			moveAngle = Math.atan2(move.y, move.x) * FlxAngle.TO_DEG;
 			any = true;
 			var stickMag:Float = Math.sqrt(move.x * move.x + move.y * move.y);
 			if (stickMag > 1.0)
@@ -127,31 +130,33 @@ class PlayState extends FlxState
 		}
 		else if (any)
 		{
+			// assign degrees so moveAngle stays consistent with stick input (which uses degrees)
 			if (left)
-				moveAngle = Math.PI;
+				moveAngle = 180.0;
 			else if (right)
-				moveAngle = 0;
+				moveAngle = 0.0;
 			else if (up)
-				moveAngle = -Math.PI / 2;
+				moveAngle = -90.0;
 			else if (down)
-				moveAngle = Math.PI / 2;
+				moveAngle = 90.0;
 
 			if (left && up)
-				moveAngle = -3 * Math.PI / 4;
+				moveAngle = -135.0;
 			else if (right && up)
-				moveAngle = -Math.PI / 4;
+				moveAngle = -45.0;
 			else if (left && down)
-				moveAngle = 3 * Math.PI / 4;
+				moveAngle = 135.0;
 			else if (right && down)
-				moveAngle = Math.PI / 4;
+				moveAngle = 45.0;
 
-			move.x = Math.cos(moveAngle);
-			move.y = Math.sin(moveAngle);
+			move.x = Math.cos(moveAngle * FlxAngle.TO_RAD);
+			move.y = Math.sin(moveAngle * FlxAngle.TO_RAD);
 		}
 
 		if (any)
 		{
-			player.move(moveAngle * 180.0 / Math.PI);
+			// moveAngle is already in degrees (when set from sticks or keys)
+			player.move(moveAngle);
 			if (analogOrigSpeed >= 0)
 			{
 				player.speed = analogOrigSpeed;

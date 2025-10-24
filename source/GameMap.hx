@@ -201,10 +201,12 @@ class GameMap extends FlxGroup
 		{
 			if (existing == null)
 				continue;
-			var ex:Int = Std.int((existing.x + existing.width * 0.5) / TILE_SIZE);
+			var em:FlxPoint = existing.getMidpoint();
+			var ex:Int = Std.int(em.x / TILE_SIZE);
 			var ey:Int = Std.int((existing.y + existing.height * 0.5) / TILE_SIZE);
 			if (Math.abs(ex - tx) <= minSpacing && Math.abs(ey - ty) <= minSpacing)
 				return true;
+			em.put();
 		}
 		return false;
 	}

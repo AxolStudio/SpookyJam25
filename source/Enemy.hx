@@ -6,6 +6,8 @@ import flixel.graphics.frames.FlxAtlasFrames;
 import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
 import haxe.ds.StringMap;
+import flixel.math.FlxPoint;
+import flixel.math.FlxAngle;
 
 class Enemy extends GameObject
 {
@@ -306,8 +308,9 @@ class Enemy extends GameObject
 
 		if (_pursuingThrough)
 		{
-			var dxT:Float = _targetX - (x + width * 0.5);
-			var dyT:Float = _targetY - (y + height * 0.5);
+			var mid:FlxPoint = this.getMidpoint();
+			var dxT:Float = _targetX - mid.x;
+			var dyT:Float = _targetY - mid.y;
 			var distT:Float = Math.sqrt(dxT * dxT + dyT * dyT);
 			if (distT <= 6 || _actionCooldown <= 0)
 			{
@@ -317,7 +320,9 @@ class Enemy extends GameObject
 			}
 			else
 			{
-				move(Math.atan2(dyT, dxT) * 180.0 / Math.PI);
+				var radT:Float = Math.atan2(dyT, dxT);
+				move(radT * FlxAngle.TO_DEG);
+				mid.put();
 				return;
 			}
 		}
@@ -332,8 +337,10 @@ class Enemy extends GameObject
 
 		if (player != null)
 		{
-			var dx:Float = (player.x + player.width * 0.5) - (x + width * 0.5);
-			var dy:Float = (player.y + player.height * 0.5) - (y + height * 0.5);
+			var pm:FlxPoint = player.getMidpoint();
+			var em:FlxPoint = this.getMidpoint();
+			var dx:Float = pm.x - em.x;
+			var dy:Float = pm.y - em.y;
 			var dist:Float = Math.sqrt(dx * dx + dy * dy);
 			var visible:Bool = (dist < 160);
 			if (visible && _actionCooldown <= 0)
@@ -344,20 +351,24 @@ class Enemy extends GameObject
 				{
 					speed = wanderSpeed * (1.5 + FlxG.random.float() * 1.0);
 
-					var angleToPlayer:Float = Math.atan2(dy, dx);
+					var angleToPlayer:Float = Math.atan2(pm.y - em.y, pm.x - em.x) * FlxAngle.TO_DEG;
 					var extraDistance:Float = 48.0 + FlxG.random.float() * 24.0;
-					_targetX = (player.x + player.width * 0.5) + Math.cos(angleToPlayer) * extraDistance;
-					_targetY = (player.y + player.height * 0.5) + Math.sin(angleToPlayer) * extraDistance;
+					// compute a world point at extraDistance along the angle
+					var rad:Float = angleToPlayer * FlxAngle.TO_RAD;
+					_targetX = pm.x + Math.cos(rad) * extraDistance;
+					_targetY = pm.y + Math.sin(rad) * extraDistance;
 					_pursuingThrough = true;
-					move(angleToPlayer * 180.0 / Math.PI);
+					move(angleToPlayer);
 					_actionCooldown = 0.6 + FlxG.random.float() * 0.8;
+					pm.put();
+					em.put();
 					return;
 				}
 				else if (sRoll < skittishness && sRoll > aggression)
 				{
 					speed = wanderSpeed * (1.8 + FlxG.random.float() * 0.6);
-					var fleeAngle = Math.atan2(-dy, -dx) + (FlxG.random.float() - 0.5) * 0.8;
-					move(fleeAngle * 180.0 / Math.PI);
+					var fleeAngle = Math.atan2(-dy, -dx) * FlxAngle.TO_DEG + (FlxG.random.float() - 0.5) * 0.8;
+					move(fleeAngle);
 					_actionCooldown = 0.8 + FlxG.random.float() * 1.2;
 					return;
 				}
@@ -370,7 +381,7 @@ class Enemy extends GameObject
 			if (FlxG.random.float() < 0.55)
 			{
 				var ang = (FlxG.random.float() * Math.PI * 2);
-				move(ang * 180.0 / Math.PI);
+				move(ang * FlxAngle.TO_DEG);
 				speed = wanderSpeed * (0.7 + FlxG.random.float() * 0.8);
 				_actionCooldown = 0.2 + FlxG.random.float() * 0.6;
 			}

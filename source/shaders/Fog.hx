@@ -10,8 +10,8 @@ class Fog extends FlxShader
 	public var time(default, set):Float = 0.0;
 	public var hue(default, set):Float = 0.0;
 	public var sat(default, set):Float = 0.5;
-	public var vDark(default, set):Float = 0.10;
-	public var vLight(default, set):Float = 0.40;
+	public var vDark(default, set):Float = 0.25;
+	public var vLight(default, set):Float = 0.30;
 	public var playerX(default, set):Float = 0.0;
 	public var playerY(default, set):Float = 0.0;
 	public var innerRadius(default, set):Float = 0.0;
@@ -22,7 +22,7 @@ class Fog extends FlxShader
 
 	public var scaleX(default, set):Float = 1.0;
 	public var scaleY(default, set):Float = 1.0;
-	public var contrast(default, set):Float = 0.33;
+	public var contrast(default, set):Float = 0.15;
 	@:glFragmentSource('
 	#pragma header
 	uniform float iTime;
@@ -95,15 +95,23 @@ class Fog extends FlxShader
             
 			float aspect = 1.0;
             
+			// base noise position scaled slightly off-center
 			vec2 npos = uv * vec2(1.2, 1.2);
+			// slow drifting translation
 			npos += vec2(iTime * 0.04, iTime * 0.03);
-			float clouds = fbm(npos * 2.0);
+			// add a subtle swirling offset so clouds feel like they are moving and changing
+			vec2 swirl = vec2(sin(iTime * 0.23 + uv.y * 0.5), cos(iTime * 0.17 + uv.x * 0.5)) * 0.35;
+			npos += swirl;
+			// use slightly larger fbm scale for more visible structure
+			float clouds = fbm(npos * 2.2);
 
 			float h = fHue;
 			float sat = fSat;
 			// compress dark/light values toward their midpoint using contrast
 			float midV = (fVDark + fVLight) * 0.5;
-			float vDarkC = mix(midV, fVDark, fContrast);
+			// add a tiny animated modulation to the dark value so clouds shift brightness over time
+			float vDarkMod = fVDark + 0.03 * sin(iTime * 0.6 + uv.x * 3.0);
+			float vDarkC = mix(midV, vDarkMod, fContrast);
 			float vLightC = mix(midV, fVLight, fContrast);
 			// Keep original fVDark/fVLight for the two-tone dithering so the pattern
 			// can be preserved even when contrast compresses the overall values.
@@ -130,13 +138,36 @@ class Fog extends FlxShader
 			else if (idx == 56) thr = 42; else if (idx == 57) thr = 26; else if (idx == 58) thr = 38; else if (idx == 59) thr = 22; else if (idx == 60) thr = 41; else if (idx == 61) thr = 25; else if (idx == 62) thr = 37; else if (idx == 63) thr = 21;
 			float threshold = (float(thr) + 0.5) / 64.0;
 
-			float cloudDither = clouds > threshold ? 1.0 : 0.0;
-			// Prefer the contrast-compressed colors, but if contrast compresses the
-			// brightness difference to near-zero, fall back to the original two-tone
+			// Quantize into 3 ordered-dithered levels using the Bayer threshold as a bias.
+			// This produces three similar colors (dark, mid, light) while retaining the
+			// Bayer pattern to reduce banding.
+			float bias = threshold - 0.5;
+			// Map clouds (0..1) into 3 levels with a dither bias, then clamp and floor.
+			float qf = floor(clamp(clouds * 3.0 + bias, 0.0, 2.0));
+			// qf is 0.0, 1.0 or 2.0 representing dark, mid, light.
+
+			// Build a mid value and its color (close to vDark/vLight so dithering looks subtle)
+			float vMidOrig = mix(vDarkOrig, vLightOrig, 0.5);
+			float vMidC = mix(vDarkC, vLightC, 0.5);
+			vec3 midColOrig = hsv2rgb(vec3(h, sat, vMidOrig));
+			vec3 midColC = hsv2rgb(vec3(h, sat, vMidC));
+
+			// prefer the contrast-compressed colors, but if contrast compresses the
+			// brightness difference to near-zero, fall back to the original three-tone
 			// so the Bayer dither pattern remains visible to the eye.
 			float vDiff = abs(vLightC - vDarkC);
-			vec3 cloudColorC = cloudDither > 0.5 ? lightColC : darkColC;
-			vec3 cloudColorOrig = cloudDither > 0.5 ? lightColOrig : darkColOrig;
+			vec3 cloudColorC;
+			vec3 cloudColorOrig;
+			if (qf < 0.5) {
+				cloudColorC = darkColC;
+				cloudColorOrig = darkColOrig;
+			} else if (qf < 1.5) {
+				cloudColorC = midColC;
+				cloudColorOrig = midColOrig;
+			} else {
+				cloudColorC = lightColC;
+				cloudColorOrig = lightColOrig;
+			}
 			vec3 cloudColor = vDiff < 0.02 ? cloudColorOrig : cloudColorC;
 
 			vec2 p = vec2(pX, pY);

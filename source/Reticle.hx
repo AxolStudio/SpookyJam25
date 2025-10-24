@@ -3,6 +3,8 @@ package;
 import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.FlxCamera;
+import flixel.math.FlxPoint;
+import flixel.math.FlxAngle;
 
 class Reticle extends FlxSprite
 {
@@ -83,14 +85,16 @@ class Reticle extends FlxSprite
 			Actions.usingGamepad = true;
 
 
+		var pm:FlxPoint = null;
+		var pm2:FlxPoint = null;
 		if (Actions.usingGamepad && rsActive)
 		{
 
-			var pcx:Float = player.x + player.width / 2;
-			var pcy:Float = player.y + player.height / 2;
+			pm = player.getMidpoint();
+			var pcx:Float = pm.x;
+			var pcy:Float = pm.y;
 
-
-			var radCur:Float = (player.moveAngle + reticleAngle) * Math.PI / 180.0;
+			var radCur:Float = (player.moveAngle + reticleAngle) * FlxAngle.TO_RAD;
 			var rx:Float = pcx + Math.cos(radCur) * reticleDistance;
 			var ry:Float = pcy + Math.sin(radCur) * reticleDistance;
 
@@ -112,7 +116,7 @@ class Reticle extends FlxSprite
 			var newDist:Float = Math.sqrt(ndx * ndx + ndy * ndy);
 			if (newDist < 0.001)
 				newDist = 0.001;
-			var newDeg:Float = Math.atan2(ndy, ndx) * 180.0 / Math.PI;
+			var newDeg:Float = Math.atan2(ndy, ndx) * FlxAngle.TO_DEG;
 			var desiredRel2:Float = normalize(newDeg - player.moveAngle);
 
 			if (desiredRel2 < minRelativeAngle)
@@ -151,13 +155,14 @@ class Reticle extends FlxSprite
 				mx = cam.scroll.x + (FlxG.mouse.viewX - cam.x) / cam.zoom;
 				my = cam.scroll.y + (FlxG.mouse.viewY - cam.y) / cam.zoom;
 			}
-			var cx:Float = player.x + player.width / 2;
-			var cy:Float = player.y + player.height / 2;
+			var pm_mouse:FlxPoint = player.getMidpoint();
+			var cx:Float = pm_mouse.x;
+			var cy:Float = pm_mouse.y;
 			var dx:Float = mx - cx;
 			var dy:Float = my - cy;
 			if (dx != 0 || dy != 0)
 			{
-				var worldDeg2:Float = Math.atan2(dy, dx) * 180.0 / Math.PI;
+				var worldDeg2:Float = Math.atan2(dy, dx) * FlxAngle.TO_DEG;
 				var desiredRel:Float = normalize(worldDeg2 - player.moveAngle);
 
 				if (desiredRel < minRelativeAngle)
@@ -168,6 +173,7 @@ class Reticle extends FlxSprite
 
 				var mDist:Float = Math.sqrt(dx * dx + dy * dy);
 				reticleDistance = Math.max(minDistance, Math.min(maxDistance, mDist));
+				pm_mouse.put();
 			}
 		}
 
@@ -181,14 +187,20 @@ class Reticle extends FlxSprite
 		var worldAngleDeg:Float = player.moveAngle + reticleAngle;
 
 
-		var rad:Float = worldAngleDeg * Math.PI / 180.0;
+		var rad:Float = worldAngleDeg * FlxAngle.TO_RAD;
 
 
-		var cx:Float = player.x + player.width / 2;
-		var cy:Float = player.y + player.height / 2;
-
+		if (pm == null)
+			pm = player.getMidpoint();
+		pm2 = player.getMidpoint();
+		var cx:Float = pm2.x;
+		var cy:Float = pm2.y;
 
 		x = cx + Math.cos(rad) * reticleDistance - width / 2;
 		y = cy + Math.sin(rad) * reticleDistance - height / 2;
+		if (pm != null)
+			pm.put();
+		if (pm2 != null)
+			pm2.put();
 	}
 }
