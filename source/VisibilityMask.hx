@@ -9,6 +9,7 @@ class VisibilityMask
 {
 	public var tileGrid:Array<Array<Int>>;
 	public var tileSize:Int;
+	public var map:GameMap;
 	public var maskScale:Float = 0.25;
 	public var debug:Bool = false;
 
@@ -56,7 +57,7 @@ class VisibilityMask
 		}
 	}
 
-	public function new(tileGrid:Array<Array<Int>>, tileSize:Int, ?maskScale:Float, ?debug:Bool)
+	public function new(tileGrid:Array<Array<Int>>, tileSize:Int, ?maskScale:Float, ?debug:Bool, ?map:GameMap)
 	{
 		this.tileGrid = (tileGrid == null) ? [] : tileGrid;
 		this.tileSize = tileSize;
@@ -64,6 +65,7 @@ class VisibilityMask
 			this.maskScale = maskScale;
 		if (debug != null)
 			this.debug = debug;
+		this.map = map;
 	}
 
 	public function buildMask(cam:FlxCamera, worldPlayerX:Float, worldPlayerY:Float):BitmapData
@@ -115,6 +117,9 @@ class VisibilityMask
 
 		function rayHitsWallTo(worldTx:Float, worldTy:Float):Bool
 		{
+			if (this.map != null)
+				return !this.map.lineOfSight(worldPlayerX, worldPlayerY, worldTx, worldTy);
+			// fall back to tileGrid-based test (should not be used in normal operation)
 			var x0:Float = worldPlayerX;
 			var y0:Float = worldPlayerY;
 			var tx:Int = Std.int(Math.floor(x0 / tileSize));
@@ -232,6 +237,92 @@ class VisibilityMask
 			}
 		}
 
+		// Outline pass: compute distance to nearest transparent pixel (alpha==0)
+		// outlineWidth is specified in screen pixels; convert to mask pixels by maskScale
+		var outlineScreenPx:Int = 32; // increased from 16
+		var outlineMaskPx:Int = Std.int(Math.max(1, Math.ceil(outlineScreenPx * maskScale)));
+		if (outlineMaskPx > 0)
+		{
+			var maxIndex:Int = w * h;
+			var dist:Array<Int> = [];
+			dist.resize(maxIndex);
+			for (i in 0...maxIndex)
+				dist[i] = 0x3fffffff;
+			var q:Array<Int> = [];
+			// enqueue all transparent pixels as sources
+			for (i in 0...maxIndex)
+			{
+				if (alpha[i] == 0)
+				{
+					dist[i] = 0;
+					q.push(i);
+				}
+			}
+
+			var qHead:Int = 0;
+			while (qHead < q.length)
+			{
+				var idx:Int = q[qHead++];
+				var cx:Int = idx % w;
+				var cy:Int = Std.int(idx / w);
+				var cd:Int = dist[idx];
+				if (cd >= outlineMaskPx)
+					continue;
+				// 4-neighbor propagation
+				if (cx > 0)
+				{
+					var n:Int = idx - 1;
+					if (dist[n] > cd + 1)
+					{
+						dist[n] = cd + 1;
+						q.push(n);
+					}
+				}
+				if (cx < w - 1)
+				{
+					var n2:Int = idx + 1;
+					if (dist[n2] > cd + 1)
+					{
+						dist[n2] = cd + 1;
+						q.push(n2);
+					}
+				}
+				if (cy > 0)
+				{
+					var n3:Int = idx - w;
+					if (dist[n3] > cd + 1)
+					{
+						dist[n3] = cd + 1;
+						q.push(n3);
+					}
+				}
+				if (cy < h - 1)
+				{
+					var n4:Int = idx + w;
+					if (dist[n4] > cd + 1)
+					{
+						dist[n4] = cd + 1;
+						q.push(n4);
+					}
+				}
+			}
+
+			// apply outline alpha where appropriate using a linear gradient from 0 -> 255
+			for (i in 0...maxIndex)
+			{
+				if (alpha[i] == 255 && dist[i] > 0 && dist[i] <= outlineMaskPx)
+				{
+					var ratio:Float = (cast dist[i] : Float) / outlineMaskPx;
+					var a:Int = Std.int(ratio * 255.0); // linear curve
+					if (a < 0)
+						a = 0;
+					if (a > 255)
+						a = 255;
+					alpha[i] = a;
+				}
+			}
+		}
+
 
 		if (debug)
 		{
@@ -247,43 +338,14 @@ class VisibilityMask
 		}
 
 
-		var blurRadiusScaled:Int = Std.int(this.blurRadiusFull * maskScale);
-		if (blurRadiusScaled < 1)
-			blurRadiusScaled = 1;
-		var r:Int = blurRadiusScaled;
-
-
-		var distArr:Array<Float> = VisibilityEDT.computeEDT(w, h, alpha);
-
 		for (py in 0...h)
 		{
 			for (px in 0...w)
 			{
 				var idx = py * w + px;
 				var aVal:Int = alpha[idx];
-				if (aVal == 0)
-				{
-					bmp.setPixel32(px, py, 0x00000000);
-					continue;
-				}
-				var d:Float = distArr[idx];
-				if (d >= r)
-				{
-					bmp.setPixel32(px, py, (255 << 24));
-					continue;
-				}
-				if (d <= 0)
-				{
-					bmp.setPixel32(px, py, 0x00000000);
-					continue;
-				}
-				var t:Float = d / r;
-				t = t * t * (3.0 - 2.0 * t);
-				var a:Int = Std.int(255.0 * t);
-				if (a <= 0)
-					bmp.setPixel32(px, py, 0x00000000);
-				else
-					bmp.setPixel32(px, py, (a << 24));
+				// preserve semi-transparent outline (e.g., 128) by writing the actual alpha
+				bmp.setPixel32(px, py, (aVal << 24));
 			}
 		}
 

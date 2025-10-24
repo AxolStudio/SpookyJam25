@@ -30,6 +30,7 @@ typedef TreeNode =
 
 class GameMap extends FlxGroup
 {
+	// ...existing code...
 	public var walkableTiles:Array<Int> = [];
 
 	public var floorMap:FlxTilemap;
@@ -94,6 +95,95 @@ class GameMap extends FlxGroup
 	private function get_height():Int
 	{
 		return wallsMap != null ? Std.int(wallsMap.height) : 0;
+	}
+
+	public function lineOfSight(x0:Float, y0:Float, x1:Float, y1:Float):Bool
+	{
+		var TILE_SIZE:Int = Constants.TILE_SIZE;
+		if (wallGrid == null)
+			throw 'wallGrid not generated';
+		var tx:Int = Std.int(Math.floor(x0 / TILE_SIZE));
+		var ty:Int = Std.int(Math.floor(y0 / TILE_SIZE));
+		var txEnd:Int = Std.int(Math.floor(x1 / TILE_SIZE));
+		var tyEnd:Int = Std.int(Math.floor(y1 / TILE_SIZE));
+
+		var dx:Float = x1 - x0;
+		var dy:Float = y1 - y0;
+
+		if (tx == txEnd && ty == tyEnd)
+		{
+			var gridH0:Int = wallGrid != null ? wallGrid.length : 0;
+			if (ty < 0 || ty >= gridH0)
+				return false;
+			var row0:Array<Int> = wallGrid[ty];
+			if (row0 == null)
+				return false;
+			var gridW0:Int = row0.length;
+			if (tx < 0 || tx >= gridW0)
+				return false;
+			return (row0[tx] == 0);
+		}
+
+		var stepX:Int = dx > 0 ? 1 : -1;
+		var stepY:Int = dy > 0 ? 1 : -1;
+
+		var tMaxX:Float;
+		var tMaxY:Float;
+		var tDeltaX:Float;
+		var tDeltaY:Float;
+
+		if (dx == 0)
+		{
+			tMaxX = 1e9;
+			tDeltaX = 1e9;
+		}
+		else
+		{
+			var nextGridX:Float = (tx + (stepX > 0 ? 1 : 0)) * TILE_SIZE;
+			tMaxX = Math.abs((nextGridX - x0) / dx);
+			tDeltaX = Math.abs(TILE_SIZE / dx);
+		}
+
+		if (dy == 0)
+		{
+			tMaxY = 1e9;
+			tDeltaY = 1e9;
+		}
+		else
+		{
+			var nextGridY:Float = (ty + (stepY > 0 ? 1 : 0)) * TILE_SIZE;
+			tMaxY = Math.abs((nextGridY - y0) / dy);
+			tDeltaY = Math.abs(TILE_SIZE / dy);
+		}
+
+		var gridH:Int = wallGrid != null ? wallGrid.length : 0;
+		var gridW:Int = (gridH > 0 && wallGrid[0] != null) ? wallGrid[0].length : 0;
+
+		var maxSteps:Int = 1024;
+		while (maxSteps-- > 0)
+		{
+			if (tx < 0 || ty < 0 || ty >= gridH || tx >= gridW)
+				return false;
+
+			if (gridH > 0 && gridW > 0 && wallGrid[ty][tx] == 1)
+				return false;
+
+			if (tx == txEnd && ty == tyEnd)
+				break;
+
+			if (tMaxX < tMaxY)
+			{
+				tMaxX += tDeltaX;
+				tx += stepX;
+			}
+			else
+			{
+				tMaxY += tDeltaY;
+				ty += stepY;
+			}
+		}
+
+		return true;
 	}
 
 	public function new()

@@ -22,7 +22,7 @@ class Fog extends FlxShader
 
 	public var scaleX(default, set):Float = 1.0;
 	public var scaleY(default, set):Float = 1.0;
-
+	public var contrast(default, set):Float = 0.33;
 	@:glFragmentSource('
 	#pragma header
 	uniform float iTime;
@@ -30,11 +30,13 @@ class Fog extends FlxShader
 	uniform float fSat; // saturation 0..1
 	uniform float fVDark; // value (brightness) for dark fog 0..1
 	uniform float fVLight; // value for light fog 0..1
+	uniform float fContrast; // 0..1 compresses vDark/vLight toward their midpoint
 
 	uniform float pX;
 	uniform float pY;
 	uniform float sX; // scale x = cam.width / camMin
 	uniform float sY; // scale y = cam.height / camMin
+
 	uniform float rInner;
 	uniform float rOuter;
 
@@ -97,15 +99,45 @@ class Fog extends FlxShader
 			npos += vec2(iTime * 0.04, iTime * 0.03);
 			float clouds = fbm(npos * 2.0);
 
-            
-			float h = fHue; // 0..1 (same hue as tilemap/floor/walls)
-			float sat = fSat; // uniform-set saturation
-			float vDark = fVDark;
-			float vLight = fVLight;
-			vec3 darkCol = hsv2rgb(vec3(h, sat, vDark));
-			vec3 lightCol = hsv2rgb(vec3(h, sat, vLight));
-            
-			vec3 fogCol = mix(darkCol, lightCol, clouds);
+			float h = fHue;
+			float sat = fSat;
+			// compress dark/light values toward their midpoint using contrast
+			float midV = (fVDark + fVLight) * 0.5;
+			float vDarkC = mix(midV, fVDark, fContrast);
+			float vLightC = mix(midV, fVLight, fContrast);
+			// Keep original fVDark/fVLight for the two-tone dithering so the pattern
+			// can be preserved even when contrast compresses the overall values.
+			float vDarkOrig = fVDark;
+			float vLightOrig = fVLight;
+			vec3 darkColOrig = hsv2rgb(vec3(h, sat, vDarkOrig));
+			vec3 lightColOrig = hsv2rgb(vec3(h, sat, vLightOrig));
+			// Also compute contrast-compressed colors for normal rendering
+			vec3 darkColC = hsv2rgb(vec3(h, sat, vDarkC));
+			vec3 lightColC = hsv2rgb(vec3(h, sat, vLightC));
+
+			vec2 maskPosF = floor(uv / vec2(mTexelX, mTexelY));
+			int bx = int(mod(maskPosF.x, 8.0));
+			int by = int(mod(maskPosF.y, 8.0));
+			int idx = bx + by * 8;
+			int thr = 0;
+			if (idx == 0) thr = 0; else if (idx == 1) thr = 48; else if (idx == 2) thr = 12; else if (idx == 3) thr = 60; else if (idx == 4) thr = 3; else if (idx == 5) thr = 51; else if (idx == 6) thr = 15; else if (idx == 7) thr = 63;
+			else if (idx == 8) thr = 32; else if (idx == 9) thr = 16; else if (idx == 10) thr = 44; else if (idx == 11) thr = 28; else if (idx == 12) thr = 35; else if (idx == 13) thr = 19; else if (idx == 14) thr = 47; else if (idx == 15) thr = 31;
+			else if (idx == 16) thr = 8; else if (idx == 17) thr = 56; else if (idx == 18) thr = 4; else if (idx == 19) thr = 52; else if (idx == 20) thr = 11; else if (idx == 21) thr = 59; else if (idx == 22) thr = 7; else if (idx == 23) thr = 55;
+			else if (idx == 24) thr = 40; else if (idx == 25) thr = 24; else if (idx == 26) thr = 36; else if (idx == 27) thr = 20; else if (idx == 28) thr = 43; else if (idx == 29) thr = 27; else if (idx == 30) thr = 39; else if (idx == 31) thr = 23;
+			else if (idx == 32) thr = 2; else if (idx == 33) thr = 50; else if (idx == 34) thr = 14; else if (idx == 35) thr = 62; else if (idx == 36) thr = 1; else if (idx == 37) thr = 49; else if (idx == 38) thr = 13; else if (idx == 39) thr = 61;
+			else if (idx == 40) thr = 34; else if (idx == 41) thr = 18; else if (idx == 42) thr = 46; else if (idx == 43) thr = 30; else if (idx == 44) thr = 33; else if (idx == 45) thr = 17; else if (idx == 46) thr = 45; else if (idx == 47) thr = 29;
+			else if (idx == 48) thr = 10; else if (idx == 49) thr = 58; else if (idx == 50) thr = 6; else if (idx == 51) thr = 54; else if (idx == 52) thr = 9; else if (idx == 53) thr = 57; else if (idx == 54) thr = 5; else if (idx == 55) thr = 53;
+			else if (idx == 56) thr = 42; else if (idx == 57) thr = 26; else if (idx == 58) thr = 38; else if (idx == 59) thr = 22; else if (idx == 60) thr = 41; else if (idx == 61) thr = 25; else if (idx == 62) thr = 37; else if (idx == 63) thr = 21;
+			float threshold = (float(thr) + 0.5) / 64.0;
+
+			float cloudDither = clouds > threshold ? 1.0 : 0.0;
+			// Prefer the contrast-compressed colors, but if contrast compresses the
+			// brightness difference to near-zero, fall back to the original two-tone
+			// so the Bayer dither pattern remains visible to the eye.
+			float vDiff = abs(vLightC - vDarkC);
+			vec3 cloudColorC = cloudDither > 0.5 ? lightColC : darkColC;
+			vec3 cloudColorOrig = cloudDither > 0.5 ? lightColOrig : darkColOrig;
+			vec3 cloudColor = vDiff < 0.02 ? cloudColorOrig : cloudColorC;
 
 			vec2 p = vec2(pX, pY);
 			vec2 d = vec2((uv.x - p.x) * sX, (uv.y - p.y) * sY);
@@ -134,30 +166,14 @@ class Fog extends FlxShader
 				return;
 			}
 			if (desiredAlpha >= 1.0) {
-				vec3 finalColor = fogCol * mix(0.9, 1.05, clouds);
+				vec3 finalColor = cloudColor * mix(0.9, 1.05, clouds);
 				gl_FragColor = vec4(finalColor, 1.0);
 				return;
 			}
 
             
-			vec2 maskPosF = floor(uv / vec2(mTexelX, mTexelY));
-			int bx = int(mod(maskPosF.x, 8.0));
-			int by = int(mod(maskPosF.y, 8.0));
-			int idx = bx + by * 8;
-			int thr = 0;
-            
-			if (idx == 0) thr = 0; else if (idx == 1) thr = 48; else if (idx == 2) thr = 12; else if (idx == 3) thr = 60; else if (idx == 4) thr = 3; else if (idx == 5) thr = 51; else if (idx == 6) thr = 15; else if (idx == 7) thr = 63;
-			else if (idx == 8) thr = 32; else if (idx == 9) thr = 16; else if (idx == 10) thr = 44; else if (idx == 11) thr = 28; else if (idx == 12) thr = 35; else if (idx == 13) thr = 19; else if (idx == 14) thr = 47; else if (idx == 15) thr = 31;
-			else if (idx == 16) thr = 8; else if (idx == 17) thr = 56; else if (idx == 18) thr = 4; else if (idx == 19) thr = 52; else if (idx == 20) thr = 11; else if (idx == 21) thr = 59; else if (idx == 22) thr = 7; else if (idx == 23) thr = 55;
-			else if (idx == 24) thr = 40; else if (idx == 25) thr = 24; else if (idx == 26) thr = 36; else if (idx == 27) thr = 20; else if (idx == 28) thr = 43; else if (idx == 29) thr = 27; else if (idx == 30) thr = 39; else if (idx == 31) thr = 23;
-			else if (idx == 32) thr = 2; else if (idx == 33) thr = 50; else if (idx == 34) thr = 14; else if (idx == 35) thr = 62; else if (idx == 36) thr = 1; else if (idx == 37) thr = 49; else if (idx == 38) thr = 13; else if (idx == 39) thr = 61;
-			else if (idx == 40) thr = 34; else if (idx == 41) thr = 18; else if (idx == 42) thr = 46; else if (idx == 43) thr = 30; else if (idx == 44) thr = 33; else if (idx == 45) thr = 17; else if (idx == 46) thr = 45; else if (idx == 47) thr = 29;
-			else if (idx == 48) thr = 10; else if (idx == 49) thr = 58; else if (idx == 50) thr = 6; else if (idx == 51) thr = 54; else if (idx == 52) thr = 9; else if (idx == 53) thr = 57; else if (idx == 54) thr = 5; else if (idx == 55) thr = 53;
-			else if (idx == 56) thr = 42; else if (idx == 57) thr = 26; else if (idx == 58) thr = 38; else if (idx == 59) thr = 22; else if (idx == 60) thr = 41; else if (idx == 61) thr = 25; else if (idx == 62) thr = 37; else if (idx == 63) thr = 21;
-			float threshold = (float(thr) + 0.5) / 64.0;
-
 			float outAlpha = desiredAlpha > threshold ? 1.0 : 0.0;
-			vec3 finalColor = fogCol * mix(0.9, 1.05, clouds);
+			vec3 finalColor = cloudColor;
 			gl_FragColor = vec4(finalColor * outAlpha, outAlpha);
         }
     ')
@@ -333,8 +349,18 @@ class Fog extends FlxShader
 		catch (e:Dynamic) {}
 		return scaleY;
 	}
+	private function set_contrast(v:Float):Float
+	{
+		contrast = v;
+		try
+		{
+			fContrast.value = [contrast];
+		}
+		catch (e:Dynamic) {}
+		return contrast;
+	}
 	public function updateFog(cam:flixel.FlxCamera, playerWorldX:Float, playerWorldY:Float, fogSprite:flixel.FlxSprite, maskState:MaskState,
-			?tileGrid:Array<Array<Int>>):Void
+			?tilemap:GameMap):Void
 	{
 		if (cam == null || fogSprite == null)
 			return;
@@ -356,8 +382,37 @@ class Fog extends FlxShader
 
 		if (maskState == null)
 			return;
-		if (maskState.mask == null)
-			maskState.mask = new VisibilityMask(tileGrid, Constants.TILE_SIZE, 1.0, false);
+		var grid = tilemap != null ? tilemap.wallGrid : null;
+		// compute maskScale so fog texels align with game pixels at current camera zoom
+		var camZoom:Float = 1.0;
+		try
+		{
+			camZoom = cam.zoom;
+		}
+		catch (e:Dynamic)
+		{
+			camZoom = 1.0;
+		}
+		if (camZoom <= 0)
+			camZoom = 1.0;
+		// maskScale is 1 camera-pixel per mask-pixel -> inverse of zoom
+		var desiredMaskScale:Float = 1.0 / camZoom;
+		// keep maskScale reasonable
+		if (desiredMaskScale < 0.125)
+			desiredMaskScale = 0.125;
+		if (desiredMaskScale > 1.0)
+			desiredMaskScale = 1.0;
+		if (maskState.mask == null || Math.abs(maskState.mask.maskScale - desiredMaskScale) > 1e-6)
+		{
+			maskState.mask = new VisibilityMask(grid, Constants.TILE_SIZE, desiredMaskScale, false, tilemap);
+		}
+		// update shader texel size for the current mask
+		try
+		{
+			this.maskTexelX = (maskState.mask.maskScale) / cam.width;
+			this.maskTexelY = (maskState.mask.maskScale) / cam.height;
+		}
+		catch (e:Dynamic) {}
 		var needRebuild:Bool = true;
 		var moveThreshold:Float = 1.0;
 		if (maskState.lastBmp != null)

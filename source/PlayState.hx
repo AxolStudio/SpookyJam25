@@ -77,8 +77,7 @@ class PlayState extends FlxState
 		if (_maskState == null)
 			_maskState = new MaskState();
 		var cam = mainCam;
-		var grid = tilemap != null ? tilemap.wallGrid : null;
-		fogShader.updateFog(cam, player.x + player.width * 0.5, player.y + player.height * 0.5, fog, _maskState, grid);
+		fogShader.updateFog(cam, player.x + player.width * 0.5, player.y + player.height * 0.5, fog, _maskState, tilemap);
 	}
 
 	override public function update(elapsed:Float):Void
