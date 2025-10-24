@@ -19,13 +19,37 @@ class Enemy extends GameObject
 	public var skittishness:Float = 0.0;
 	public var wanderSpeed:Float = 40.0;
 
+	// Minimal AI fields used by EnemyBrain
+	public var aiState:Int = 0; // 0=Wander,1=Attack,2=Flee
+	public var aiTimer:Float = 0.0; // seconds until next decision
+	public var aiDecisionInterval:Float = 0.6; // base decision interval
+	public var aiValue:Int = 1; // score/value of this enemy
+	// Track whether the enemy last saw the player (used by EnemyBrain to detect
+	// transitions from not-seeing -> seeing so we can interrupt current actions)
+	public var lastSawPlayer:Bool = false;
+
 	private var _wanderTimer:Float = 0.0;
 	private var _actionCooldown:Float = 0.0;
 	private var _isWandering:Bool = false;
 	private var _targetX:Float = 0.0;
 	private var _targetY:Float = 0.0;
+	private var _hasTarget:Bool = false;
 	private var _captured:Bool = false;
 	private var _pursuingThrough:Bool = false;
+
+	/**
+	 * Start moving in the given angle (degrees) for approximately duration seconds.
+	 * This is a lighter-weight alternative to startPursuit when we only care about
+	 * a timed movement (based on speed) instead of a world target point.
+	 */
+	public function startTimedMove(angleDeg:Float, duration:Float):Void
+	{
+		_pursuingThrough = true;
+		_actionCooldown = duration;
+		// timed move: don't set a persistent target - keep it purely time-driven
+		_hasTarget = false;
+		move(angleDeg);
+	}
 
 	private static function ensureFrames():Void
 	{
@@ -87,13 +111,15 @@ class Enemy extends GameObject
 		velocity.set(0, 0);
 		acceleration.set(0, 0);
 		_captured = true;
+		alive = false;
+		exists = true;
 		#if (debug)
 		if (variant != null)
 			trace("Enemy.capture() start - variant=" + variant);
 		#end
 		if (animation != null)
 			animation.stop();
-
+		stop();
 		var shaderOk:Bool = false;
 		try
 		{
@@ -123,7 +149,7 @@ class Enemy extends GameObject
 					alive = false;
 					if (byPlayer != null)
 						byPlayer.captured.push(variant != null ? variant : "enemy");
-					kill();
+
 				}
 			});
 		}
@@ -144,7 +170,7 @@ class Enemy extends GameObject
 					alive = false;
 					if (byPlayer != null)
 						byPlayer.captured.push(variant != null ? variant : "enemy");
-					kill();
+
 				}
 			});
 		}
@@ -180,8 +206,11 @@ class Enemy extends GameObject
 
 	public function randomizeBehavior(atmosphereHue:Int):Void
 	{
+		// pick base values and round to nearest 0.1 so they behave like percentages (0.0..1.0)
 		aggression = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
+		aggression = Math.round(aggression * 10.0) / 10.0;
 		skittishness = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
+		skittishness = Math.round(skittishness * 10.0) / 10.0;
 
 		wanderSpeed = 20 + FlxG.random.float() * 50.0;
 
@@ -253,6 +282,14 @@ class Enemy extends GameObject
 		var gi:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(gf * 255.0)))));
 		var bi:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(bf * 255.0)))));
 		color = (ri << 16) | (gi << 8) | bi;
+		// AI tuning: decision interval and value (points)
+		aiDecisionInterval = 0.3 + FlxG.random.float() * 0.9; // 0.3..1.2s
+		// Compute a simple value: base 1 + aggression weight + speed weight - skittish penalty
+		var valF:Float = 1.0 + aggression * 3.0 + (wanderSpeed - 20.0) / 30.0 - skittishness * 2.0;
+		var valI:Int = Std.int(Math.max(1, Math.round(valF)));
+		aiValue = valI;
+		// make sure first decision happens immediately
+		aiTimer = 0.0;
 	}
 
 	public override function update(elapsed:Float):Void

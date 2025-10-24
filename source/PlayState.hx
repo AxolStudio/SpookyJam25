@@ -83,6 +83,8 @@ class PlayState extends FlxState
 	override public function update(elapsed:Float):Void
 	{
 		playerMovement(elapsed);
+		// Process enemy AI centrally
+		ai.EnemyBrain.process(player, enemies, tilemap, elapsed, mainCam);
 		if (reticle != null)
 			reticle.updateFromPlayer(player, overCam);
 		super.update(elapsed);
