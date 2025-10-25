@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<TextureAtlas imagePath="002b-sprites.png">
+<TextureAtlas imagePath="003b-sprites.png">
 	<!--
 	Created with ShoeBox
 	http://renderhjs.net/shoebox/
 	-->
-	<SubTexture name="001a.png"	x="32"	y="36"	width="11"	height="13" frameX="-2" frameY="-3" frameWidth="16" frameHeight="16"/>
-	<SubTexture name="001b.png"	x="18"	y="36"	width="12"	height="13" frameX="-2" frameY="-3" frameWidth="16" frameHeight="16"/>
-	<SubTexture name="002a.png"	x="0"	y="0"	width="16"	height="16" frameX="-0" frameY="-0" frameWidth="16" frameHeight="16"/>
-	<SubTexture name="002b.png"	x="0"	y="35"	width="16"	height="15" frameX="-0" frameY="-1" frameWidth="16" frameHeight="16"/>
-	<SubTexture name="003a.png"	x="18"	y="18"	width="15"	height="15" frameX="-1" frameY="-1" frameWidth="16" frameHeight="16"/>
-	<SubTexture name="003b.png"	x="0"	y="18"	width="16"	height="15" frameX="-0" frameY="-1" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="001a.png"	x="50"	y="35"	width="11"	height="13" frameX="-2" frameY="-3" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="001b.png"	x="36"	y="35"	width="12"	height="13" frameX="-2" frameY="-3" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="002a.png"	x="0"	y="34"	width="16"	height="16" frameX="-0" frameY="-0" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="002b.png"	x="0"	y="17"	width="16"	height="15" frameX="-0" frameY="-1" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="003a.png"	x="36"	y="0"	width="15"	height="15" frameX="-1" frameY="-1" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="003b.png"	x="0"	y="0"	width="16"	height="15" frameX="-0" frameY="-1" frameWidth="16" frameHeight="16"/>
 	<SubTexture name="004a.png"	x="18"	y="0"	width="16"	height="16" frameX="-0" frameY="-0" frameWidth="16" frameHeight="16"/>
-	<SubTexture name="004b.png"	x="35"	y="18"	width="14"	height="16" frameX="-1" frameY="-0" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="004b.png"	x="36"	y="17"	width="14"	height="16" frameX="-1" frameY="-0" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="005a.png"	x="18"	y="18"	width="16"	height="15" frameX="-0" frameY="-1" frameWidth="16" frameHeight="16"/>
+	<SubTexture name="005b.png"	x="18"	y="35"	width="16"	height="16" frameX="-0" frameY="-0" frameWidth="16" frameHeight="16"/>
 </TextureAtlas>
