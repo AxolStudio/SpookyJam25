@@ -1,5 +1,6 @@
 package;
 
+import util.SoundHelper;
 import flixel.FlxG;
 import flixel.util.FlxColor;
 
@@ -113,7 +114,9 @@ class Player extends GameObject
 		film -= 1;
 		photoCooldown = Constants.PHOTO_COOLDOWN;
 
+		SoundHelper.playSound("camera");
 		FlxG.camera.flash(0xFFFFFFFF, Constants.PHOTO_FLASH_TIME, false);
+
 		return true;
 	}
 }

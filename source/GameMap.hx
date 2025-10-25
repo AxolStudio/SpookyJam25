@@ -1,20 +1,17 @@
 package;
 
+import Types.Rect;
 import Types.TileCoord;
 import Types.Vec2;
-import Types.Rect;
-
-import openfl.geom.Point;
-import openfl.filters.ColorMatrixFilter;
 import flixel.FlxG;
-import flixel.system.FlxAssets;
-import flixel.math.FlxPoint;
-import openfl.display.BitmapData;
-import util.ColorHelpers;
 import flixel.addons.tile.FlxCaveGenerator;
 import flixel.group.FlxGroup;
+import flixel.math.FlxPoint;
+import flixel.system.FlxAssets;
 import flixel.tile.FlxBaseTilemap.FlxTilemapAutoTiling;
 import flixel.tile.FlxTilemap;
+import openfl.display.BitmapData;
+import util.ColorHelpers;
 
 typedef TreeNode =
 {
@@ -234,8 +231,8 @@ class GameMap extends FlxGroup
 		var ppy:Int = playerTileY;
 		roomOrder.sort(function(a:Int, b:Int):Int
 		{
-			var ra:RoomInfo = cast this.roomsInfo[a];
-			var rb:RoomInfo = cast this.roomsInfo[b];
+			var ra:RoomInfo = this.roomsInfo[a];
+			var rb:RoomInfo = this.roomsInfo[b];
 			if (ra == null || rb == null)
 				return 0;
 
@@ -255,7 +252,7 @@ class GameMap extends FlxGroup
 			var idx = roomOrder[i];
 			if (totalSpawned >= globalMax)
 				break;
-			var room:RoomInfo = cast this.roomsInfo[idx];
+			var room:RoomInfo =  this.roomsInfo[idx];
 			if (room == null || room.area <= 0)
 				continue;
 			if (room.isPortal)
@@ -365,7 +362,7 @@ class GameMap extends FlxGroup
 		}
 
 		var portalClusterSize:Int = 6;
-		var portalRoom:RoomInfo = cast this.roomsInfo[this.portalRoomIndex];
+		var portalRoom:RoomInfo =  this.roomsInfo[this.portalRoomIndex];
 		if (portalRoom != null)
 		{
 			var clusterPlaced = 0;

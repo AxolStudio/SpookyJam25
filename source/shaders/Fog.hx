@@ -1,7 +1,7 @@
 package shaders;
 
-import flixel.math.FlxMath;
 import flixel.FlxG;
+import flixel.math.FlxMath;
 import flixel.system.FlxAssets.FlxShader;
 
 @:keep
@@ -23,6 +23,7 @@ class Fog extends FlxShader
 	public var scaleX(default, set):Float = 1.0;
 	public var scaleY(default, set):Float = 1.0;
 	public var contrast(default, set):Float = 0.15;
+	public var useDither(default, set):Float = 1.0;
 	@:glFragmentSource('
 	#pragma header
 	uniform float iTime;
@@ -42,6 +43,7 @@ class Fog extends FlxShader
 
 	uniform float mTexelX;
 	uniform float mTexelY;
+    uniform float fUseDither;
 
         
         float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
@@ -95,18 +97,26 @@ class Fog extends FlxShader
             
 			float aspect = 1.0;
             
-			// base noise position scaled slightly off-center
-			vec2 npos = uv * vec2(1.2, 1.2);
-			// slow drifting translation
-			npos += vec2(iTime * 0.04, iTime * 0.03);
-			// add a subtle swirling offset so clouds feel like they are moving and changing
-			vec2 swirl = vec2(sin(iTime * 0.23 + uv.y * 0.5), cos(iTime * 0.17 + uv.x * 0.5)) * 0.35;
-			npos += swirl;
-			// use slightly larger fbm scale for more visible structure
-			float clouds = fbm(npos * 2.2);
+			// sample mask early and skip heavy work if fully transparent
+				vec4 maskEarly = flixel_texture2D(bitmap, uv);
+				float maskAlphaEarly = maskEarly.a;
+				if (maskAlphaEarly <= 0.0) {
+					gl_FragColor = vec4(vec3(0.0), 0.0);
+					return;
+				}
 
-			float h = fHue;
-			float sat = fSat;
+				// base noise position scaled slightly off-center
+				vec2 npos = uv * vec2(1.2, 1.2);
+				// slow drifting translation
+				npos += vec2(iTime * 0.04, iTime * 0.03);
+				// add a subtle swirling offset so clouds feel like they are moving and changing
+				vec2 swirl = vec2(sin(iTime * 0.23 + uv.y * 0.5), cos(iTime * 0.17 + uv.x * 0.5)) * 0.35;
+				npos += swirl;
+				// use slightly larger fbm scale for more visible structure
+				float clouds = fbm(npos * 2.2);
+
+				float h = fHue;
+				float sat = fSat;
 			// compress dark/light values toward their midpoint using contrast
 			float midV = (fVDark + fVLight) * 0.5;
 			// add a tiny animated modulation to the dark value so clouds shift brightness over time
@@ -187,23 +197,28 @@ class Fog extends FlxShader
                 hole = t;
             }
 
-			vec4 maskSample = flixel_texture2D(bitmap, uv);
-			float maskAlpha = maskSample.a;
-            
+			// use the earlier mask sample
+			float maskAlpha = maskAlphaEarly;
 			float desiredAlpha = maskAlpha;
-            
+
 			if (desiredAlpha <= 0.0) {
 				gl_FragColor = vec4(vec3(0.0), 0.0);
 				return;
 			}
+
+			// if fully opaque, render full-color (still uses clouds)
 			if (desiredAlpha >= 1.0) {
 				vec3 finalColor = cloudColor * mix(0.9, 1.05, clouds);
 				gl_FragColor = vec4(finalColor, 1.0);
 				return;
 			}
 
-            
-			float outAlpha = desiredAlpha > threshold ? 1.0 : 0.0;
+			float outAlpha;
+			if (fUseDither > 0.5) {
+				outAlpha = desiredAlpha > threshold ? 1.0 : 0.0;
+			} else {
+				outAlpha = desiredAlpha;
+			}
 			vec3 finalColor = cloudColor;
 			gl_FragColor = vec4(finalColor * outAlpha, outAlpha);
         }
@@ -240,6 +255,11 @@ class Fog extends FlxShader
 			fVDark.value = [vDark];
 		if (fVLight != null)
 			fVLight.value = [vLight];
+		try
+		{
+			useDither = 1.0;
+		}
+		catch (e:Dynamic) {}
 	}
 	private function set_maskTexelX(v:Float):Float
 	{
@@ -389,6 +409,16 @@ class Fog extends FlxShader
 		}
 		catch (e:Dynamic) {}
 		return contrast;
+	}
+	private function set_useDither(v:Float):Float
+	{
+		useDither = v;
+		try
+		{
+			fUseDither.value = [useDither];
+		}
+		catch (e:Dynamic) {}
+		return useDither;
 	}
 	public function updateFog(cam:flixel.FlxCamera, playerWorldX:Float, playerWorldY:Float, fogSprite:flixel.FlxSprite, maskState:MaskState,
 			?tilemap:GameMap):Void

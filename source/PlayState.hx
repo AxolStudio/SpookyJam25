@@ -1,15 +1,15 @@
 package;
 
-import flixel.util.FlxColor;
 import flixel.FlxCamera;
 import flixel.FlxG;
 import flixel.FlxSprite;
-import flixel.math.FlxMath;
 import flixel.FlxState;
 import flixel.group.FlxGroup.FlxTypedGroup;
-import flixel.math.FlxPoint;
 import flixel.math.FlxAngle;
+import flixel.math.FlxPoint;
+import flixel.util.FlxColor;
 import ui.Hud;
+import util.SoundHelper;
 
 class PlayState extends FlxState
 {
@@ -24,14 +24,19 @@ class PlayState extends FlxState
 	public var hud:Hud;
 	public var fog:FlxSprite;
 	public var fogShader:shaders.Fog;
+	public var blackOut:BlackOut;
 
 	private var _visibilityMask:VisibilityMask;
 	private var _maskState:MaskState;
+
+	public var ready:Bool = false;
 
 	override public function create():Void
 	{
 		Actions.init();
 		Actions.switchSet(Actions.gameplayIndex);
+		SoundHelper.initSounds();
+
 		atmosphereHue = FlxG.random.int(0, 359);
 		createCameras();
 		tilemap = new GameMap();
@@ -51,12 +56,21 @@ class PlayState extends FlxState
 		reticle.cameras = [overCam];
 		hud.cameras = [hudCam];
 		setupFog();
+		blackOut = new BlackOut(hudCam);
+		add(blackOut);
+		
 		mainCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		mainCam.follow(player);
 		overCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		overCam.follow(player);
+		blackOut.fade(() ->
+		{
+			ready = true;
+		}, false, 1.5, FlxColor.BLACK);
+
 		super.create();
 	}
+
 
 	private function setupFog():Void
 	{
@@ -65,7 +79,7 @@ class PlayState extends FlxState
 		fogShader = new shaders.Fog();
 		fog.shader = fogShader;
 		if (fogShader != null)
-			fogShader.hue = (cast atmosphereHue : Int);
+			fogShader.hue = atmosphereHue;
 		fog.cameras = [mainCam];
 		fog.scrollFactor.set(0, 0);
 		add(fog);
@@ -85,18 +99,22 @@ class PlayState extends FlxState
 
 	override public function update(elapsed:Float):Void
 	{
-		playerMovement(elapsed);
-		// Process enemy AI centrally
-		ai.EnemyBrain.process(player, enemies, tilemap, elapsed, mainCam);
-		if (reticle != null)
-			reticle.updateFromPlayer(player, overCam);
-		super.update(elapsed);
-		FlxG.collide(player, tilemap.wallsMap);
-		FlxG.collide(enemies, tilemap.wallsMap);
-		if (fogShader != null && player != null)
+		if (!ready)
 		{
-			updateFogAndMask();
+			super.update(elapsed);
 		}
+		else
+		{
+			playerMovement(elapsed);
+			ai.EnemyBrain.process(player, enemies, tilemap, elapsed, mainCam);
+			if (reticle != null)
+				reticle.updateFromPlayer(player, overCam);
+			super.update(elapsed);
+			FlxG.collide(player, tilemap.wallsMap);
+			FlxG.collide(enemies, tilemap.wallsMap);
+		}
+
+		updateFogAndMask();
 	}
 
 	private function playerMovement(elapsed:Float):Void
@@ -170,10 +188,10 @@ class PlayState extends FlxState
 			if (player.tryTakePhoto())
 			{
 				var hits:Array<Enemy> = [];
-				FlxG.overlap(reticle, enemies, function(a:Dynamic, b:Dynamic):Void
+				FlxG.overlap(reticle, enemies, function(a:Reticle, b:Enemy):Void
 				{
-					if (b != null)
-						hits.push(cast(b, Enemy));
+					if (b != null && b.alive && b.exists)
+						hits.push(b);
 				});
 				for (h in hits)
 					if (h != null)
@@ -186,7 +204,7 @@ class PlayState extends FlxState
 	{
 		mainCam = new FlxCamera(0, 18, FlxG.width, FlxG.height - 18);
 		overCam = new FlxCamera(0, 18, FlxG.width, FlxG.height - 18);
-		hudCam = new FlxCamera(0, 0, FlxG.width, 18);
+		hudCam = new FlxCamera(0, 0, FlxG.width, FlxG.height);
 		FlxG.cameras.add(mainCam);
 		FlxG.cameras.add(overCam);
 		FlxG.cameras.add(hudCam);
