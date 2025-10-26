@@ -39,36 +39,23 @@ class EnemyBrain
 	public static var LOS_DISTANCE:Float = 0.0;
 	private static var LOS_DISTANCE_SQR:Float = 0.0;
 
-	private static var mAngle:Float = -1;
-	private static var mDist:Float = -1;
-	private static var mTime:Float = -1;
-
-	private static var eMid:FlxPoint;
-	private static var pMid:FlxPoint;
-	private static var ex:Float = -1;
-	private static var ey:Float = -1;
-	private static var px:Float = -1;
-	private static var py:Float = -1;
-	private static var dx:Float = -1;
-	private static var dy:Float = -1;
-	private static var dist2:Float = -1;
-	private static var sees:Bool = false;
-	private static var bold:Float = -1;
-	private static var roll:Float = -1;
-
 	public static function process(player:Player, enemies:FlxTypedGroup<Enemy>, tilemap:GameMap, elapsed:Float, ?cam:FlxCamera):Void
 	{
-		if (player == null || enemies == null || tilemap == null || cam == null)
+		if (player == null || enemies == null || tilemap == null)
 			return;
+
 		if (LOS_DISTANCE <= 0.0)
 		{
 			LOS_DISTANCE = FlxG.width * 0.66;
 			LOS_DISTANCE_SQR = LOS_DISTANCE * LOS_DISTANCE;
 		}
 
-		for (e in enemies.members.filter((e) -> e != null && e.exists && e.alive))
+		for (e in enemies.members)
 		{
-			if (!e.isOnScreen(cam))
+			if (e == null || !e.exists || !e.alive)
+				continue;
+
+			if (cam != null && !e.isOnScreen(cam))
 			{
 				e.stop();
 				continue;
@@ -76,17 +63,17 @@ class EnemyBrain
 
 			e.aiTimer -= elapsed;
 
-			eMid = e.getMidpoint();
-			pMid = player.getMidpoint();
-			ex = eMid.x;
-			ey = eMid.y;
-			px = pMid.x;
-			py = pMid.y;
-			dx = px - ex;
-			dy = py - ey;
-			dist2 = dx * dx + dy * dy;
+			var eMid:FlxPoint = e.getMidpoint();
+			var pMid:FlxPoint = player.getMidpoint();
+			var ex:Float = eMid.x;
+			var ey:Float = eMid.y;
+			var px:Float = pMid.x;
+			var py:Float = pMid.y;
+			var dx:Float = px - ex;
+			var dy:Float = py - ey;
+			var dist2:Float = dx * dx + dy * dy;
 
-			sees = false;
+			var sees:Bool = false;
 			if (dist2 <= LOS_DISTANCE_SQR || e.aiTimer <= 0)
 			{
 				if (tilemap != null)
@@ -97,78 +84,93 @@ class EnemyBrain
 
 			if (!e.lastSawPlayer && sees)
 			{
+				// interrupt any ongoing motion
 				e.stop();
 				e.aiTimer = 0.0;
 			}
 
 			if (e.aiTimer > 0)
 			{
+				e.lastSawPlayer = sees;
+				eMid.put();
+				pMid.put();
 				continue;
 			}
 
-			bold = e.aggression - e.skittishness;
-			roll = FlxG.random.float();
-
+			// Main decision rules
+			var scheduled:Bool = false;
 			if (sees && dist2 <= LOS_DISTANCE_SQR)
 			{
-				if (bold > 0 && roll < Math.min(1.0, bold + 0.25))
+				var roll:Float = FlxG.random.float(-1.0, 1.0);
+
+				// Flee
+				if (roll < 0 && roll >= e.aggression)
 				{
-					// get degrees and ensure the short-step isn't immediately blocked
-					mAngle = FlxAngle.degreesBetween(e, player);
+					var mAngle:Float = FlxAngle.degreesBetween(player, e) + FlxG.random.float(-2.0, 2.0);
 					mAngle = findClearAngle(tilemap, ex, ey, mAngle, 12);
-					mDist = FlxG.random.float(16.0, 40.0);
-					mTime = mDist * e.speed;
-					// clamp to a minimum duration to avoid jittery tiny moves
-					if (mTime < 0.12)
-						mTime = 0.12;
-					e.startTimedMove(mAngle, mTime);
-					// prevent the AI from re-evaluating while the timed move is in progress
-					e.aiTimer = mTime + 0.05;
-					e.aiState = 1;
-					#if (debug)
-					trace('EnemyBrain: ' + Std.string(e.variant) + ' attack-pursuit (bold=' + Std.string(bold) + ',roll=' + Std.string(roll) + ')');
-					#end
-				}
-				else if (bold < 0 && roll < Math.min(1.0, -bold + 0.25))
-				{
-					mAngle = FlxAngle.degreesBetween(player, e) + FlxG.random.float(-2.0, 2.0);
-					mAngle = findClearAngle(tilemap, ex, ey, mAngle, 12);
-					mDist = FlxG.random.float(16.0, 40.0);
-					mTime = mDist * e.speed;
+					var mDist:Float = FlxG.random.float(16.0, 40.0);
+					var mTime:Float = mDist * e.speed;
 					if (mTime < 0.12)
 						mTime = 0.12;
 					e.startTimedMove(mAngle, mTime);
 					e.aiTimer = mTime + 0.05;
 					e.aiState = 2;
+					scheduled = true;
 					#if (debug)
-					trace('EnemyBrain: ' + Std.string(e.variant) + ' flee-pursuit (bold=' + Std.string(bold) + ',roll=' + Std.string(roll) + ')');
+					trace('EnemyBrain: ' + Std.string(e.variant) + ' flee (roll=' + Std.string(roll) + ',aggr=' + Std.string(e.aggression) + ')');
+					#end
+				}
+				// Attack
+				else if (roll > 0 && roll <= e.aggression)
+				{
+					var aAngle:Float = FlxAngle.degreesBetween(e, player);
+					aAngle = findClearAngle(tilemap, ex, ey, aAngle, 12);
+					var aDist:Float = FlxG.random.float(48.0, 72.0);
+					var aTime:Float = aDist * e.speed;
+					if (aTime < 0.12)
+						aTime = 0.12;
+					e.startTimedMove(aAngle, aTime);
+					e.aiTimer = aTime + 0.05;
+					e.aiState = 1;
+					scheduled = true;
+					#if (debug)
+					trace('EnemyBrain: ' + Std.string(e.variant) + ' attack (roll=' + Std.string(roll) + ',aggr=' + Std.string(e.aggression) + ')');
 					#end
 				}
 				else
 				{
-					mAngle = FlxG.random.float(0, 360);
-					mTime = FlxG.random.float(1.0, 3.0);
-					if (mTime < 0.12)
-						mTime = 0.12;
-					// avoid re-evaluation during wander burst
-					e.aiTimer = mTime + 0.05;
-					e.startTimedMove(mAngle, mTime);
+					// Didn't choose to flee or attack: perform a short seen-wander
+					var sAngle:Float = FlxG.random.float(0, 360);
+					var sTime:Float = FlxG.random.float(0.6, 1.8);
+					if (sTime < 0.12)
+						sTime = 0.12;
+					e.startTimedMove(sAngle, sTime);
+					e.aiTimer = sTime + 0.05;
+					e.aiState = 0; // wandering
+					scheduled = true;
 					#if (debug)
-					trace('EnemyBrain: ' + Std.string(e.variant) + ' wander (seen)');
+					trace('EnemyBrain: '
+						+ Std.string(e.variant)
+						+ ' seen-wander (roll='
+						+ Std.string(roll)
+						+ ',aggr='
+						+ Std.string(e.aggression)
+						+ ')');
 					#end
 				}
 			}
 			else
 			{
+				// Not seeing the player: wander or stop
 				if (FlxG.random.float() < 0.25)
 				{
-					mAngle = FlxG.random.float(0, 360);
-					mTime = FlxG.random.float(1.0, 3.0);
-					if (mTime < 0.12)
-						mTime = 0.12;
-					// avoid re-evaluation during wander burst
-					e.aiTimer = mTime + 0.05;
-					e.startTimedMove(mAngle, mTime);
+					var wAngle:Float = FlxG.random.float(0, 360);
+					var wTime:Float = FlxG.random.float(1.0, 3.0);
+					if (wTime < 0.12)
+						wTime = 0.12;
+					e.aiTimer = wTime + 0.05;
+					e.startTimedMove(wAngle, wTime);
+					scheduled = true;
 					#if (debug)
 					trace('EnemyBrain: ' + Std.string(e.variant) + ' wander (not seen)');
 					#end
@@ -183,13 +185,12 @@ class EnemyBrain
 				}
 			}
 
-			e.aiTimer = e.aiDecisionInterval * FlxG.random.float(0.8, 1.6);
-
+			if (!scheduled)
+				e.aiTimer = e.aiDecisionInterval * FlxG.random.float(0.8, 1.6);
 			e.lastSawPlayer = sees;
-		}
-		if (eMid != null)
+
 			eMid.put();
-		if (pMid != null)
 			pMid.put();
+		}
 	}
 }

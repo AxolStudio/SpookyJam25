@@ -32,6 +32,10 @@ class Enemy extends GameObject
 	// transitions from not-seeing -> seeing so we can interrupt current actions)
 	public var lastSawPlayer:Bool = false;
 
+	// No aiControlled flag: the project's central AI (ai.EnemyBrain) is the
+	// single source of decision-making. Enemy only exposes movement APIs
+	// (startTimedMove/move/stop) and keeps minimal per-frame logic.
+
 	private var _wanderTimer:Float = 0.0;
 	private var _actionCooldown:Float = 0.0;
 	private var _isWandering:Bool = false;
@@ -39,7 +43,8 @@ class Enemy extends GameObject
 	private var _targetY:Float = 0.0;
 	private var _hasTarget:Bool = false;
 	private var _captured:Bool = false;
-	private var _pursuingThrough:Bool = false;
+	// Note: per-frame pursuit handling was removed. Timed moves now schedule
+	// their own completion so the central AI can be the single decision-maker.
 
 	/**
 	 * Start moving in the given angle (degrees) for approximately duration seconds.
@@ -48,11 +53,23 @@ class Enemy extends GameObject
 	 */
 	public function startTimedMove(angleDeg:Float, duration:Float):Void
 	{
-		_pursuingThrough = true;
 		_actionCooldown = duration;
 		// timed move: don't set a persistent target - keep it purely time-driven
 		_hasTarget = false;
+		// start moving immediately in the given angle
 		move(angleDeg);
+		// schedule stopping after duration so no per-frame pursuit logic is
+		// required inside Enemy.update. The central AI can still call move()
+		// each frame if it wants finer control.
+		var ctl = {t: 0.0};
+		FlxTween.tween(ctl, {t: 1.0}, duration, {
+			type: FlxTweenType.ONESHOT,
+			onComplete: function(_)
+			{
+				_actionCooldown = 0;
+				stop();
+			}
+		});
 	}
 
 	private static function ensureFrames():Void
@@ -163,7 +180,6 @@ class Enemy extends GameObject
 	{
 		variant = pickVariant();
 		hue = FlxG.random.int(0, 359, [for (h in AtmosphereHue - 10...AtmosphereHue + 11) (h + 360) % 360]);
-		trace(hue);
 		super(tileX, tileY);
 
 		speed = 50;
@@ -177,9 +193,11 @@ class Enemy extends GameObject
 
 	public function randomizeBehavior():Void
 	{
-		// pick base values and round to nearest 0.1 so they behave like percentages (0.0..1.0)
-		aggression = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
-		aggression = Math.round(aggression * 10.0) / 10.0;
+		// pick base values and round to nearest 0.1; aggression is now in -1.0..1.0
+		// (signed) so negative values bias fleeing, positive bias attacking.
+		var mag:Float = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
+		var sign:Int = if (FlxG.random.float() < 0.5) -1 else 1;
+		aggression = (Math.round(mag * 10.0) / 10.0) * sign;
 		skittishness = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
 		skittishness = Math.round(skittishness * 10.0) / 10.0;
 
@@ -187,7 +205,7 @@ class Enemy extends GameObject
 
 		speed = wanderSpeed;
 
-		aiDecisionInterval = 0.3 + FlxG.random.float() * 0.9; // 0.3..1.2s
+		aiDecisionInterval = FlxG.random.float(0.3, 1.2);
 		// Compute a simple value: base 1 + aggression weight + speed weight - skittish penalty
 		var valF:Float = 1.0 + aggression * 3.0 + (wanderSpeed - 20.0) / 30.0 - skittishness * 2.0;
 		var valI:Int = Std.int(Math.max(1, Math.round(valF)));
@@ -208,91 +226,19 @@ class Enemy extends GameObject
 		if (!this.isOnScreen())
 			return;
 
-		if (_pursuingThrough)
-		{
-			var mid:FlxPoint = this.getMidpoint();
-			var dxT:Float = _targetX - mid.x;
-			var dyT:Float = _targetY - mid.y;
-			var distT:Float = Math.sqrt(dxT * dxT + dyT * dyT);
-			if (distT <= 6 || _actionCooldown <= 0)
-			{
-				_pursuingThrough = false;
-
-				stop();
-			}
-			else
-			{
-				var radT:Float = Math.atan2(dyT, dxT);
-				move(radT * FlxAngle.TO_DEG);
-				mid.put();
-				return;
-			}
-		}
-
+		// Decrement per-enemy timers. The central AI (EnemyBrain) will set
+		// aiTimer and call movement APIs (startTimedMove/move/stop). Enemy keeps
+		// only the low-level timed-move execution and timer ticks.
 		_actionCooldown -= elapsed;
 		_wanderTimer -= elapsed;
 
-		var ps:PlayState = cast(FlxG.state, PlayState);
-		if (ps == null)
-			return;
-		var player:Player = ps.player;
-
-		if (player != null)
-		{
-			var pm:FlxPoint = player.getMidpoint();
-			var em:FlxPoint = this.getMidpoint();
-			var dx:Float = pm.x - em.x;
-			var dy:Float = pm.y - em.y;
-			var dist:Float = Math.sqrt(dx * dx + dy * dy);
-			var visible:Bool = (dist < 160);
-			if (visible && _actionCooldown <= 0)
-			{
-				var aRoll:Float = FlxG.random.float();
-				var sRoll:Float = FlxG.random.float();
-				if (aRoll < aggression && aRoll > skittishness)
-				{
-					speed = wanderSpeed * (1.5 + FlxG.random.float() * 1.0);
-
-					var angleToPlayer:Float = Math.atan2(pm.y - em.y, pm.x - em.x) * FlxAngle.TO_DEG;
-					var extraDistance:Float = 48.0 + FlxG.random.float() * 24.0;
-					// compute a world point at extraDistance along the angle
-					var rad:Float = angleToPlayer * FlxAngle.TO_RAD;
-					_targetX = pm.x + Math.cos(rad) * extraDistance;
-					_targetY = pm.y + Math.sin(rad) * extraDistance;
-					_pursuingThrough = true;
-					move(angleToPlayer);
-					_actionCooldown = 0.6 + FlxG.random.float() * 0.8;
-					pm.put();
-					em.put();
-					return;
-				}
-				else if (sRoll < skittishness && sRoll > aggression)
-				{
-					speed = wanderSpeed * (1.8 + FlxG.random.float() * 0.6);
-					var fleeAngle = Math.atan2(-dy, -dx) * FlxAngle.TO_DEG + (FlxG.random.float() - 0.5) * 0.8;
-					move(fleeAngle);
-					_actionCooldown = 0.8 + FlxG.random.float() * 1.2;
-					return;
-				}
-			}
-		}
-
-		if (_wanderTimer <= 0)
-		{
-			_wanderTimer = 0.6 + FlxG.random.float() * 1.6;
-			if (FlxG.random.float() < 0.55)
-			{
-				var ang = (FlxG.random.float() * Math.PI * 2);
-				move(ang * FlxAngle.TO_DEG);
-				speed = wanderSpeed * (0.7 + FlxG.random.float() * 0.8);
-				_actionCooldown = 0.2 + FlxG.random.float() * 0.6;
-			}
-			else
-			{
-				stop();
-			}
-		}
+		// Note: wandering/decision logic moved to ai.EnemyBrain. Enemy.update now
+		// avoids any high-level decisions and only ticks timers.
 	}
+
+	// Helper: handle ongoing timed-move / pursuit behavior that drives movement
+	// toward a target point or stops when the duration elapses.
+	// ...existing code...
 
 	public override function buildGraphics():Void
 	{
