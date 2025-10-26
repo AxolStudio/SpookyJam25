@@ -20,6 +20,15 @@ class GameResults extends FlxState
 	private var submitBtn:FlxSprite;
 	private var keyboardActive:Bool = false;
 
+	// UI Navigation
+	private var currentUIIndex:Int = 0;
+	private var uiObjects:Array<FlxSprite> = [];
+	private var highlightSprite:FlxSprite;
+
+	// Virtual Keyboard
+	private var virtualKeyboard:VirtualKeyboard;
+	private var currentCreatureName:String = "";
+
 	public function new(items:Array<CapturedInfo>)
 	{
 		super();
@@ -28,6 +37,10 @@ class GameResults extends FlxState
 
 	override public function create():Void
 	{
+		// Initialize Actions and switch to menu controls
+		Actions.init();
+		Actions.switchSet(Actions.menuIndex);
+		
 		// background report image
 		bg = new FlxSprite(0, 0, "assets/ui/room_report.png");
 		add(bg);
@@ -45,10 +58,27 @@ class GameResults extends FlxState
 			nameText.x = Std.int((FlxG.width - nameText.width) / 2);
 		}
 
-		// TODO: Submit button bottom-right
-		// I don't have an image for any buttons at the moment
+		// Create submit button at bottom right
+		submitBtn = new FlxSprite();
+		submitBtn.makeGraphic(60, 20, 0xFF444444); // Temporary gray placeholder
+		submitBtn.x = FlxG.width - submitBtn.width - 10;
+		submitBtn.y = FlxG.height - submitBtn.height - 10;
+		add(submitBtn);
+		
+		// Create highlight sprite
+		highlightSprite = new FlxSprite();
+		highlightSprite.makeGraphic(1, 1, 0xFFFFFF00); // Yellow highlight
+		highlightSprite.alpha = 0.3;
+		add(highlightSprite);
 
-		// TODO: add visuals/text to the button; we'll keep it simple
+		// Create virtual keyboard
+		virtualKeyboard = new VirtualKeyboard();
+		virtualKeyboard.onSubmit = onKeyboardSubmit;
+		virtualKeyboard.onCancel = onKeyboardCancel;
+		add(virtualKeyboard);
+
+		// Setup UI objects for navigation
+		setupUINavigation();
 
 		super.create();
 	}
@@ -78,7 +108,9 @@ class GameResults extends FlxState
 		nameLabel = new GameText(baseRightX, 40, "Name:");
 		add(nameLabel);
 		// Clickable name field just underneath the label
-		nameText = new GameText(baseRightX, 56, "<Click to rename>");
+		nameText = new GameText(baseRightX, 56, "[EDIT]");
+		nameText.autoSize = false;
+		nameText.fieldWidth = 120;
 		add(nameText);
 
 		// Speed stars (normalize speed 20..70 -> 1..5)
@@ -138,29 +170,138 @@ class GameResults extends FlxState
 	override public function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
-		// input: click on nameText to open keyboard
-		if (!keyboardActive && nameText != null && FlxG.mouse.justPressed)
+		if (virtualKeyboard.isVisible)
 		{
-			var p = FlxG.mouse.getWorldPosition();
-			if (nameText.overlapsPoint(p))
-			{
-				openKeyboardFor(selectedIndex);
-			}
+			// Handle virtual keyboard input
+			virtualKeyboard.handleInput();
 		}
-		// submit button
-		if (FlxG.mouse.justPressed && submitBtn != null)
+		else
 		{
-			var p2 = FlxG.mouse.getWorldPosition();
-			if (submitBtn.overlapsPoint(p2))
-			{
-				// TODO: submit logic
-				FlxG.switchState(() -> new PlayState());
-			}
+			// Handle normal UI navigation
+			handleUINavigation();
+			handleMouseInput();
+			updateHighlight();
 		}
 	}
 
 	private function openKeyboardFor(idx:Int):Void
 	{
 		// TODO: implement keyboard opening
+	}
+
+	private function setupUINavigation():Void
+	{
+		uiObjects = [];
+		if (nameText != null)
+			uiObjects.push(cast nameText);
+		if (submitBtn != null)
+			uiObjects.push(submitBtn);
+
+		currentUIIndex = 0;
+	}
+
+	private function handleUINavigation():Void
+	{
+		if (keyboardActive)
+			return;
+
+		// Navigate between UI objects
+		if (Actions.rightUI.triggered || Actions.downUI.triggered)
+		{
+			currentUIIndex = (currentUIIndex + 1) % uiObjects.length;
+		}
+		else if (Actions.leftUI.triggered || Actions.upUI.triggered)
+		{
+			currentUIIndex = currentUIIndex > 0 ? currentUIIndex - 1 : uiObjects.length - 1;
+		}
+
+		// Activate current UI object
+		if (Actions.pressUI.triggered)
+		{
+			activateCurrentUIObject();
+		}
+	}
+
+	private function handleMouseInput():Void
+	{
+		if (keyboardActive)
+			return;
+
+		if (FlxG.mouse.justPressed)
+		{
+			var mousePos = FlxG.mouse.getWorldPosition();
+
+			// Check nameText click
+			if (nameText != null && nameText.overlapsPoint(mousePos))
+			{
+				currentUIIndex = 0;
+				activateRenameAction();
+			}
+			// Check submit button click
+			else if (submitBtn != null && submitBtn.overlapsPoint(mousePos))
+			{
+				currentUIIndex = 1;
+				activateSubmitAction();
+			}
+
+			mousePos.put();
+		}
+	}
+
+	private function updateHighlight():Void
+	{
+		if (uiObjects.length > 0 && currentUIIndex < uiObjects.length)
+		{
+			var currentObj = uiObjects[currentUIIndex];
+			highlightSprite.setGraphicSize(Std.int(currentObj.width + 4), Std.int(currentObj.height + 4));
+			highlightSprite.updateHitbox();
+			highlightSprite.x = currentObj.x - 2;
+			highlightSprite.y = currentObj.y - 2;
+			highlightSprite.visible = true;
+		}
+		else
+		{
+			highlightSprite.visible = false;
+		}
+	}
+
+	private function activateCurrentUIObject():Void
+	{
+		if (currentUIIndex == 0)
+		{
+			activateRenameAction();
+		}
+		else if (currentUIIndex == 1)
+		{
+			activateSubmitAction();
+		}
+	}
+	private function activateRenameAction():Void
+	{
+		keyboardActive = true;
+		virtualKeyboard.show(currentCreatureName);
+	}
+
+	private function activateSubmitAction():Void
+	{
+		// TODO: placeholder submit action
+		trace("Submit action triggered");
+	}
+	private function onKeyboardSubmit(newName:String):Void
+	{
+		currentCreatureName = newName;
+		keyboardActive = false;
+
+		// Update the name display
+		if (nameText != null)
+		{
+			nameText.text = newName.length > 0 ? newName : "[EDIT]";
+		}
+	}
+
+	private function onKeyboardCancel():Void
+	{
+		keyboardActive = false;
+		// Don't change the current name
 	}
 }
