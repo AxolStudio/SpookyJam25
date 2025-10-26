@@ -19,6 +19,8 @@ class Hud extends FlxGroup
 	public var flashIcon:FlxSprite;
 	public var cooldownBarYellow:FlxBar;
 	public var cooldownBarWhite:FlxBar;
+	public var o2Icon:FlxSprite;
+	public var o2Bar:FlxBar;
 
 
 	private var cooldownTarget:Float = 0;
@@ -73,6 +75,19 @@ class Hud extends FlxGroup
 		cooldownBarWhite.scrollFactor.set(0, 0);
 		cooldownBarWhite.value = Constants.PHOTO_COOLDOWN;
 		add(cooldownBarWhite);
+		o2Bar = new FlxBar(FlxG.width - 8 - fillW, barY, null, fillW, fillH, null, "", 0, player.o2);
+		o2Bar.createFilledBar(0xFF000000, 0xFF00FFFF, true, 0xFF000000, 1);
+		o2Bar.fixedPosition = true;
+		o2Bar.scrollFactor.set(0, 0);
+		o2Bar.value = player.o2;
+		add(o2Bar);
+
+		o2Icon = new FlxSprite(o2Bar.x - 18, iconY);
+		o2Icon.loadGraphic("assets/images/hud_o2.png");
+		o2Icon.scrollFactor.set(0, 0);
+		add(o2Icon);
+
+		
 	}
 
 	override public function update(elapsed:Float):Void
@@ -99,6 +114,7 @@ class Hud extends FlxGroup
 			}
 			if (cooldownBarWhite != null)
 				cooldownBarWhite.visible = (val >= Constants.PHOTO_COOLDOWN);
+			o2Bar.value = player.o2;
 		}
 	}
 }

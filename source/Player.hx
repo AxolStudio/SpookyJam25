@@ -3,12 +3,15 @@ package;
 import util.SoundHelper;
 import flixel.FlxG;
 import flixel.util.FlxColor;
+import shaders.AlphaDither;
+import flixel.tweens.FlxTween;
 
 class Player extends GameObject
 {
 	public static inline var SPEED:Float = 50;
 
 	public var film:Int = Constants.PHOTO_START_FILM;
+	public var o2:Float = 100;
 
 	public var photoCooldown(default, null):Float = 0;
 
@@ -23,7 +26,8 @@ class Player extends GameObject
 		offset.x = 2;
 		offset.y = 7;
 		x += 2;
-		y += 7;
+		y -= height;
+		
 		
 	}
 
@@ -103,6 +107,7 @@ class Player extends GameObject
 		super.update(elapsed);
 		if (photoCooldown > 0)
 			photoCooldown -= elapsed;
+		o2 -= elapsed;
 	}
 
 	public function tryTakePhoto():Bool
@@ -118,5 +123,21 @@ class Player extends GameObject
 		FlxG.camera.flash(0xFFFFFFFF, Constants.PHOTO_FLASH_TIME, false);
 
 		return true;
+	}
+	// Dither-fade the player in using the AlphaDither shader
+	public var dither:AlphaDither;
+
+	public function showDither(?duration:Float = 0.2):Void
+	{
+		// attach shader and tween its globalAlpha
+		dither = new AlphaDither();
+		shader = dither;
+		dither.globalAlpha = 0.0;
+		FlxTween.tween(dither, {globalAlpha: 1.0}, duration, {
+			onComplete: (_) ->
+			{
+				dither.globalAlpha = 1.0;
+			}
+		});
 	}
 }

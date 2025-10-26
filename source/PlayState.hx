@@ -1,9 +1,12 @@
 package;
 
+import shaders.AlphaDither;
 import flixel.FlxCamera;
 import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.FlxState;
+import flixel.FlxObject;
+import flixel.tweens.FlxTween;
 import flixel.group.FlxGroup.FlxTypedGroup;
 import flixel.math.FlxAngle;
 import flixel.math.FlxPoint;
@@ -15,6 +18,7 @@ class PlayState extends FlxState
 {
 	public var tilemap:GameMap;
 	public var player:Player;
+	public var portal:Portal;
 	public var reticle:Reticle;
 	public var enemies:FlxTypedGroup<Enemy>;
 	public var mainCam:FlxCamera;
@@ -31,6 +35,9 @@ class PlayState extends FlxState
 
 	public var ready:Bool = false;
 
+	var portalShader:AlphaDither;
+	var playerShader:AlphaDither;
+
 	override public function create():Void
 	{
 		Actions.init();
@@ -42,8 +49,21 @@ class PlayState extends FlxState
 		tilemap = new GameMap();
 		tilemap.generate(atmosphereHue);
 		add(tilemap);
-		player = new Player(tilemap.portalTileX * Constants.TILE_SIZE, tilemap.portalTileY * Constants.TILE_SIZE);
+		portal = new Portal(tilemap.portalTileX * Constants.TILE_SIZE, tilemap.portalTileY * Constants.TILE_SIZE);
+
+		portal.playerOn = true;
+
+		portalShader = new AlphaDither();
+		portal.shader = portalShader;
+		portalShader.globalAlpha = 0.0;
+		add(portal);
+
+		player = new Player(Std.int(portal.x), Std.int(portal.y + portal.height));
+		playerShader = new AlphaDither();
+		player.shader = playerShader;
+		playerShader.globalAlpha = 0.0;
 		add(player);
+
 		enemies = new FlxTypedGroup<Enemy>();
 		add(enemies);
 		if (tilemap != null)
@@ -52,25 +72,43 @@ class PlayState extends FlxState
 		add(reticle);
 		hud = new Hud(player);
 		add(hud);
-		tilemap.cameras = player.cameras = enemies.cameras = [mainCam];
+		portal.cameras = tilemap.cameras = player.cameras = enemies.cameras = [mainCam];
 		reticle.cameras = [overCam];
 		hud.cameras = [hudCam];
 		setupFog();
 		blackOut = new BlackOut(hudCam);
 		add(blackOut);
-		
+
 		mainCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		mainCam.follow(player);
 		overCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		overCam.follow(player);
+
 		blackOut.fade(() ->
 		{
-			ready = true;
+			FlxTween.tween(portalShader, {globalAlpha: 1,}, 0.66, {
+				onStart: (_) ->
+				{
+					SoundHelper.playSound("portal");
+				},
+				startDelay: 0.33,
+				onComplete: (_) ->
+				{
+					FlxTween.tween(playerShader, {globalAlpha: 1.0}, 0.66, {
+						startDelay: 0.33,
+						onComplete: (_) ->
+						{
+							player.shader = null;
+							portal.shader = null;
+							ready = true;
+						}
+					});
+				}
+			});
 		}, false, 1.5, FlxColor.BLACK);
 
 		super.create();
 	}
-
 
 	private function setupFog():Void
 	{
@@ -112,6 +150,13 @@ class PlayState extends FlxState
 			super.update(elapsed);
 			FlxG.collide(player, tilemap.wallsMap);
 			FlxG.collide(enemies, tilemap.wallsMap);
+			if (portal.playerOn)
+			{
+				if (!portal.overlaps(player))
+				{
+					portal.playerOn = false;
+				}
+			}
 		}
 
 		updateFogAndMask();

@@ -21,15 +21,23 @@ class SoundHelper
 		soundLibrary = new Map<String, FlxSound>();
 		musicLibrary = new Map<String, FlxSound>();
 
-		var s:FlxSound = new FlxSound().loadEmbedded("assets/sounds/camera_shutter.ogg");
+		var s:FlxSound = loadSound("assets/sounds/camera_shutter.ogg");
 		soundLibrary.set("camera", s);
-		s.persist = true;
-		s.autoDestroy = false;
 
-		s = new FlxSound().loadEmbedded("assets/music/office_music.ogg");
+		soundLibrary.set("portal", loadSound("assets/sounds/portal_enter.ogg"));
+
+		s = loadSound("assets/music/office_music.ogg");
+		s.looped = true;
 		musicLibrary.set("office", s);
-		s.persist = true;
-		s.autoDestroy = false;
+	}
+
+	private static function loadSound(AssetPath:String):FlxSound
+	{
+		var sound:FlxSound = new FlxSound().loadEmbedded(AssetPath);
+
+		sound.persist = true;
+		sound.autoDestroy = false;
+		return sound;
 	}
 
 	public static function playSound(name:String, ?SourceMP:FlxPoint, ?Player:FlxObject):Void
