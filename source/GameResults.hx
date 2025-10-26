@@ -1,11 +1,11 @@
 package;
 
-import flixel.FlxState;
 import flixel.FlxG;
 import flixel.FlxSprite;
-import flixel.tweens.FlxTween;
+import flixel.FlxState;
+import flixel.graphics.frames.FlxAtlasFrames;
 import ui.GameText;
-import ui.Hud;
+import util.ColorHelpers;
 
 class GameResults extends FlxState
 {
@@ -68,7 +68,7 @@ class GameResults extends FlxState
 
 		// compute layout bases (center split between two pages)
 		var centerX:Int = Std.int(FlxG.width / 2);
-		var pageMargin:Int = 12;
+		var pageMargin:Int = 14;
 		var baseRightX:Int = centerX + pageMargin;
 		var leftInnerRight:Int = centerX - pageMargin;
 
@@ -90,12 +90,10 @@ class GameResults extends FlxState
 		if (t > 1)
 			t = 1;
 		var speedStars:Int = Std.int(Math.floor(t * 4.0)) + 1;
-		var speedStarsStr:String = StringTools.replace("*****", "", "");
-		// build stars string
-		speedStarsStr = "";
+		var speedStarsStr:String = "";
 		for (i in 0...speedStars)
 			speedStarsStr += "*";
-		var speedText = new GameText(180, 88, "Speed: " + speedStarsStr);
+		var speedText = new GameText(baseRightX, 88, "Speed: " + speedStarsStr);
 		add(speedText);
 
 		// Aggression stars (map -1..1 -> 1..5)
@@ -110,18 +108,31 @@ class GameResults extends FlxState
 		var aggrStarsStr:String = "";
 		for (i in 0...aggrStars)
 			aggrStarsStr += "*";
-		var aggrText = new GameText(180, 108, "Aggression: " + aggrStarsStr);
+		var aggrText = new GameText(baseRightX, 108, "Aggression: " + aggrStarsStr);
 		add(aggrText);
 
 		// reward = sum of stars * 10
 		var reward:Int = (speedStars + aggrStars) * 10;
 		// reward label and right-aligned amount on left page
-		var leftLabelX:Int = pageMargin + 8;
+		var leftLabelX:Int = pageMargin + 18;
 		var rewardLabel = new GameText(leftLabelX, 140, "Reward:");
 		add(rewardLabel);
 		var rewardAmount = new GameText(0, 140, "$" + Std.string(reward));
 		rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 		add(rewardAmount);
+		var photo:FlxSprite = new FlxSprite();
+		photo.frames = FlxAtlasFrames.fromSparrow(ColorHelpers.getHueColoredBmp("assets/images/photos.png", ci.hue), "assets/images/photos.xml");
+
+		// get all the frames that start with the variant name
+		var framesForVariant = photo.frames.getAllByPrefix(ci.variant);
+		// pick one at random
+		var frameIndex = FlxG.random.int(0, framesForVariant.length - 1);
+		photo.animation.frameName = framesForVariant[frameIndex].name;
+		photo.x = 45;
+		photo.y = 40;
+		add(photo);
+
+		add(new FlxSprite(0, 0, "assets/ui/paperclip.png"));
 	}
 
 	override public function update(elapsed:Float):Void

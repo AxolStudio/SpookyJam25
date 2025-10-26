@@ -1,14 +1,14 @@
 package;
 
-import util.ColorHelpers;
+import haxe.ds.StringMap;
 import flixel.FlxG;
 import flixel.effects.particles.FlxEmitter;
 import flixel.graphics.frames.FlxAtlasFrames;
+import flixel.math.FlxAngle;
+import flixel.math.FlxPoint;
 import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
-import haxe.ds.StringMap;
-import flixel.math.FlxPoint;
-import flixel.math.FlxAngle;
+import util.ColorHelpers;
 
 class Enemy extends GameObject
 {
@@ -166,14 +166,8 @@ class Enemy extends GameObject
 	public static function pickVariant():String
 	{
 		ensureFrames();
-		if (VARIANTS == null || VARIANTS.length == 0)
-			return null;
-		var idx:Int = Std.int(FlxG.random.float() * VARIANTS.length);
-		if (idx < 0)
-			idx = 0;
-		if (idx >= VARIANTS.length)
-			idx = VARIANTS.length - 1;
-		return VARIANTS[idx];
+		FlxG.random.shuffle(VARIANTS);
+		return VARIANTS[0];
 	}
 
 	public function new(tileX:Int, tileY:Int, ?AtmosphereHue:Int)
