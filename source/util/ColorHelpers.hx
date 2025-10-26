@@ -1,5 +1,6 @@
 package util;
 
+import flixel.util.typeLimit.OneOfTwo;
 import openfl.display.BitmapData;
 import openfl.geom.Point;
 import flixel.FlxG;
@@ -7,11 +8,13 @@ import flixel.system.FlxAssets;
 
 class ColorHelpers
 {
-	public static function getHueColoredBmp(path:String, hue:Int):BitmapData
+	public static function getHueColoredBmp(Source:OneOfTwo<String, BitmapData>, hue:Int):BitmapData
 	{
-		var src:BitmapData = FlxAssets.getBitmapData(path);
-		if (src == null)
-			throw 'Missing asset: ' + path;
+		var src:BitmapData;
+		if (Std.is(Source, String))
+			src = FlxAssets.getBitmapData(cast Source);
+		else
+			src = (cast Source).clone();
 
 		var result:BitmapData = new BitmapData(src.width, src.height, true, 0x00000000);
 		result.copyPixels(src, src.rect, new Point(0, 0));

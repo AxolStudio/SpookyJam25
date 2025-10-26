@@ -15,7 +15,17 @@ class Player extends GameObject
 
 	public var photoCooldown(default, null):Float = 0;
 
-	public var captured:Array<String> = [];
+	public var captured:Array<CapturedInfo> = [];
+
+	public function getCaptured():Array<CapturedInfo>
+	{
+		return captured;
+	}
+
+	public function clearCaptured():Void
+	{
+		captured = [];
+	}
 
 	public function new(tileX:Int, tileY:Int)
 	{

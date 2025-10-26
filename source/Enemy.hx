@@ -1,5 +1,6 @@
 package;
 
+import util.ColorHelpers;
 import flixel.FlxG;
 import flixel.effects.particles.FlxEmitter;
 import flixel.graphics.frames.FlxAtlasFrames;
@@ -13,7 +14,8 @@ class Enemy extends GameObject
 {
 	public var variant:String;
 
-	public static var SHARED_FRAMES:FlxAtlasFrames = null;
+	private var hue:Int;
+
 	public static var VARIANTS:Array<String> = [];
 	public static var VARIANT_FRAMES:StringMap<Array<String>> = null;
 
@@ -55,9 +57,9 @@ class Enemy extends GameObject
 
 	private static function ensureFrames():Void
 	{
-		if (SHARED_FRAMES != null)
+		if (VARIANTS.length > 0)
 			return;
-		SHARED_FRAMES = FlxAtlasFrames.fromSparrow("assets/images/enemies.png", "assets/images/enemies.xml");
+		var SHARED_FRAMES:FlxAtlasFrames = FlxAtlasFrames.fromSparrow("assets/images/enemies.png", "assets/images/enemies.xml");
 		VARIANTS = [];
 		VARIANT_FRAMES = new StringMap<Array<String>>();
 		for (f in 0...SHARED_FRAMES.numFrames)
@@ -108,74 +110,40 @@ class Enemy extends GameObject
 
 	public function capture(byPlayer:Player):Void
 	{
-		if (!exists)
+		if (!exists || !alive)
 			return;
+		_captured = true;
+		if (byPlayer != null)
+		{
+			var ci = new CapturedInfo(variant != null ? variant : "enemy", aggression, wanderSpeed, hue);
+			byPlayer.captured.push(ci);
+		}
+
 		velocity.set(0, 0);
 		acceleration.set(0, 0);
-		_captured = true;
+		animation.stop();
+		stop();
+
 		alive = false;
 		exists = true;
-		#if (debug)
-		if (variant != null)
-			trace("Enemy.capture() start - variant=" + variant);
-		#end
-		if (animation != null)
-			animation.stop();
-		stop();
-		var shaderOk:Bool = false;
-		try
-		{
-			var sh = new shaders.PhotoDissolve();
-			sh.desat = 1.0;
-			sh.dissolve = 0.0;
-			this.shader = sh;
-			shaderOk = true;
-		}
-		catch (e:Dynamic)
-		{
-			shaderOk = false;
-		}
-		if (shaderOk)
-		{
-			FlxTween.tween(this.shader, {dissolve: 1.0}, Constants.PHOTO_DISSOLVE_DURATION, {
-				startDelay: Constants.PHOTO_DISSOLVE_DELAY,
-				type: FlxTweenType.ONESHOT,
-				ease: FlxEase.quadOut,
-				onStart: function(_)
-				{
-					spawnCrumbleParticles(20);
-				},
-				onComplete: function(_)
-				{
-					exists = false;
-					alive = false;
-					if (byPlayer != null)
-						byPlayer.captured.push(variant != null ? variant : "enemy");
-
-				}
-			});
-		}
-		else
-		{
-			color = 0xAAAAAA;
-			if (animation != null)
-				animation.stop();
-			FlxTween.tween(this, {alpha: 0}, Constants.PHOTO_DISSOLVE_DURATION, {
-				startDelay: Constants.PHOTO_DISSOLVE_DELAY,
-				onStart: function(_)
-				{
-					spawnCrumbleParticles(24);
-				},
-				onComplete: function(_)
-				{
-					exists = false;
-					alive = false;
-					if (byPlayer != null)
-						byPlayer.captured.push(variant != null ? variant : "enemy");
-
-				}
-			});
-		}
+		var sh = new shaders.PhotoDissolve();
+		sh.desat = 1.0;
+		sh.dissolve = 0.0;
+		this.shader = sh;
+		FlxTween.tween(this.shader, {dissolve: 1.0}, Constants.PHOTO_DISSOLVE_DURATION, {
+			startDelay: Constants.PHOTO_DISSOLVE_DELAY,
+			type: FlxTweenType.ONESHOT,
+			ease: FlxEase.quadOut,
+			onStart: function(_)
+			{
+				spawnCrumbleParticles(20);
+			},
+			onComplete: function(_)
+			{
+				exists = false;
+				alive = false;
+			}
+		});
 	}
 
 	public static function pickVariant():String
@@ -191,22 +159,23 @@ class Enemy extends GameObject
 		return VARIANTS[idx];
 	}
 
-	public function new(tileX:Int, tileY:Int, ?variant:String)
+	public function new(tileX:Int, tileY:Int, ?AtmosphereHue:Int)
 	{
+		variant = pickVariant();
+		hue = FlxG.random.int(0, 359, [for (h in AtmosphereHue - 10...AtmosphereHue + 11) (h + 360) % 360]);
+		trace(hue);
 		super(tileX, tileY);
-		if (variant == null)
-			this.variant = pickVariant();
-		else
-			this.variant = variant;
+
 		speed = 50;
 		width = height = 12;
 		offset.x = 2;
 		offset.y = 4;
 		x += 2;
 		y += 4;
+		randomizeBehavior();
 	}
 
-	public function randomizeBehavior(atmosphereHue:Int):Void
+	public function randomizeBehavior():Void
 	{
 		// pick base values and round to nearest 0.1 so they behave like percentages (0.0..1.0)
 		aggression = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
@@ -217,74 +186,7 @@ class Enemy extends GameObject
 		wanderSpeed = 20 + FlxG.random.float() * 50.0;
 
 		speed = wanderSpeed;
-		var hue:Int = -1;
-		for (i in 0...8)
-		{
-			var cand = Std.int(FlxG.random.float() * 360);
-			var diff = Math.abs(((cand - atmosphereHue + 540) % 360) - 180);
-			if (diff > 5)
-			{
-				hue = cand;
-				break;
-			}
-			if (i == 7)
-				hue = cand;
-		}
-		var sat:Float = 0.7;
-		var vLight:Float = 0.60;
-		var vDark:Float = 0.18;
-		var hn:Float = (hue % 360) / 360.0;
-		var hh:Float = (hn - Math.floor(hn)) * 6.0;
-		var ii:Int = Std.int(Math.floor(hh));
-		var ff:Float = hh - ii;
-		var vv:Float = vLight;
-		var p:Float = vv * (1.0 - sat);
-		var q:Float = vv * (1.0 - sat * ff);
-		var t:Float = vv * (1.0 - sat * (1.0 - ff));
-		var rf:Float = 0.0;
-		var gf:Float = 0.0;
-		var bf:Float = 0.0;
-		if (ii == 0)
-		{
-			rf = vv;
-			gf = t;
-			bf = p;
-		}
-		else if (ii == 1)
-		{
-			rf = q;
-			gf = vv;
-			bf = p;
-		}
-		else if (ii == 2)
-		{
-			rf = p;
-			gf = vv;
-			bf = t;
-		}
-		else if (ii == 3)
-		{
-			rf = p;
-			gf = q;
-			bf = vv;
-		}
-		else if (ii == 4)
-		{
-			rf = t;
-			gf = p;
-			bf = vv;
-		}
-		else
-		{
-			rf = vv;
-			gf = p;
-			bf = q;
-		}
-		var ri:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(rf * 255.0)))));
-		var gi:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(gf * 255.0)))));
-		var bi:Int = Std.int(Math.max(0, Math.min(255, Std.int(Math.round(bf * 255.0)))));
-		color = (ri << 16) | (gi << 8) | bi;
-		// AI tuning: decision interval and value (points)
+
 		aiDecisionInterval = 0.3 + FlxG.random.float() * 0.9; // 0.3..1.2s
 		// Compute a simple value: base 1 + aggression weight + speed weight - skittish penalty
 		var valF:Float = 1.0 + aggression * 3.0 + (wanderSpeed - 20.0) / 30.0 - skittishness * 2.0;
@@ -395,26 +297,18 @@ class Enemy extends GameObject
 	public override function buildGraphics():Void
 	{
 		ensureFrames();
-		if (SHARED_FRAMES != null)
+		frames = FlxAtlasFrames.fromSparrow(ColorHelpers.getHueColoredBmp("assets/images/enemies.png", hue), "assets/images/enemies.xml");
+		var names = VARIANT_FRAMES.get(variant);
+		if (names != null && names.length > 0)
 		{
-			this.frames = SHARED_FRAMES;
-			var variant:String = this.variant;
-			if (variant == null)
-				variant = pickVariant();
-			if (variant != null)
-			{
-				var names = VARIANT_FRAMES.get(variant);
-				if (names != null && names.length > 0)
-				{
-					animation.addByNames(variant, names, 12, true);
-					animation.play(variant);
-				}
-				else
-				{
-					animation.addByPrefix(variant, variant, 12, true);
-					animation.play(variant);
-				}
-			}
+			animation.addByNames(variant, names, 12, true);
+			animation.play(variant);
 		}
+		else
+		{
+			animation.addByPrefix(variant, variant, 12, true);
+			animation.play(variant);
+		}
+
 	}
 }

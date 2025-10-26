@@ -54,4 +54,9 @@ class BlackOut extends FlxSprite
 			}
 		});
 	}
+	override public function destroy():Void
+	{
+		dither = null;
+		super.destroy();
+	}
 }

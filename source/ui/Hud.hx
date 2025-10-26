@@ -1,5 +1,6 @@
 package ui;
 
+import flixel.util.FlxDestroyUtil;
 import Player;
 import Std;
 import flixel.FlxG;
@@ -116,5 +117,19 @@ class Hud extends FlxGroup
 				cooldownBarWhite.visible = (val >= Constants.PHOTO_COOLDOWN);
 			o2Bar.value = player.o2;
 		}
+	}
+	override public function destroy():Void
+	{
+		player = null;
+		FlxDestroyUtil.destroyArray([
+			filmIcon,
+			filmText,
+			flashIcon,
+			cooldownBarYellow,
+			cooldownBarWhite,
+			o2Icon,
+			o2Bar
+		]);
+		super.destroy();
 	}
 }

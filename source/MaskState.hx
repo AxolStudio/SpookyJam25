@@ -13,4 +13,9 @@ class MaskState
     public var lastPlayerY:Float = -1;
 
     public function new() {}
+	public function destroy():Void
+	{
+		mask = null;
+		lastBmp = null;
+	}
 }

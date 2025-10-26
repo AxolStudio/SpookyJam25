@@ -1,5 +1,6 @@
 package;
 
+import flixel.util.FlxDestroyUtil;
 import Types.Rect;
 import Types.TileCoord;
 import Types.Vec2;
@@ -47,6 +48,13 @@ class GameMap extends FlxGroup
 
 	public var width(get, never):Int;
 	public var height(get, never):Int;
+
+	override public function destroy():Void
+	{
+		floorMap = FlxDestroyUtil.destroy(floorMap);
+		wallsMap = FlxDestroyUtil.destroy(wallsMap);
+		super.destroy();
+	}
 
 	private function get_width():Int
 	{
@@ -330,32 +338,9 @@ class GameMap extends FlxGroup
 				if (isSpawnBlocked(enemies, tx, ty, avoidRadius, minSpacingTiles, TILE_SIZE))
 					continue;
 
-				var variant:String = Enemy.pickVariant();
-				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
+				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, atmosphereHue);
 				enemies.add(eObj);
-				{
-					eObj.randomizeBehavior(atmosphereHue);
 
-					var rv:Float = FlxG.random.float();
-					if (rv < 0.10)
-					{
-
-						eObj.aggression = Math.min(1.0, eObj.aggression + 0.4 + FlxG.random.float() * 0.4);
-						eObj.wanderSpeed *= 1.4 + FlxG.random.float() * 0.6;
-					}
-					else if (rv < 0.20)
-					{
-
-						eObj.skittishness = Math.min(1.0, eObj.skittishness + 0.35 + FlxG.random.float() * 0.5);
-						eObj.wanderSpeed *= 0.6 + FlxG.random.float() * 0.6;
-					}
-					else
-					{
-
-						eObj.wanderSpeed *= 0.85 + FlxG.random.float() * 0.4;
-						eObj.speed = eObj.wanderSpeed;
-					}
-				}
 				placed++;
 				totalSpawned++;
 			}
@@ -385,26 +370,9 @@ class GameMap extends FlxGroup
 				var minSpacingTiles:Int = 4;
 				if (isSpawnBlocked(enemies, tx, ty, avoidRadiusCluster, minSpacingTiles, TILE_SIZE))
 					continue;
-				var variant:String = Enemy.pickVariant();
-				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, variant);
+				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, atmosphereHue);
 				enemies.add(eObj);
-				if (eObj != null)
-				{
-					eObj.randomizeBehavior(atmosphereHue);
-					var rv2:Float = FlxG.random.float();
-					if (rv2 < 0.12)
-					{
-						eObj.aggression = Math.min(1.0, eObj.aggression + 0.35 + FlxG.random.float() * 0.35);
-						eObj.wanderSpeed *= 1.2 + FlxG.random.float() * 0.6;
-					}
-					else if (rv2 < 0.22)
-					{
-						eObj.skittishness = Math.min(1.0, eObj.skittishness + 0.3 + FlxG.random.float() * 0.5);
-						eObj.wanderSpeed *= 0.7 + FlxG.random.float() * 0.4;
-					}
-					else
-						eObj.wanderSpeed *= 0.9 + FlxG.random.float() * 0.3;
-				}
+
 				clusterPlaced++;
 				totalSpawned++;
 			}
@@ -468,26 +436,9 @@ class GameMap extends FlxGroup
 									}
 									if (!tooClose && totalSpawned < globalMax)
 									{
-										var variant:String = Enemy.pickVariant();
-										var eObj:Enemy = new Enemy(xx * TILE_SIZE, yy * TILE_SIZE, variant);
+										var eObj:Enemy = new Enemy(xx * TILE_SIZE, yy * TILE_SIZE, atmosphereHue);
 										enemies.add(eObj);
-										if (eObj != null)
-										{
-											eObj.randomizeBehavior(atmosphereHue);
-											var rv3:Float = FlxG.random.float();
-											if (rv3 < 0.08)
-											{
-												eObj.aggression = Math.min(1.0, eObj.aggression + 0.5);
-												eObj.wanderSpeed *= 1.6;
-											}
-											else if (rv3 < 0.18)
-											{
-												eObj.skittishness = Math.min(1.0, eObj.skittishness + 0.45);
-												eObj.wanderSpeed *= 0.65;
-											}
-											else
-											 eObj.wanderSpeed *= 0.9 + FlxG.random.float() * 0.3;
-										}
+
 										placedInCell = true;
 										totalSpawned++;
 										break;
@@ -1440,7 +1391,7 @@ class GameMap extends FlxGroup
 		floorMap = new FlxTilemap();
 		var floorTileset:BitmapData = (hue >= 0) ? ColorHelpers.getHueColoredBmp("assets/images/floor.png",
 			hue) : FlxAssets.getBitmapData("assets/images/floor.png");
-		FlxG.bitmapLog.add(floorTileset);
+
 		floorMap.loadMapFromCSV(_floorCsv, floorTileset, TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.OFF, 0, 0);
 		this.add(floorMap);
 
@@ -1449,7 +1400,7 @@ class GameMap extends FlxGroup
 		wallsMap = new FlxTilemap();
 		var wallsTileset:BitmapData = (hue >= 0) ? ColorHelpers.getHueColoredBmp("assets/images/autotiles.png",
 			hue) : FlxAssets.getBitmapData("assets/images/autotiles.png");
-		FlxG.bitmapLog.add(wallsTileset);
+
 		wallsMap.loadMapFromCSV(_wallsCsv, wallsTileset, TILE_SIZE, TILE_SIZE, FlxTilemapAutoTiling.FULL);
 		this.add(wallsMap);
 	}

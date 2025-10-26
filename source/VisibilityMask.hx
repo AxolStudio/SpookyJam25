@@ -18,6 +18,11 @@ class VisibilityMask
 
 	private static var _bayer8:Array<Int> = null;
 
+	public function destroy():Void
+	{
+		map = null;
+	}
+
 	private static function getBayer8():Array<Int>
 	{
 		if (_bayer8 == null)

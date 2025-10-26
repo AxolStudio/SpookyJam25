@@ -1,5 +1,6 @@
 package;
 
+import flixel.util.FlxDestroyUtil;
 import shaders.AlphaDither;
 import flixel.FlxCamera;
 import flixel.FlxG;
@@ -157,6 +158,29 @@ class PlayState extends FlxState
 					portal.playerOn = false;
 				}
 			}
+			else
+			{
+				// if portal.playerOn is false but player now overlaps, treat as re-entry and end game
+				if (portal.overlaps(player))
+				{
+					ready = false;
+					player.stop();
+
+					for (enemy in enemies.members)
+					{
+						if (enemy != null)
+						{
+							enemy.stop();
+						}
+					}
+					blackOut.fade(() ->
+					{
+						// pass captured items to GameResults
+						var items = player.getCaptured();
+						FlxG.switchState(() -> new GameResults(items));
+					}, true, 1.5, FlxColor.BLACK);
+				}
+			}
 		}
 
 		updateFogAndMask();
@@ -259,5 +283,31 @@ class PlayState extends FlxState
 		mainCam.pixelPerfectRender = true;
 		hudCam.pixelPerfectRender = true;
 		overCam.pixelPerfectRender = true;
+	}
+	override public function destroy():Void
+	{
+		// we need to destroy every module-level object we've created - AND remove/destroy all the shaders
+		// we can use Flixel's FlxDestroyUtil for this to do it safely.
+		tilemap = FlxDestroyUtil.destroy(tilemap);
+		player = FlxDestroyUtil.destroy(player);
+		portal = FlxDestroyUtil.destroy(portal);
+		reticle = FlxDestroyUtil.destroy(reticle);
+		enemies = FlxDestroyUtil.destroy(enemies);
+		hud = FlxDestroyUtil.destroy(hud);
+		fog = FlxDestroyUtil.destroy(fog);
+		blackOut = FlxDestroyUtil.destroy(blackOut);
+		mainCam = FlxDestroyUtil.destroy(mainCam);
+		overCam = FlxDestroyUtil.destroy(overCam);
+		hudCam = FlxDestroyUtil.destroy(hudCam);
+		if (fogShader != null)
+			fogShader = null;
+		if (_maskState != null)
+			_maskState.destroy();
+		_maskState = null;
+		if (_visibilityMask != null)
+			_visibilityMask.destroy();
+		_visibilityMask = null;
+		portalShader = playerShader = null;
+		super.destroy();
 	}
 }
