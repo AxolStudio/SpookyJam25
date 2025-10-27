@@ -123,9 +123,16 @@ class VirtualKeyboard extends FlxGroup
 
 		var buttonWidth = 35;
 		var buttonSpacing = 5;
-		var totalButtonWidth = 6 * buttonWidth + 5 * buttonSpacing;
+		var smallGap = 10; // extra small gap between groups
+		// compute base content width from widest row and action buttons block
+		var baseWidth = Math.max(widestRow, /*placeholder for buttons group width computed below*/ 0);
 
-		var inputBgWidth = Math.max(widestRow, totalButtonWidth);
+		// We'll compute the buttons block width for the new layout: [ABC, DEL, gap, CLR, RND, gap, OK]
+		var totalButtonWidth = (2 * buttonWidth) + buttonSpacing + smallGap + (2 * buttonWidth) + buttonSpacing + smallGap + buttonWidth;
+
+		// Make the input field slightly narrower than the content so it doesn't hug the edges
+		var INPUT_SIDE_MARGIN = 12; // pixels of space between input bg and content edges
+		var inputBgWidth = Math.max(widestRow, totalButtonWidth) - INPUT_SIDE_MARGIN;
 		if (inputBgWidth < 80)
 			inputBgWidth = 80;
 
@@ -200,32 +207,37 @@ class VirtualKeyboard extends FlxGroup
 	{
 		var buttonWidth = 35;
 		var buttonSpacing = 5;
-		var totalButtonWidth = 6 * buttonWidth + 5 * buttonSpacing;
+		var smallGap = 10;
+		// totalButtonWidth for layout: [ABC, DEL, gap, CLR, RND, gap, OK]
+		var totalButtonWidth = 5 * buttonWidth + 2 * buttonSpacing + 2 * smallGap;
 		var startX = contentX + Std.int((contentWidth - totalButtonWidth) / 2);
 
-		var clearBtn = createActionKey(startX, buttonsY, buttonWidth, "CLR", clearText);
-		keys.push(clearBtn);
-		add(clearBtn);
-
-		var deleteBtn = createActionKey(startX + (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "DEL", deleteChar);
-		keys.push(deleteBtn);
-		add(deleteBtn);
-
-		caseButton = createActionKey(startX + 2 * (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "ABC", toggleCase);
+		// Layout: ABC, DEL, smallGap, CLR, RND, smallGap, OK
+		var xPos = startX;
+		var caseLabel = isUppercase ? "abc" : "ABC"; // show action (click to switch)
+		caseButton = createActionKey(xPos, buttonsY, buttonWidth, caseLabel, toggleCase);
 		keys.push(caseButton);
 		add(caseButton);
+		xPos += buttonWidth + buttonSpacing;
 
-		var randomBtn = createActionKey(startX + 3 * (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "RND", generateRandomName);
+		var deleteBtn = createActionKey(xPos, buttonsY, buttonWidth, "DEL", deleteChar);
+		keys.push(deleteBtn);
+		add(deleteBtn);
+		xPos += buttonWidth + smallGap;
+
+		var clearBtn = createActionKey(xPos, buttonsY, buttonWidth, "CLR", clearText);
+		keys.push(clearBtn);
+		add(clearBtn);
+		xPos += buttonWidth + buttonSpacing;
+
+		var randomBtn = createActionKey(xPos, buttonsY, buttonWidth, "RND", generateRandomName);
 		keys.push(randomBtn);
 		add(randomBtn);
+		xPos += buttonWidth + smallGap;
 
-		var submitBtn = createActionKey(startX + 4 * (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "OK", submitName);
+		var submitBtn = createActionKey(xPos, buttonsY, buttonWidth, "OK", submitName);
 		keys.push(submitBtn);
 		add(submitBtn);
-
-		var cancelBtn = createActionKey(startX + 5 * (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "Close", cancelInput);
-		keys.push(cancelBtn);
-		add(cancelBtn);
 	}
 
 	private function getCurrentRows():Array<String>
@@ -323,7 +335,8 @@ class VirtualKeyboard extends FlxGroup
 		else
 		{
 			var actionIndex = currentKeyIndex - totalCharKeys;
-			actionIndex = (actionIndex + 1) % 6;
+			var actionCount = keys.length - totalCharKeys;
+			actionIndex = (actionIndex + 1) % actionCount;
 			currentKeyIndex = totalCharKeys + actionIndex;
 		}
 	}
@@ -336,7 +349,7 @@ class VirtualKeyboard extends FlxGroup
 		var row3Length = rows[2].length;
 		var totalCharKeys = row1Length + row2Length + row3Length;
 		if (currentKeyIndex < row1Length)
-			currentKeyIndex = keys.length - 1;
+			currentKeyIndex = keys.length - 1; // wrap to last action button
 		else if (currentKeyIndex < row1Length + row2Length)
 		{
 			var newIndex = currentKeyIndex - row1Length;

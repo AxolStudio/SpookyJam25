@@ -161,7 +161,7 @@ class GameResults extends FlxState
 		var frameIndex = FlxG.random.int(0, framesForVariant.length - 1);
 		photo.animation.frameName = framesForVariant[frameIndex].name;
 		photo.x = 45;
-		photo.y = 40;
+		photo.y = 45;
 		add(photo);
 
 		add(new FlxSprite(0, 0, "assets/ui/paperclip.png"));
