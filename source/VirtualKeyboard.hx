@@ -24,28 +24,24 @@ class VirtualKeyboard extends FlxGroup
 	private var currentKeyIndex:Int = 0;
 	private var isUppercase:Bool = true;
 	private var highlight:FlxSprite;
-	private var caseButton:FlxTypedButton<GameText>; // Reference to case toggle button
-	private var inputBg:FlxSprite; // Reference to input background
+	private var caseButton:FlxTypedButton<GameText>;
+	private var inputBg:FlxSprite;
 
-	// Layout constants - properly centered
+	// Layout constants
 	private static inline var KEY_WIDTH:Int = 12;
 	private static inline var KEY_HEIGHT:Int = 12;
 	private static inline var KEY_SPACING:Int = 2;
-	private static inline var KEYBOARD_WIDTH:Int = 13 * (KEY_WIDTH + KEY_SPACING) - KEY_SPACING; // Width for 13 keys
-	private static inline var BG_WIDTH:Int = 280;
-	private static inline var BG_HEIGHT:Int = 120;
-	private static inline var BG_X:Int = Std.int((320 - BG_WIDTH) / 2); // Center on 320px screen
-	private static inline var BG_Y:Int = 80;
-	private static inline var KEYBOARD_Y:Int = BG_Y + 36; // 6px lower in background
-	private static inline var INPUT_Y:Int = BG_Y + 16; // Position within background
+	// Padding used when computing tight background bounds
+	private static inline var PAD_X:Int = 6;
+	private static inline var PAD_Y:Int = 6;
 
-	// Character sets - reorganized into logical groups
+	// Character sets
 	private var lowercaseRow1:String = "abcdefghijklm";
 	private var lowercaseRow2:String = "nopqrstuvwxyz";
-	private var lowercaseRow3:String = " 0123456789-_"; // Space first, then numbers and symbols
+	private var lowercaseRow3:String = " 0123456789-_";
 	private var uppercaseRow1:String = "ABCDEFGHIJKLM";
 	private var uppercaseRow2:String = "NOPQRSTUVWXYZ";
-	private var uppercaseRow3:String = " 0123456789-_"; // Space first, then numbers and symbols
+	private var uppercaseRow3:String = " 0123456789-_";
 
 	public var x(get, set):Float;
 	public var y(get, set):Float;
@@ -54,37 +50,55 @@ class VirtualKeyboard extends FlxGroup
 
 	function get_x():Float
 	{
-		return background == null ? BG_X : background.x;
+		return background == null ? 0 : background.x;
 	}
 
 	function get_y():Float
 	{
-		return background == null ? BG_Y : background.y;
+		return background == null ? 0 : background.y;
 	}
 
 	function get_width():Float
 	{
-		return background == null ? BG_WIDTH : background.width;
+		return background == null ? 0 : background.width;
 	}
 
 	function get_height():Float
 	{
-		return background == null ? BG_HEIGHT : background.height;
+		return background == null ? 0 : background.height;
 	}
 
 	function set_x(value:Float):Float
 	{
 		if (background == null)
-			return BG_X;
-		background.x = value;
+			return value;
+		var delta:Float = value - background.x;
+		background.x += delta;
+		if (inputBg != null)
+			inputBg.x += delta;
+		if (inputDisplay != null)
+			inputDisplay.x += delta;
+		for (k in keys)
+			k.x += delta;
+		if (highlight != null)
+			highlight.x += delta;
 		return background.x;
 	}
 
 	function set_y(value:Float):Float
 	{
 		if (background == null)
-			return BG_Y;
-		background.y = value;
+			return value;
+		var delta:Float = value - background.y;
+		background.y += delta;
+		if (inputBg != null)
+			inputBg.y += delta;
+		if (inputDisplay != null)
+			inputDisplay.y += delta;
+		for (k in keys)
+			k.y += delta;
+		if (highlight != null)
+			highlight.y += delta;
 		return background.y;
 	}
 
@@ -92,34 +106,67 @@ class VirtualKeyboard extends FlxGroup
 	{
 		super();
 		createKeyboard();
-		exists = false; // Start hidden
+		exists = false;
 	}
 
 	private function createKeyboard():Void
 	{
-		// Create 9-slice background
-		background = new NineSliceSprite(BG_X, BG_Y, BG_WIDTH, BG_HEIGHT);
+		// compute content widths
+		var rows = getCurrentRows();
+		var widestRow:Int = 0;
+		for (rowChars in rows)
+		{
+			var rw = rowChars.length * (KEY_WIDTH + KEY_SPACING) - KEY_SPACING;
+			if (rw > widestRow)
+				widestRow = rw;
+		}
+
+		var buttonWidth = 35;
+		var buttonSpacing = 5;
+		var totalButtonWidth = 6 * buttonWidth + 5 * buttonSpacing;
+
+		var inputBgWidth = Math.max(widestRow, totalButtonWidth);
+		if (inputBgWidth < 80)
+			inputBgWidth = 80;
+
+		var contentWidth = Math.max(Math.max(widestRow, totalButtonWidth), inputBgWidth);
+		var targetBgW = Std.int(contentWidth + PAD_X * 2);
+
+		var rowsCount = rows.length;
+		var keysHeight = rowsCount * KEY_HEIGHT + (rowsCount - 1) * KEY_SPACING;
+		// Make the input background only slightly taller than the text (tight vertical padding)
+		var INPUT_INSET_Y = 2; // pixels above and below the text
+		var inputBgHeight = KEY_HEIGHT + INPUT_INSET_Y * 2;
+		var buttonsHeight = KEY_HEIGHT;
+		var contentHeight = inputBgHeight + PAD_Y + keysHeight + PAD_Y + buttonsHeight;
+		var targetBgH = Std.int(contentHeight + PAD_Y * 2);
+
+		var targetBgX = Std.int((FlxG.width - targetBgW) / 2);
+		var targetBgY = Std.int(FlxG.height - 8 - targetBgH);
+
+		background = new NineSliceSprite(targetBgX, targetBgY, targetBgW, targetBgH);
 		add(background);
 
-		// Dark background for input display - centered with more horizontal margins
-		var inputBgWidth = 260; // Increased to 260 for more horizontal space
-		inputBg = new FlxSprite(BG_X + (BG_WIDTH - inputBgWidth) / 2, INPUT_Y - 5);
-		inputBg.makeGraphic(inputBgWidth, 22, 0xFF000000);
+		var contentX = targetBgX + PAD_X;
+		var contentY = targetBgY + PAD_Y;
+
+		inputBg = new FlxSprite(contentX + Std.int((contentWidth - inputBgWidth) / 2), contentY);
+		inputBg.makeGraphic(Std.int(inputBgWidth), Std.int(inputBgHeight), 0xFF000000);
 		add(inputBg);
 
-		// Input display - centered with more space
-		inputDisplay = new GameText(BG_X + (BG_WIDTH - 260) / 2, INPUT_Y, "");
+		// Position the input display left-aligned but vertically centered inside inputBg
+		var inputDisplayX = inputBg.x + 4;
+		var inputDisplayY = inputBg.y + Std.int((inputBg.height - KEY_HEIGHT) / 2);
+		inputDisplay = new GameText(inputDisplayX, inputDisplayY, "");
 		inputDisplay.autoSize = false;
-		inputDisplay.fieldWidth = 260;
+		inputDisplay.fieldWidth = Std.int(inputBgWidth - 8);
+		// GameText defaults to left alignment; no explicit align field available.
 		add(inputDisplay);
 
-		// Create character keys in a grid
-		createCharacterGrid();
+		var keyboardTop = inputBg.y + inputBg.height + PAD_Y;
+		createCharacterGrid(Std.int(contentX), Std.int(keyboardTop), Std.int(contentWidth));
+		createActionButtons(Std.int(contentX), Std.int(keyboardTop + keysHeight + PAD_Y), Std.int(contentWidth));
 
-		// Create action buttons
-		createActionButtons();
-
-		// Highlight sprite for navigation
 		highlight = new FlxSprite();
 		highlight.makeGraphic(KEY_WIDTH + 2, KEY_HEIGHT + 2, 0xFFFFFF00);
 		highlight.alpha = 0.5;
@@ -128,23 +175,20 @@ class VirtualKeyboard extends FlxGroup
 		updateDisplay();
 	}
 
-	private function createCharacterGrid():Void
+	private function createCharacterGrid(contentX:Float, contentY:Float, contentWidth:Int):Void
 	{
 		var rows = getCurrentRows();
-
 		for (rowIndex in 0...rows.length)
 		{
 			var rowChars = rows[rowIndex];
 			var rowWidth = rowChars.length * (KEY_WIDTH + KEY_SPACING) - KEY_SPACING;
-			var startX = BG_X + (BG_WIDTH - rowWidth) / 2; // Center each row within background
+			var startX = contentX + Std.int((contentWidth - rowWidth) / 2);
 
 			for (charIdx in 0...rowChars.length)
 			{
 				var char = rowChars.charAt(charIdx);
 				var x = startX + charIdx * (KEY_WIDTH + KEY_SPACING);
-				var y = KEYBOARD_Y + rowIndex * (KEY_HEIGHT + KEY_SPACING);
-
-				// Use the actual character (including space)
+				var y = contentY + rowIndex * (KEY_HEIGHT + KEY_SPACING);
 				var key = createCharacterKey(x, y, char, char);
 				keys.push(key);
 				add(key);
@@ -152,63 +196,41 @@ class VirtualKeyboard extends FlxGroup
 		}
 	}
 
-	private function createActionButtons():Void
+	private function createActionButtons(contentX:Float, buttonsY:Float, contentWidth:Int):Void
 	{
 		var buttonWidth = 35;
 		var buttonSpacing = 5;
-		var buttonsY = KEYBOARD_Y + 3 * (KEY_HEIGHT + KEY_SPACING) + 5; // Below keyboard grid
-
-		// Calculate total width and center the button row
 		var totalButtonWidth = 6 * buttonWidth + 5 * buttonSpacing;
-		var startX = BG_X + (BG_WIDTH - totalButtonWidth) / 2;
+		var startX = contentX + Std.int((contentWidth - totalButtonWidth) / 2);
 
-		// CLEAR button
 		var clearBtn = createActionKey(startX, buttonsY, buttonWidth, "CLR", clearText);
 		keys.push(clearBtn);
 		add(clearBtn);
 
-		// DELETE button
 		var deleteBtn = createActionKey(startX + (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "DEL", deleteChar);
 		keys.push(deleteBtn);
 		add(deleteBtn);
 
-		// TOGGLE CASE button
 		caseButton = createActionKey(startX + 2 * (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "ABC", toggleCase);
 		keys.push(caseButton);
 		add(caseButton);
 
-		// RANDOM button
 		var randomBtn = createActionKey(startX + 3 * (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "RND", generateRandomName);
 		keys.push(randomBtn);
 		add(randomBtn);
 
-		// SUBMIT button
 		var submitBtn = createActionKey(startX + 4 * (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "OK", submitName);
 		keys.push(submitBtn);
 		add(submitBtn);
 
-		// CANCEL button
 		var cancelBtn = createActionKey(startX + 5 * (buttonWidth + buttonSpacing), buttonsY, buttonWidth, "Close", cancelInput);
 		keys.push(cancelBtn);
 		add(cancelBtn);
 	}
 
-	private function getCurrentCharSet():String
-	{
-		// This method is kept for compatibility but not used in new layout
-		return isUppercase ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789-_" : "abcdefghijklmnopqrstuvwxyz 0123456789-_";
-	}
-
 	private function getCurrentRows():Array<String>
 	{
-		if (isUppercase)
-		{
-			return [uppercaseRow1, uppercaseRow2, uppercaseRow3];
-		}
-		else
-		{
-			return [lowercaseRow1, lowercaseRow2, lowercaseRow3];
-		}
+		return isUppercase ? [uppercaseRow1, uppercaseRow2, uppercaseRow3] : [lowercaseRow1, lowercaseRow2, lowercaseRow3];
 	}
 
 	private function getCurrentTotalCharKeys():Int
@@ -216,9 +238,7 @@ class VirtualKeyboard extends FlxGroup
 		var rows = getCurrentRows();
 		var total = 0;
 		for (row in rows)
-		{
 			total += row.length;
-		}
 		return total;
 	}
 
@@ -226,27 +246,27 @@ class VirtualKeyboard extends FlxGroup
 	{
 		currentText = initialText;
 		isVisible = true;
-		exists = true; // Make visible
+		exists = true;
 		currentKeyIndex = 0;
 		updateDisplay();
 		updateHighlight();
 
-		// Temporarily just show without animation for debugging
-		// TODO: Re-enable animation once positioning works
+		var offY = FlxG.height + 20;
+		this.y = offY;
+		var targetY:Float = FlxG.height - 8 - this.height;
+		FlxTween.tween(this, {y: targetY}, 0.28, {ease: FlxEase.backOut});
 	}
 
 	public function hide():Void
 	{
 		isVisible = false;
-
-		// Animate sliding down quickly
 		var targetY = FlxG.height + 20;
 		FlxTween.tween(this, {y: targetY}, 0.2, {
 			ease: FlxEase.backIn,
 			onComplete: function(_)
 			{
 				exists = false;
-			} // Hide after animation
+			}
 		});
 	}
 
@@ -254,37 +274,18 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (!isVisible)
 			return;
-
-		// Navigation
 		if (Actions.rightUI.triggered)
-		{
 			navigateRight();
-		}
 		else if (Actions.leftUI.triggered)
-		{
 			navigateLeft();
-		}
 		else if (Actions.downUI.triggered)
-		{
 			navigateDown();
-		}
 		else if (Actions.upUI.triggered)
-		{
 			navigateUp();
-		}
-
-		// Activation
 		if (Actions.pressUI.triggered)
-		{
 			activateCurrentKey();
-		}
-
-		// Mouse input
 		if (FlxG.mouse.justPressed)
-		{
 			handleMouseClick();
-		}
-
 		updateHighlight();
 	}
 
@@ -305,31 +306,24 @@ class VirtualKeyboard extends FlxGroup
 		var row2Length = rows[1].length;
 		var row3Length = rows[2].length;
 		var totalCharKeys = row1Length + row2Length + row3Length;
-
 		if (currentKeyIndex < row1Length)
 		{
-			// From row 1 to row 2
 			var newIndex = currentKeyIndex + row1Length;
 			if (newIndex < totalCharKeys)
 				currentKeyIndex = newIndex;
 		}
 		else if (currentKeyIndex < row1Length + row2Length)
 		{
-			// From row 2 to row 3
 			var newIndex = currentKeyIndex + row2Length;
 			if (newIndex < totalCharKeys)
 				currentKeyIndex = newIndex;
 		}
 		else if (currentKeyIndex < totalCharKeys)
-		{
-			// From row 3 to action buttons
-			currentKeyIndex = totalCharKeys; // First action button
-		}
+			currentKeyIndex = totalCharKeys;
 		else
 		{
-			// Cycle through action buttons
 			var actionIndex = currentKeyIndex - totalCharKeys;
-			actionIndex = (actionIndex + 1) % 6; // 6 action buttons
+			actionIndex = (actionIndex + 1) % 6;
 			currentKeyIndex = totalCharKeys + actionIndex;
 		}
 	}
@@ -341,47 +335,33 @@ class VirtualKeyboard extends FlxGroup
 		var row2Length = rows[1].length;
 		var row3Length = rows[2].length;
 		var totalCharKeys = row1Length + row2Length + row3Length;
-
 		if (currentKeyIndex < row1Length)
-		{
-			// From row 1 to action buttons (wrap around)
-			currentKeyIndex = keys.length - 1; // Last action button
-		}
+			currentKeyIndex = keys.length - 1;
 		else if (currentKeyIndex < row1Length + row2Length)
 		{
-			// From row 2 to row 1
 			var newIndex = currentKeyIndex - row1Length;
 			if (newIndex >= 0)
 				currentKeyIndex = newIndex;
 		}
 		else if (currentKeyIndex < totalCharKeys)
 		{
-			// From row 3 to row 2
 			var newIndex = currentKeyIndex - row2Length;
 			if (newIndex >= row1Length)
 				currentKeyIndex = newIndex;
 		}
 		else
-		{
-			// From action buttons to row 3
-			currentKeyIndex = totalCharKeys - 1; // Last char in row 3
-		}
+			currentKeyIndex = totalCharKeys - 1;
 	}
 
 	private function handleMouseClick():Void
 	{
 		var mousePos = FlxG.mouse.getWorldPosition();
-
 		for (i in 0...keys.length)
-		{
 			if (keys[i].overlapsPoint(mousePos))
 			{
 				currentKeyIndex = i;
-				// FlxTypedButton handles mouse clicks automatically
 				break;
 			}
-		}
-
 		mousePos.put();
 	}
 
@@ -389,26 +369,19 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (currentKeyIndex >= keys.length)
 			return;
-
-		// Simulate button press
 		var key = keys[currentKeyIndex];
 		key.onUp.fire();
 	}
 
 	private function toggleCase():Void
 	{
+		// Toggle state
 		isUppercase = !isUppercase;
-
-		// Update the case button label to reflect current state
+		// Update the case button label to reflect the new state immediately
 		if (caseButton != null)
-		{
-			caseButton.label.text = isUppercase ? "abc" : "ABC";
-		}
-
-		// Update character keys text with new row-based layout
+			caseButton.label.text = isUppercase ? "ABC" : "abc";
 		var rows = getCurrentRows();
 		var keyIndex = 0;
-
 		for (rowIndex in 0...rows.length)
 		{
 			var rowChars = rows[rowIndex];
@@ -417,9 +390,7 @@ class VirtualKeyboard extends FlxGroup
 				if (keyIndex < keys.length && keyIndex < getCurrentTotalCharKeys())
 				{
 					var char = rowChars.charAt(charIdx);
-					// Update both the button label and its callback
 					keys[keyIndex].label.text = char;
-					// Update the button's callback to use the new character
 					var capturedChar = char;
 					keys[keyIndex].onUp.callback = function()
 					{
@@ -439,20 +410,15 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (displayChar == null)
 			displayChar = char;
-
 		var btn = new FlxTypedButton<GameText>(Std.int(x), Std.int(y));
 		btn.makeGraphic(KEY_WIDTH, KEY_HEIGHT, 0xFF666666);
 		btn.label = new GameText(0, 0, displayChar);
 		btn.label.color = 0xFFFFFFFF;
-
-		// Center the text in the button for all states
 		var centerX = (KEY_WIDTH - btn.label.width) / 2;
 		var centerY = (KEY_HEIGHT - btn.label.height) / 2;
-		btn.labelOffsets[0].set(centerX, centerY); // NORMAL
-		btn.labelOffsets[1].set(centerX, centerY); // HIGHLIGHT
-		btn.labelOffsets[2].set(centerX, centerY); // PRESSED
-
-		// Capture the character in a closure
+		btn.labelOffsets[0].set(centerX, centerY);
+		btn.labelOffsets[1].set(centerX, centerY);
+		btn.labelOffsets[2].set(centerX, centerY);
 		var capturedChar = char;
 		btn.onUp.callback = function()
 		{
@@ -471,14 +437,11 @@ class VirtualKeyboard extends FlxGroup
 		btn.makeGraphic(width, KEY_HEIGHT, 0xFF888888);
 		btn.label = new GameText(0, 0, text);
 		btn.label.color = 0xFFFFFFFF;
-
-		// Center the text in the button for all states
 		var centerX = (width - btn.label.width) / 2;
 		var centerY = (KEY_HEIGHT - btn.label.height) / 2;
-		btn.labelOffsets[0].set(centerX, centerY); // NORMAL
-		btn.labelOffsets[1].set(centerX, centerY); // HIGHLIGHT
-		btn.labelOffsets[2].set(centerX, centerY); // PRESSED
-
+		btn.labelOffsets[0].set(centerX, centerY);
+		btn.labelOffsets[1].set(centerX, centerY);
+		btn.labelOffsets[2].set(centerX, centerY);
 		btn.onUp.callback = callback;
 		return btn;
 	}
@@ -514,7 +477,6 @@ class VirtualKeyboard extends FlxGroup
 
 	private function generateRandomName():Void
 	{
-		// TODO: Placeholder for random name generation
 		currentText = "RandomName";
 		updateDisplay();
 	}
@@ -523,9 +485,7 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (inputDisplay != null)
 		{
-			var displayText = currentText;
-			if (displayText == "")
-				displayText = "_";
+			var displayText = currentText == "" ? "_" : currentText;
 			inputDisplay.text = displayText;
 		}
 	}
@@ -534,17 +494,10 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (currentKeyIndex < keys.length)
 		{
-			// Reset all buttons to normal state first
 			for (key in keys)
-			{
 				key.status = FlxButtonState.NORMAL;
-			}
-
-			// Set current button to highlight state
 			var key = keys[currentKeyIndex];
 			key.status = FlxButtonState.HIGHLIGHT;
-
-			// Position highlight sprite
 			highlight.x = key.x - 1;
 			highlight.y = key.y - 1;
 			highlight.setGraphicSize(Std.int(key.width + 2), Std.int(key.height + 2));

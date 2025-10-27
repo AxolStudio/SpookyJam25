@@ -14,13 +14,24 @@ class NineSliceSprite extends FlxGroup
 	private var boundsHeight:Float = 0;
 	private var sliceSize:Int = 16;
 	private var sprites:Array<FlxSprite> = [];
+	private var graphicPath:String = "";
 
 	public function new(x:Float, y:Float, width:Float, height:Float, graphicPath:String = "assets/ui/ui_box_16x16.png")
 	{
 		super();
 		boundsWidth = width;
 		boundsHeight = height;
+		this.graphicPath = graphicPath;
 		createSlices(x, y, width, height, graphicPath);
+	}
+
+	// Public API to resize the nine-slice graphic. Recreates internal slice sprites.
+	public function setGraphicSize(width:Float, height:Float):Void
+	{
+		boundsWidth = width;
+		boundsHeight = height;
+		// recreate slices at current position
+		createSlices(get_x(), get_y(), width, height, graphicPath);
 	}
 
 	function get_x():Float
@@ -73,6 +84,12 @@ class NineSliceSprite extends FlxGroup
 
 	private function createSlices(x:Float, y:Float, width:Float, height:Float, graphicPath:String):Void
 	{
+		// Remove any existing sprites from the group before recreating
+		for (sprite in sprites)
+		{
+			// remove from group
+			remove(sprite);
+		}
 		sprites = [];
 
 		// Corner pieces (never tiled)
