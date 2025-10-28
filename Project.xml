@@ -37,7 +37,7 @@
 	<assets path="assets" />
 
 	<!-- _______________________________ Libraries ______________________________ -->
-
+	<include path="axollib/include.xml" />
 	<haxelib name="flixel" />
 
 	<!--In

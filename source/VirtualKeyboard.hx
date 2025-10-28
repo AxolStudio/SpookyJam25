@@ -6,8 +6,9 @@ import flixel.group.FlxGroup;
 import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
 import flixel.ui.FlxButton.FlxButtonState;
-import flixel.ui.FlxButton.FlxTypedButton;
 import ui.GameText;
+import ui.NineSliceButton;
+import AnimatedReticle;
 
 class VirtualKeyboard extends FlxGroup
 {
@@ -20,16 +21,20 @@ class VirtualKeyboard extends FlxGroup
 	// UI Elements
 	private var background:NineSliceSprite;
 	private var inputDisplay:GameText;
-	private var keys:Array<FlxTypedButton<GameText>> = [];
+	private var keys:Array<NineSliceButton<GameText>> = [];
 	private var currentKeyIndex:Int = 0;
 	private var isUppercase:Bool = true;
-	private var highlight:FlxSprite;
-	private var caseButton:FlxTypedButton<GameText>;
+	// optional shared reticle instance (created elsewhere and assigned)
+	public var sharedReticle:AnimatedReticle;
+
+	private var caseButton:NineSliceButton<GameText>;
 	private var inputBg:FlxSprite;
+	private var lastMouseX:Int = 0;
+	private var lastMouseY:Int = 0;
 
 	// Layout constants
-	private static inline var KEY_WIDTH:Int = 12;
-	private static inline var KEY_HEIGHT:Int = 12;
+	private static inline var KEY_WIDTH:Int = 14;
+	private static inline var KEY_HEIGHT:Int = 14;
 	private static inline var KEY_SPACING:Int = 2;
 	// Padding used when computing tight background bounds
 	private static inline var PAD_X:Int = 6;
@@ -80,8 +85,6 @@ class VirtualKeyboard extends FlxGroup
 			inputDisplay.x += delta;
 		for (k in keys)
 			k.x += delta;
-		if (highlight != null)
-			highlight.x += delta;
 		return background.x;
 	}
 
@@ -97,8 +100,6 @@ class VirtualKeyboard extends FlxGroup
 			inputDisplay.y += delta;
 		for (k in keys)
 			k.y += delta;
-		if (highlight != null)
-			highlight.y += delta;
 		return background.y;
 	}
 
@@ -174,10 +175,6 @@ class VirtualKeyboard extends FlxGroup
 		createCharacterGrid(Std.int(contentX), Std.int(keyboardTop), Std.int(contentWidth));
 		createActionButtons(Std.int(contentX), Std.int(keyboardTop + keysHeight + PAD_Y), Std.int(contentWidth));
 
-		highlight = new FlxSprite();
-		highlight.makeGraphic(KEY_WIDTH + 2, KEY_HEIGHT + 2, 0xFFFFFF00);
-		highlight.alpha = 0.5;
-		add(highlight);
 
 		updateDisplay();
 	}
@@ -261,12 +258,22 @@ class VirtualKeyboard extends FlxGroup
 		exists = true;
 		currentKeyIndex = 0;
 		updateDisplay();
-		updateHighlight();
 
 		var offY = FlxG.height + 20;
 		this.y = offY;
 		var targetY:Float = FlxG.height - 8 - this.height;
-		FlxTween.tween(this, {y: targetY}, 0.28, {ease: FlxEase.backOut});
+		FlxTween.tween(this, {y: targetY}, 0.28, {
+			ease: FlxEase.backOut,
+			onComplete: function(_)
+			{
+				if (sharedReticle != null && currentKeyIndex < keys.length)
+				{
+					var key = keys[currentKeyIndex];
+					sharedReticle.setTarget(Std.int(key.x - 1), Std.int(key.y - 1), Std.int(key.width + 2), Std.int(key.height + 2));
+					sharedReticle.visible = !Globals.usingMouse;
+				}
+			}
+		});
 	}
 
 	public function hide():Void
@@ -286,6 +293,9 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (!isVisible)
 			return;
+		// Check for input mode changes
+		checkInputMode();
+
 		if (Actions.rightUI.triggered)
 			navigateRight();
 		else if (Actions.leftUI.triggered)
@@ -299,6 +309,33 @@ class VirtualKeyboard extends FlxGroup
 		if (FlxG.mouse.justPressed)
 			handleMouseClick();
 		updateHighlight();
+	}
+
+	private function checkInputMode():Void
+	{
+		// Check if mouse moved
+		if (FlxG.mouse.viewX != lastMouseX || FlxG.mouse.viewY != lastMouseY)
+		{
+			lastMouseX = FlxG.mouse.viewX;
+			lastMouseY = FlxG.mouse.viewY;
+			Globals.usingMouse = true;
+			FlxG.mouse.visible = true;
+			if (sharedReticle != null)
+			{
+				sharedReticle.visible = false;
+			}
+			// Don't manually clear button status - let FlxButton handle it
+		}
+		// Check if keyboard/gamepad input used
+		else if (Actions.upUI.triggered || Actions.downUI.triggered || Actions.leftUI.triggered || Actions.rightUI.triggered)
+		{
+			Globals.usingMouse = false;
+			FlxG.mouse.visible = false;
+			if (sharedReticle != null)
+			{
+				sharedReticle.visible = true;
+			}
+		}
 	}
 
 	private function navigateRight():Void
@@ -419,43 +456,40 @@ class VirtualKeyboard extends FlxGroup
 		}
 	}
 
-	private function createCharacterKey(x:Float, y:Float, char:String, ?displayChar:String):FlxTypedButton<GameText>
+	private function createCharacterKey(x:Float, y:Float, char:String, ?displayChar:String):NineSliceButton<GameText>
 	{
 		if (displayChar == null)
 			displayChar = char;
-		var btn = new FlxTypedButton<GameText>(Std.int(x), Std.int(y));
-		btn.makeGraphic(KEY_WIDTH, KEY_HEIGHT, 0xFF666666);
-		btn.label = new GameText(0, 0, displayChar);
-		btn.label.color = 0xFFFFFFFF;
-		var centerX = (KEY_WIDTH - btn.label.width) / 2;
-		var centerY = (KEY_HEIGHT - btn.label.height) / 2;
-		btn.labelOffsets[0].set(centerX, centerY);
-		btn.labelOffsets[1].set(centerX, centerY);
-		btn.labelOffsets[2].set(centerX, centerY);
-		var capturedChar = char;
-		btn.onUp.callback = function()
+		// Create the label FIRST with text
+		var label = new GameText(0, 0, displayChar);
+		// Force the graphic to be created by accessing it
+		label.updateHitbox();
+
+		// Then create the button
+		var btn = new NineSliceButton<GameText>(Std.int(x), Std.int(y), KEY_WIDTH, KEY_HEIGHT, function()
 		{
 			if (currentText.length < maxLength)
 			{
-				currentText += capturedChar;
+				currentText += char;
 				updateDisplay();
 			}
-		};
+		});
+		btn.label = label;
+		btn.positionLabel();
 		return btn;
 	}
 
-	private function createActionKey(x:Float, y:Float, width:Int, text:String, callback:Void->Void):FlxTypedButton<GameText>
+	private function createActionKey(x:Float, y:Float, width:Int, text:String, callback:Void->Void):NineSliceButton<GameText>
 	{
-		var btn = new FlxTypedButton<GameText>(Std.int(x), Std.int(y));
-		btn.makeGraphic(width, KEY_HEIGHT, 0xFF888888);
-		btn.label = new GameText(0, 0, text);
-		btn.label.color = 0xFFFFFFFF;
-		var centerX = (width - btn.label.width) / 2;
-		var centerY = (KEY_HEIGHT - btn.label.height) / 2;
-		btn.labelOffsets[0].set(centerX, centerY);
-		btn.labelOffsets[1].set(centerX, centerY);
-		btn.labelOffsets[2].set(centerX, centerY);
-		btn.onUp.callback = callback;
+		// Create the label FIRST with text
+		var label = new GameText(0, 0, text);
+		// Force the graphic to be created
+		label.updateHitbox();
+
+		// Then create the button
+		var btn = new NineSliceButton<GameText>(Std.int(x), Std.int(y), width, KEY_HEIGHT, callback);
+		btn.label = label;
+		btn.positionLabel();
 		return btn;
 	}
 
@@ -490,7 +524,71 @@ class VirtualKeyboard extends FlxGroup
 
 	private function generateRandomName():Void
 	{
-		currentText = "RandomName";
+		var syllables:Array<String> = [
+			"ba", "bah", "be", "bee", "bo", "boo", "bu", "buh", "cha", "choo", "chi", "che", "chu", "da", "dah", "de", "dee", "do", "doo", "du", "duh", "fa",
+			"fah", "fe", "fee", "fo", "foo", "fu", "fuh", "ga", "gah", "ge", "gee", "go", "goo", "gu", "guh", "ha", "hah", "he", "hee", "ho", "hoo", "hu",
+			"huh", "ja", "jah", "je", "jee", "jo", "joo", "ju", "juh", "ka", "kah", "ke", "kee", "ko", "koo", "ku", "kuh", "la", "lah", "le", "lee", "lo",
+			"loo", "lu", "luh", "ma", "mah", "me", "mee", "mo", "moo", "mu", "muh", "na", "nah", "ne", "nee", "no", "noo", "nu", "nuh", "pa", "pah", "pe",
+			"pee", "po", "poo", "pu", "puh", "ra", "rah", "re", "ree", "ro", "roo", "ru", "ruh", "sa", "sah", "se", "see", "so", "soo", "su", "suh", "ta",
+			"tah", "te", "tee", "to", "too", "tu", "tuh", "va", "vah", "ve", "vee", "vo", "voo", "vu", "vuh", "wa", "wah", "we", "wee", "wo", "woo", "wu",
+			"wuh", "ya", "yah", "ye", "yee", "yo", "yoo", "yu", "yuh", "za", "zah", "ze", "zee", "zo", "zoo", "zu", "zuh"
+		];
+
+		var name = "";
+		var usedSeparator = false;
+		var maxLength = 20;
+
+		// Generate 2-4 syllables
+		var numSyllables = 2 + Std.int(Math.random() * 3); // 2, 3, or 4
+
+		for (i in 0...numSyllables)
+		{
+			// Add syllable
+			var syl = syllables[Std.int(Math.random() * syllables.length)];
+			name += syl;
+
+			// Maybe add separator (space or hyphen) between syllables, but only once
+			if (!usedSeparator && i < numSyllables - 1 && Math.random() < 0.3)
+			{
+				var separator = Math.random() < 0.5 ? " " : "-";
+				name += separator;
+				usedSeparator = true;
+			}
+
+			// Stop if we're getting too long
+			if (name.length >= maxLength - 3)
+				break;
+		}
+
+		// Truncate if needed
+		if (name.length > maxLength)
+		{
+			name = name.substring(0, maxLength);
+		}
+
+		// Title Case: capitalize first letter and letter after space/hyphen
+		var result = "";
+		var capitalizeNext = true;
+		for (i in 0...name.length)
+		{
+			var char = name.charAt(i);
+			if (capitalizeNext)
+			{
+				result += char.toUpperCase();
+				capitalizeNext = false;
+			}
+			else
+			{
+				result += char;
+			}
+
+			if (char == " " || char == "-")
+			{
+				capitalizeNext = true;
+			}
+		}
+
+		currentText = result;
 		updateDisplay();
 	}
 
@@ -505,16 +603,12 @@ class VirtualKeyboard extends FlxGroup
 
 	private function updateHighlight():Void
 	{
-		if (currentKeyIndex < keys.length)
+		// Just position the reticle, don't manually set button status
+		// FlxButton manages its own status based on mouse interaction
+		if (currentKeyIndex < keys.length && sharedReticle != null)
 		{
-			for (key in keys)
-				key.status = FlxButtonState.NORMAL;
 			var key = keys[currentKeyIndex];
-			key.status = FlxButtonState.HIGHLIGHT;
-			highlight.x = key.x - 1;
-			highlight.y = key.y - 1;
-			highlight.setGraphicSize(Std.int(key.width + 2), Std.int(key.height + 2));
-			highlight.updateHitbox();
+			sharedReticle.changeTarget(Std.int(key.x - 1), Std.int(key.y - 1), Std.int(key.width + 2), Std.int(key.height + 2));
 		}
 	}
 }

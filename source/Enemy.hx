@@ -22,6 +22,7 @@ class Enemy extends GameObject
 	public var aggression:Float = 0.0;
 	public var skittishness:Float = 0.0;
 	public var wanderSpeed:Float = 40.0;
+	public var power:Int = 3; // 1-5 stars, calculated from stats
 
 	// Minimal AI fields used by EnemyBrain
 	public var aiState:Int = 0; // 0=Wander,1=Attack,2=Flee
@@ -31,6 +32,9 @@ class Enemy extends GameObject
 	// Track whether the enemy last saw the player (used by EnemyBrain to detect
 	// transitions from not-seeing -> seeing so we can interrupt current actions)
 	public var lastSawPlayer:Bool = false;
+
+	// Stun system for when enemy hits player
+	public var stunTimer:Float = 0;
 
 	// No aiControlled flag: the project's central AI (ai.EnemyBrain) is the
 	// single source of decision-making. Enemy only exposes movement APIs
@@ -132,7 +136,7 @@ class Enemy extends GameObject
 		_captured = true;
 		if (byPlayer != null)
 		{
-			var ci = new CapturedInfo(variant != null ? variant : "enemy", aggression, wanderSpeed, hue);
+			var ci = new CapturedInfo(variant != null ? variant : "enemy", aggression, wanderSpeed, hue, 1, power);
 			byPlayer.captured.push(ci);
 		}
 
@@ -204,6 +208,9 @@ class Enemy extends GameObject
 		var valF:Float = 1.0 + aggression * 3.0 + (wanderSpeed - 20.0) / 30.0 - skittishness * 2.0;
 		var valI:Int = Std.int(Math.max(1, Math.round(valF)));
 		aiValue = valI;
+		// Calculate power (1-5 stars) based on stats
+		power = Std.int(Math.max(1, Math.min(5, valI)));
+		
 		// make sure first decision happens immediately
 		aiTimer = 0.0;
 	}
@@ -219,6 +226,15 @@ class Enemy extends GameObject
 		}
 		if (!this.isOnScreen())
 			return;
+		// Handle stun
+		if (stunTimer > 0)
+		{
+			stunTimer -= elapsed;
+			// Stop movement during stun
+			velocity.set(0, 0);
+			acceleration.set(0, 0);
+			return;
+		}
 
 		// Decrement per-enemy timers. The central AI (EnemyBrain) will set
 		// aiTimer and call movement APIs (startTimedMove/move/stop). Enemy keeps

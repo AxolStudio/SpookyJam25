@@ -1,4 +1,5 @@
-```instructions
+# instructions
+
 SpookyJam25 — Copilot instructions (canonical)
 
 Purpose
@@ -28,5 +29,7 @@ Non-discoverable questions to ask maintainer
 - Preferred Haxe/Lime versions for CI, and whether deterministic seeds are required for map generation.
 
 If anything needs clarification, always ask one concise question rather than guessing.
-```
 
+AND, as always, stick to my life-long philosophy:
+
+Keep It Snakes SSSSSS!

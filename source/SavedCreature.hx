@@ -1,0 +1,13 @@
+package;
+
+typedef SavedCreature =
+{
+	var enemyType:String; // "001", "002", etc
+	var photoIndex:Int; // 1, 2, 3, etc
+	var hue:Float;
+	var speed:Float;
+	var aggression:Float;
+	var power:Int; // 1-5 stars
+	var name:String;
+	var date:String; // MM/DD/YYYY format
+}

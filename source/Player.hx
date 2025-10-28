@@ -15,6 +15,13 @@ class Player extends GameObject
 
 	public var photoCooldown(default, null):Float = 0;
 
+	// Invincibility system for taking damage
+	public var invincibilityTimer:Float = 0;
+
+	public var flickerTimer:Float = 0;
+
+	private static inline var FLICKER_INTERVAL:Float = 0.1;
+
 	public var captured:Array<CapturedInfo> = [];
 
 	public function getCaptured():Array<CapturedInfo>
@@ -118,15 +125,44 @@ class Player extends GameObject
 		if (photoCooldown > 0)
 			photoCooldown -= elapsed;
 		o2 -= elapsed;
+		// Handle invincibility flicker
+		if (invincibilityTimer > 0)
+		{
+			invincibilityTimer -= elapsed;
+			flickerTimer -= elapsed;
+
+			if (flickerTimer <= 0)
+			{
+				// Toggle visibility
+				visible = !visible;
+				flickerTimer = FLICKER_INTERVAL;
+			}
+
+			// End invincibility
+			if (invincibilityTimer <= 0)
+			{
+				visible = true;
+			}
+		}
 	}
 
 	public function tryTakePhoto():Bool
 	{
 		if (film <= 0)
+		{
+			// Track when player tries to take photo but has no film
+			axollib.AxolAPI.sendEvent("OUT_OF_FILM");
 			return false;
+		}
 		if (photoCooldown > 0)
 			return false;
 		film -= 1;
+		// Track when player runs out of film (just used last one)
+		if (film == 0)
+		{
+			axollib.AxolAPI.sendEvent("FILM_DEPLETED");
+		}
+		
 		photoCooldown = Constants.PHOTO_COOLDOWN;
 
 		SoundHelper.playSound("camera");

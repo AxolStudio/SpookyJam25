@@ -12,6 +12,7 @@ import flixel.group.FlxGroup.FlxTypedGroup;
 import flixel.math.FlxAngle;
 import flixel.math.FlxPoint;
 import flixel.util.FlxColor;
+import flixel.ui.FlxButton.FlxTypedButton;
 import ui.Hud;
 import util.SoundHelper;
 
@@ -35,15 +36,17 @@ class PlayState extends FlxState
 	private var _maskState:MaskState;
 
 	public var ready:Bool = false;
+	private var isGameOver:Bool = false;
+	private var gameOverDialog:NineSliceSprite;
 
 	var portalShader:AlphaDither;
 	var playerShader:AlphaDither;
 
 	override public function create():Void
 	{
-		Actions.init();
+		Globals.init();
 		Actions.switchSet(Actions.gameplayIndex);
-		SoundHelper.initSounds();
+		FlxG.mouse.visible = false;
 
 		atmosphereHue = FlxG.random.int(0, 359);
 		createCameras();
@@ -102,6 +105,8 @@ class PlayState extends FlxState
 							player.shader = null;
 							portal.shader = null;
 							ready = true;
+							// Track run start with initial O2
+							axollib.AxolAPI.sendEvent("RUN_START", player.o2);
 						}
 					});
 				}
@@ -138,12 +143,28 @@ class PlayState extends FlxState
 
 	override public function update(elapsed:Float):Void
 	{
+		Constants.Mouse.update(elapsed);
+
 		if (!ready)
 		{
 			super.update(elapsed);
 		}
+		else if (isGameOver)
+		{
+			// Game over - only update UI
+			super.update(elapsed);
+		}
 		else
 		{
+			// Check for O2 depletion
+			if (player.o2 <= 0)
+			{
+				// Track death by O2 depletion
+				axollib.AxolAPI.sendDeath("O2_DEPLETED", 0);
+				triggerGameOver();
+				return;
+			}
+			
 			playerMovement(elapsed);
 			ai.EnemyBrain.process(player, enemies, tilemap, elapsed, mainCam);
 			if (reticle != null)
@@ -151,6 +172,12 @@ class PlayState extends FlxState
 			super.update(elapsed);
 			FlxG.collide(player, tilemap.wallsMap);
 			FlxG.collide(enemies, tilemap.wallsMap);
+			// Check enemy collision with player
+			if (player.invincibilityTimer <= 0)
+			{
+				FlxG.overlap(player, enemies, onEnemyHitPlayer);
+			}
+			
 			if (portal.playerOn)
 			{
 				if (!portal.overlaps(player))
@@ -165,6 +192,16 @@ class PlayState extends FlxState
 				{
 					ready = false;
 					player.stop();
+
+					// Track successful run completion with remaining O2
+					axollib.AxolAPI.sendEvent("RUN_COMPLETE", player.o2);
+
+					// Track number of photos captured
+					var photoCount:Float = player.getCaptured().length;
+					axollib.AxolAPI.sendEvent("PHOTOS_CAPTURED", photoCount);
+
+					// Play portal sound
+					SoundHelper.playSound("portal");
 
 					for (enemy in enemies.members)
 					{
@@ -262,11 +299,133 @@ class PlayState extends FlxState
 					if (b != null && b.alive && b.exists)
 						hits.push(b);
 				});
+				// Track photo attempt with number of hits
+				axollib.AxolAPI.sendEvent("PHOTO_TAKEN", hits.length);
+				
 				for (h in hits)
 					if (h != null)
 						h.capture(player);
 			}
 		}
+	}
+	private function onEnemyHitPlayer(player:FlxObject, enemy:FlxObject):Void
+	{
+		var enemyObj:Enemy = cast(enemy, Enemy);
+		var playerObj:Player = cast(player, Player);
+
+		if (enemyObj == null || !enemyObj.alive || !enemyObj.exists)
+			return;
+		if (playerObj == null || !playerObj.alive || !playerObj.exists)
+			return;
+		if (enemyObj.stunTimer > 0)
+			return;
+
+		// Calculate damage based on enemy power (1-5 O2 per hit)
+		var damage:Float = enemyObj.power;
+		playerObj.o2 -= damage;
+
+		// Track enemy hit event with damage dealt
+		axollib.AxolAPI.sendEvent("ENEMY_HIT", damage);
+
+		// If this hit causes knockout, track it
+		if (playerObj.o2 <= 0)
+		{
+			axollib.AxolAPI.sendDeath("ENEMY_KNOCKOUT", enemyObj.power);
+		}
+
+		// Calculate knockback direction (opposite from enemy)
+		var dx:Float = playerObj.x - enemyObj.x;
+		var dy:Float = playerObj.y - enemyObj.y;
+		var dist:Float = Math.sqrt(dx * dx + dy * dy);
+		if (dist > 0)
+		{
+			// Normalize and apply knockback
+			dx /= dist;
+			dy /= dist;
+			var knockbackForce:Float = 100.0;
+			playerObj.velocity.x = dx * knockbackForce;
+			playerObj.velocity.y = dy * knockbackForce;
+		}
+
+		// Give player invincibility (0.5-1 second)
+		playerObj.invincibilityTimer = FlxG.random.float(0.5, 1.0);
+		playerObj.flickerTimer = 0;
+
+		// Stun the enemy briefly
+		enemyObj.stunTimer = FlxG.random.float(0.2, 0.4);
+		enemyObj.stop();
+	}
+
+	private function triggerGameOver():Void
+	{
+		isGameOver = true;
+		ready = false;
+		player.stop();
+		player.o2 = 0;
+
+		// Stop all enemies
+		for (enemy in enemies.members)
+		{
+			if (enemy != null)
+			{
+				enemy.stop();
+			}
+		}
+
+		// Fade to WHITE
+		blackOut.fade(() ->
+		{
+			showGameOverDialog();
+		}, true, 1.0, FlxColor.WHITE);
+	}
+
+	private function showGameOverDialog():Void
+	{
+		// Clear captured photos
+		player.clearCaptured();
+
+		// Create dialog box (centered)
+		var dialogWidth:Float = 240;
+		var dialogHeight:Float = 80;
+		var dialogX:Float = (FlxG.width - dialogWidth) / 2;
+		var dialogY:Float = (FlxG.height - dialogHeight) / 2;
+
+		gameOverDialog = new NineSliceSprite(dialogX, dialogY, dialogWidth, dialogHeight);
+		gameOverDialog.cameras = [hudCam];
+		add(gameOverDialog);
+
+		// Add message text
+		var message = new ui.GameText(0, 0,
+			"You fell unconscious and\nwere dragged back through\nthe portal by your assistant.\nHowever you lost your photos.");
+		message.cameras = [hudCam];
+		add(message);
+		message.x = dialogX + (dialogWidth - message.width) / 2;
+		message.y = dialogY + 8;
+
+		// Add OK button
+		var okBtn = new FlxTypedButton<ui.GameText>(0, 0);
+		okBtn.makeGraphic(40, 16, 0xFF666666);
+		okBtn.label = new ui.GameText(0, 0, "OK");
+		okBtn.label.color = 0xFFFFFFFF;
+		var centerX = (40 - okBtn.label.width) / 2;
+		var centerY = (16 - okBtn.label.height) / 2;
+		okBtn.labelOffsets[0].set(centerX, centerY);
+		okBtn.labelOffsets[1].set(centerX, centerY);
+		okBtn.labelOffsets[2].set(centerX, centerY);
+		okBtn.x = dialogX + (dialogWidth - okBtn.width) / 2;
+		okBtn.y = dialogY + dialogHeight - okBtn.height - 8;
+		okBtn.onUp.callback = onGameOverOK;
+		okBtn.cameras = [hudCam];
+		add(okBtn);
+
+		// Fade in from WHITE (transparent)
+		blackOut.fade(null, false, 1.0, FlxColor.WHITE);
+	}
+
+	private function onGameOverOK():Void
+	{
+		// Fade to black and return to office
+		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 1.0, FlxColor.BLACK);
 	}
 
 	private function createCameras():Void

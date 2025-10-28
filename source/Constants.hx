@@ -2,6 +2,8 @@ package;
 
 class Constants
 {
+	public static var Mouse:MouseHandler;
+
 	public static inline var TILE_SIZE:Int = 16;
 	// Photo mechanic tuning
 	public static inline var PHOTO_START_FILM:Int = 20;
