@@ -45,7 +45,6 @@ class PhotoDissolve extends FlxShader
 
 			
 			if (rowF == currentRow) {
-				// sample from above so the visible pixels appear to fall downwards
 				float fall = local * (currentRow + 1.0) * FALL_PER_ROW;
 				vec2 sampleUV = uv - vec2(0.0, fall);
 				sampleUV.y = clamp(sampleUV.y, 0.0, 1.0);

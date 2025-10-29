@@ -28,7 +28,6 @@ typedef TreeNode =
 
 class GameMap extends FlxGroup
 {
-	// ...existing code...
 	public var walkableTiles:Array<Int> = [];
 
 	public var floorMap:FlxTilemap;

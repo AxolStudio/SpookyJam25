@@ -20,21 +20,16 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 	private var buttonWidth:Float;
 	private var buttonHeight:Float;
 
-	// Cache the rendered graphics for each state
 	private var normalGraphic:FlxGraphic;
 	private var highlightGraphic:FlxGraphic;
 	private var pressedGraphic:FlxGraphic;
 
-	// Shared graphics cache to prevent recreation across state changes
-	// Key format: "width_height_stateName"
 	private static var graphicsCache:Map<String, FlxGraphic> = new Map<String, FlxGraphic>();
 
-	// Instance tracking to prevent cache conflicts
 	private static var instanceCounter:Int = 0;
 
 	private var instanceId:Int;
 
-	// Define the 9-slice bounds for each state from the button.json
 	private static var NORMAL_SLICES:Array<Rectangle> = [
 		new Rectangle(0, 0, 4, 3), // top-left
 		new Rectangle(4, 0, 8, 3), // top-center
@@ -80,10 +75,8 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 		buttonWidth = Width;
 		buttonHeight = Height;
 
-		// Assign unique instance ID to prevent cache conflicts
 		instanceId = instanceCounter++;
 
-		// Load the shared source bitmap once
 		if (sharedSourceBitmap == null)
 		{
 			sharedSourceBitmap = FlxG.bitmap.add("assets/ui/button.png").bitmap;
@@ -92,30 +85,19 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 
 		super(X, Y, OnClick);
 
-		// Pre-render all three button states as unique graphics (NOT cached globally)
-		// Each button instance gets its own graphics to prevent "destroyed sprite" errors
-		// when buttons are destroyed and recreated (e.g., VirtualKeyboard)
 		normalGraphic = render9Slice(NORMAL_SLICES, "normal");
 		highlightGraphic = render9Slice(HIGHLIGHT_SLICES, "highlight");
 		pressedGraphic = render9Slice(PRESSED_SLICES, "pressed");
 
-		// Load the normal state initially
 		loadGraphic(normalGraphic);
 
-		// Don't allow label alpha changes
 		labelAlphas = [1.0, 1.0, 1.0, 0.5];
 	}
 
-	/**
-	 * Call this after setting the label to position it properly
-	 */
 	public function positionLabel():Void
 	{
-		// Position label based on whether it's GameText or FlxSprite
 		if (label != null)
 		{
-			// For GameText: position at (4, centered in middle slice) and set width to button.width - 8
-			// Text should be center-aligned
 			if (Std.isOfType(label, GameText))
 			{
 				var gameText:GameText = cast label;
@@ -123,20 +105,13 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 				gameText.fieldWidth = Std.int(buttonWidth - 8);
 				gameText.alignment = FlxTextAlign.CENTER;
 
-				// Set label offsets for each button state based on their slice dimensions
-				// NORMAL: top=3, middle=7, bottom=6
-				// HIGHLIGHT: top=4, middle=7, bottom=5
-				// PRESSED: top=5, middle=7, bottom=4
-
-				// Calculate for each state
-				labelOffsets[0].set(4, calculateLabelY(3, 6, gameText.height)); // NORMAL
-				labelOffsets[1].set(4, calculateLabelY(4, 5, gameText.height)); // HIGHLIGHT
-				labelOffsets[2].set(4, calculateLabelY(5, 4, gameText.height)); // PRESSED
-				labelOffsets[3].set(4, calculateLabelY(3, 6, gameText.height)); // DISABLED (same as NORMAL)
+				labelOffsets[0].set(4, calculateLabelY(3, 6, gameText.height));
+				labelOffsets[1].set(4, calculateLabelY(4, 5, gameText.height));
+				labelOffsets[2].set(4, calculateLabelY(5, 4, gameText.height));
+				labelOffsets[3].set(4, calculateLabelY(3, 6, gameText.height));
 			}
 			else
 			{
-				// For FlxSprite: center it within the button
 				var xOffset:Float = (buttonWidth - label.width) / 2;
 				var yOffset:Float = (buttonHeight - label.height) / 2;
 
@@ -148,9 +123,6 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 		}
 	}
 
-	/**
-	 * Calculate the Y offset to center text within the middle slice
-	 */
 	private function calculateLabelY(topSliceHeight:Float, bottomSliceHeight:Float, textHeight:Float):Float
 	{
 		var middleSliceHeight:Float = buttonHeight - topSliceHeight - bottomSliceHeight;

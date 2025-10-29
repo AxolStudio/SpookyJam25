@@ -44,8 +44,6 @@ class Player extends GameObject
 		offset.y = 7;
 		x += 2;
 		y -= height;
-		
-		
 	}
 
 	public override function buildGraphics():Void
@@ -125,7 +123,6 @@ class Player extends GameObject
 		if (photoCooldown > 0)
 			photoCooldown -= elapsed;
 		o2 -= elapsed;
-		// Handle invincibility flicker
 		if (invincibilityTimer > 0)
 		{
 			invincibilityTimer -= elapsed;
@@ -133,12 +130,10 @@ class Player extends GameObject
 
 			if (flickerTimer <= 0)
 			{
-				// Toggle visibility
 				visible = !visible;
 				flickerTimer = FLICKER_INTERVAL;
 			}
 
-			// End invincibility
 			if (invincibilityTimer <= 0)
 			{
 				visible = true;
@@ -150,14 +145,12 @@ class Player extends GameObject
 	{
 		if (film <= 0)
 		{
-			// Track when player tries to take photo but has no film
 			axollib.AxolAPI.sendEvent("OUT_OF_FILM");
 			return false;
 		}
 		if (photoCooldown > 0)
 			return false;
 		film -= 1;
-		// Track when player runs out of film (just used last one)
 		if (film == 0)
 		{
 			axollib.AxolAPI.sendEvent("FILM_DEPLETED");
@@ -169,21 +162,5 @@ class Player extends GameObject
 		FlxG.camera.flash(0xFFFFFFFF, Constants.PHOTO_FLASH_TIME, false);
 
 		return true;
-	}
-	// Dither-fade the player in using the AlphaDither shader
-	public var dither:AlphaDither;
-
-	public function showDither(?duration:Float = 0.2):Void
-	{
-		// attach shader and tween its globalAlpha
-		dither = new AlphaDither();
-		shader = dither;
-		dither.globalAlpha = 0.0;
-		FlxTween.tween(dither, {globalAlpha: 1.0}, duration, {
-			onComplete: (_) ->
-			{
-				dither.globalAlpha = 1.0;
-			}
-		});
 	}
 }

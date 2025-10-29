@@ -24,53 +24,23 @@ class Enemy extends GameObject
 	public var wanderSpeed:Float = 40.0;
 	public var power:Int = 3; // 1-5 stars, calculated from stats
 
-	// Minimal AI fields used by EnemyBrain
-	public var aiState:Int = 0; // 0=Wander,1=Attack,2=Flee
-	public var aiTimer:Float = 0.0; // seconds until next decision
-	public var aiDecisionInterval:Float = 0.6; // base decision interval
-	public var aiValue:Int = 1; // score/value of this enemy
-	// Track whether the enemy last saw the player (used by EnemyBrain to detect
-	// transitions from not-seeing -> seeing so we can interrupt current actions)
+	public var aiState:Int = 0;
+	public var aiTimer:Float = 0.0;
+	public var aiDecisionInterval:Float = 0.6;
+	public var aiValue:Int = 1;
 	public var lastSawPlayer:Bool = false;
-
-	// Stun system for when enemy hits player
 	public var stunTimer:Float = 0;
 
-	// No aiControlled flag: the project's central AI (ai.EnemyBrain) is the
-	// single source of decision-making. Enemy only exposes movement APIs
-	// (startTimedMove/move/stop) and keeps minimal per-frame logic.
-
-	private var _wanderTimer:Float = 0.0;
-	private var _actionCooldown:Float = 0.0;
-	private var _isWandering:Bool = false;
-	private var _targetX:Float = 0.0;
-	private var _targetY:Float = 0.0;
-	private var _hasTarget:Bool = false;
 	private var _captured:Bool = false;
-	// Note: per-frame pursuit handling was removed. Timed moves now schedule
-	// their own completion so the central AI can be the single decision-maker.
 
-	/**
-	 * Start moving in the given angle (degrees) for approximately duration seconds.
-	 * This is a lighter-weight alternative to startPursuit when we only care about
-	 * a timed movement (based on speed) instead of a world target point.
-	 */
 	public function startTimedMove(angleDeg:Float, duration:Float):Void
 	{
-		_actionCooldown = duration;
-		// timed move: don't set a persistent target - keep it purely time-driven
-		_hasTarget = false;
-		// start moving immediately in the given angle
 		move(angleDeg);
-		// schedule stopping after duration so no per-frame pursuit logic is
-		// required inside Enemy.update. The central AI can still call move()
-		// each frame if it wants finer control.
 		var ctl = {t: 0.0};
 		FlxTween.tween(ctl, {t: 1.0}, duration, {
 			type: FlxTweenType.ONESHOT,
 			onComplete: function(_)
 			{
-				_actionCooldown = 0;
 				stop();
 			}
 		});
@@ -191,8 +161,6 @@ class Enemy extends GameObject
 
 	public function randomizeBehavior():Void
 	{
-		// pick base values and round to nearest 0.1; aggression is now in -1.0..1.0
-		// (signed) so negative values bias fleeing, positive bias attacking.
 		var mag:Float = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
 		var sign:Int = if (FlxG.random.float() < 0.5) -1 else 1;
 		aggression = (Math.round(mag * 10.0) / 10.0) * sign;
@@ -204,14 +172,11 @@ class Enemy extends GameObject
 		speed = wanderSpeed;
 
 		aiDecisionInterval = FlxG.random.float(0.3, 1.2);
-		// Compute a simple value: base 1 + aggression weight + speed weight - skittish penalty
 		var valF:Float = 1.0 + aggression * 3.0 + (wanderSpeed - 20.0) / 30.0 - skittishness * 2.0;
 		var valI:Int = Std.int(Math.max(1, Math.round(valF)));
 		aiValue = valI;
-		// Calculate power (1-5 stars) based on stats
 		power = Std.int(Math.max(1, Math.min(5, valI)));
-		
-		// make sure first decision happens immediately
+
 		aiTimer = 0.0;
 	}
 
@@ -226,29 +191,15 @@ class Enemy extends GameObject
 		}
 		if (!this.isOnScreen())
 			return;
-		// Handle stun
+
 		if (stunTimer > 0)
 		{
 			stunTimer -= elapsed;
-			// Stop movement during stun
 			velocity.set(0, 0);
 			acceleration.set(0, 0);
 			return;
 		}
-
-		// Decrement per-enemy timers. The central AI (EnemyBrain) will set
-		// aiTimer and call movement APIs (startTimedMove/move/stop). Enemy keeps
-		// only the low-level timed-move execution and timer ticks.
-		_actionCooldown -= elapsed;
-		_wanderTimer -= elapsed;
-
-		// Note: wandering/decision logic moved to ai.EnemyBrain. Enemy.update now
-		// avoids any high-level decisions and only ticks timers.
 	}
-
-	// Helper: handle ongoing timed-move / pursuit behavior that drives movement
-	// toward a target point or stops when the duration elapses.
-	// ...existing code...
 
 	public override function buildGraphics():Void
 	{

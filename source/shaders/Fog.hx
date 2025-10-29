@@ -105,31 +105,22 @@ class Fog extends FlxShader
 					return;
 				}
 
-				// base noise position scaled slightly off-center
 				vec2 npos = uv * vec2(1.2, 1.2);
-				// slow drifting translation
 				npos += vec2(iTime * 0.04, iTime * 0.03);
-				// add a subtle swirling offset so clouds feel like they are moving and changing
 				vec2 swirl = vec2(sin(iTime * 0.23 + uv.y * 0.5), cos(iTime * 0.17 + uv.x * 0.5)) * 0.35;
 				npos += swirl;
-				// use slightly larger fbm scale for more visible structure
 				float clouds = fbm(npos * 2.2);
 
 				float h = fHue;
 				float sat = fSat;
-			// compress dark/light values toward their midpoint using contrast
 			float midV = (fVDark + fVLight) * 0.5;
-			// add a tiny animated modulation to the dark value so clouds shift brightness over time
 			float vDarkMod = fVDark + 0.03 * sin(iTime * 0.6 + uv.x * 3.0);
 			float vDarkC = mix(midV, vDarkMod, fContrast);
 			float vLightC = mix(midV, fVLight, fContrast);
-			// Keep original fVDark/fVLight for the two-tone dithering so the pattern
-			// can be preserved even when contrast compresses the overall values.
 			float vDarkOrig = fVDark;
 			float vLightOrig = fVLight;
 			vec3 darkColOrig = hsv2rgb(vec3(h, sat, vDarkOrig));
 			vec3 lightColOrig = hsv2rgb(vec3(h, sat, vLightOrig));
-			// Also compute contrast-compressed colors for normal rendering
 			vec3 darkColC = hsv2rgb(vec3(h, sat, vDarkC));
 			vec3 lightColC = hsv2rgb(vec3(h, sat, vLightC));
 
@@ -148,23 +139,14 @@ class Fog extends FlxShader
 			else if (idx == 56) thr = 42; else if (idx == 57) thr = 26; else if (idx == 58) thr = 38; else if (idx == 59) thr = 22; else if (idx == 60) thr = 41; else if (idx == 61) thr = 25; else if (idx == 62) thr = 37; else if (idx == 63) thr = 21;
 			float threshold = (float(thr) + 0.5) / 64.0;
 
-			// Quantize into 3 ordered-dithered levels using the Bayer threshold as a bias.
-			// This produces three similar colors (dark, mid, light) while retaining the
-			// Bayer pattern to reduce banding.
 			float bias = threshold - 0.5;
-			// Map clouds (0..1) into 3 levels with a dither bias, then clamp and floor.
 			float qf = floor(clamp(clouds * 3.0 + bias, 0.0, 2.0));
-			// qf is 0.0, 1.0 or 2.0 representing dark, mid, light.
 
-			// Build a mid value and its color (close to vDark/vLight so dithering looks subtle)
 			float vMidOrig = mix(vDarkOrig, vLightOrig, 0.5);
 			float vMidC = mix(vDarkC, vLightC, 0.5);
 			vec3 midColOrig = hsv2rgb(vec3(h, sat, vMidOrig));
 			vec3 midColC = hsv2rgb(vec3(h, sat, vMidC));
 
-			// prefer the contrast-compressed colors, but if contrast compresses the
-			// brightness difference to near-zero, fall back to the original three-tone
-			// so the Bayer dither pattern remains visible to the eye.
 			float vDiff = abs(vLightC - vDarkC);
 			vec3 cloudColorC;
 			vec3 cloudColorOrig;
@@ -188,16 +170,14 @@ class Fog extends FlxShader
             float outer = rOuter;
             float hole = 0.0;
             if (dist <= inner) {
-                hole = 0.0; // fully transparent here
+                hole = 0.0;
             } else if (dist >= outer) {
-                hole = 1.0; // fully fog
+                hole = 1.0;
             } else {
                 float t = smoothstep(inner, outer, dist);
-                
                 hole = t;
             }
 
-			// use the earlier mask sample
 			float maskAlpha = maskAlphaEarly;
 			float desiredAlpha = maskAlpha;
 
@@ -206,7 +186,6 @@ class Fog extends FlxShader
 				return;
 			}
 
-			// if fully opaque, render full-color (still uses clouds)
 			if (desiredAlpha >= 1.0) {
 				vec3 finalColor = cloudColor * mix(0.9, 1.05, clouds);
 				gl_FragColor = vec4(finalColor, 1.0);

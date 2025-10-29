@@ -18,13 +18,11 @@ class VirtualKeyboard extends FlxGroup
 	public var onSubmit:String->Void;
 	public var onCancel:Void->Void;
 
-	// UI Elements
 	private var background:NineSliceSprite;
 	private var inputDisplay:GameText;
 	private var keys:Array<NineSliceButton<GameText>> = [];
 	private var currentKeyIndex:Int = 0;
 	private var isUppercase:Bool = true;
-	// optional shared reticle instance (created elsewhere and assigned)
 	public var sharedReticle:AnimatedReticle;
 
 	private var caseButton:NineSliceButton<GameText>;
@@ -32,18 +30,14 @@ class VirtualKeyboard extends FlxGroup
 	private var lastMouseX:Int = 0;
 	private var lastMouseY:Int = 0;
 
-	// Simple public field for FlxTween to use (avoids DCE issues with complex properties)
 	@:keep public var tweenY:Float = 0;
 
-	// Layout constants
 	private static inline var KEY_WIDTH:Int = 14;
 	private static inline var KEY_HEIGHT:Int = 14;
 	private static inline var KEY_SPACING:Int = 2;
-	// Padding used when computing tight background bounds
 	private static inline var PAD_X:Int = 6;
 	private static inline var PAD_Y:Int = 6;
 
-	// Character sets
 	private var lowercaseRow1:String = "abcdefghijklm";
 	private var lowercaseRow2:String = "nopqrstuvwxyz";
 	private var lowercaseRow3:String = " 0123456789-_";
@@ -115,7 +109,6 @@ class VirtualKeyboard extends FlxGroup
 
 	private function createKeyboard():Void
 	{
-		// compute content widths
 		var rows = getCurrentRows();
 		var widestRow:Int = 0;
 		for (rowChars in rows)
@@ -127,15 +120,12 @@ class VirtualKeyboard extends FlxGroup
 
 		var buttonWidth = 35;
 		var buttonSpacing = 5;
-		var smallGap = 10; // extra small gap between groups
-		// compute base content width from widest row and action buttons block
-		var baseWidth = Math.max(widestRow, /*placeholder for buttons group width computed below*/ 0);
+		var smallGap = 10;
+		var baseWidth = Math.max(widestRow, 0);
 
-		// We'll compute the buttons block width for the new layout: [ABC, DEL, gap, CLR, RND, gap, OK]
 		var totalButtonWidth = (2 * buttonWidth) + buttonSpacing + smallGap + (2 * buttonWidth) + buttonSpacing + smallGap + buttonWidth;
 
-		// Make the input field slightly narrower than the content so it doesn't hug the edges
-		var INPUT_SIDE_MARGIN = 12; // pixels of space between input bg and content edges
+		var INPUT_SIDE_MARGIN = 12;
 		var inputBgWidth = Math.max(widestRow, totalButtonWidth) - INPUT_SIDE_MARGIN;
 		if (inputBgWidth < 80)
 			inputBgWidth = 80;
@@ -145,8 +135,7 @@ class VirtualKeyboard extends FlxGroup
 
 		var rowsCount = rows.length;
 		var keysHeight = rowsCount * KEY_HEIGHT + (rowsCount - 1) * KEY_SPACING;
-		// Make the input background only slightly taller than the text (tight vertical padding)
-		var INPUT_INSET_Y = 2; // pixels above and below the text
+		var INPUT_INSET_Y = 2;
 		var inputBgHeight = KEY_HEIGHT + INPUT_INSET_Y * 2;
 		var buttonsHeight = KEY_HEIGHT;
 		var contentHeight = inputBgHeight + PAD_Y + keysHeight + PAD_Y + buttonsHeight;
@@ -165,19 +154,16 @@ class VirtualKeyboard extends FlxGroup
 		inputBg.makeGraphic(Std.int(inputBgWidth), Std.int(inputBgHeight), 0xFF000000);
 		add(inputBg);
 
-		// Position the input display left-aligned but vertically centered inside inputBg
 		var inputDisplayX = inputBg.x + 4;
 		var inputDisplayY = inputBg.y + Std.int((inputBg.height - KEY_HEIGHT) / 2);
 		inputDisplay = new GameText(inputDisplayX, inputDisplayY, "");
 		inputDisplay.autoSize = false;
 		inputDisplay.fieldWidth = Std.int(inputBgWidth - 8);
-		// GameText defaults to left alignment; no explicit align field available.
 		add(inputDisplay);
 
 		var keyboardTop = inputBg.y + inputBg.height + PAD_Y;
 		createCharacterGrid(Std.int(contentX), Std.int(keyboardTop), Std.int(contentWidth));
 		createActionButtons(Std.int(contentX), Std.int(keyboardTop + keysHeight + PAD_Y), Std.int(contentWidth));
-
 
 		updateDisplay();
 	}
@@ -208,13 +194,11 @@ class VirtualKeyboard extends FlxGroup
 		var buttonWidth = 35;
 		var buttonSpacing = 5;
 		var smallGap = 10;
-		// totalButtonWidth for layout: [ABC, DEL, gap, CLR, RND, gap, OK]
 		var totalButtonWidth = 5 * buttonWidth + 2 * buttonSpacing + 2 * smallGap;
 		var startX = contentX + Std.int((contentWidth - totalButtonWidth) / 2);
 
-		// Layout: ABC, DEL, smallGap, CLR, RND, smallGap, OK
 		var xPos = startX;
-		var caseLabel = isUppercase ? "abc" : "ABC"; // show action (click to switch)
+		var caseLabel = isUppercase ? "abc" : "ABC";
 		caseButton = createActionKey(xPos, buttonsY, buttonWidth, caseLabel, toggleCase);
 		keys.push(caseButton);
 		add(caseButton);
@@ -297,7 +281,6 @@ class VirtualKeyboard extends FlxGroup
 	{
 		super.update(elapsed);
 
-		// Sync tweenY to actual y position
 		if (this.y != tweenY)
 		{
 			this.y = tweenY;
@@ -308,7 +291,6 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (!isVisible)
 			return;
-		// Check for input mode changes
 		checkInputMode();
 
 		if (Actions.rightUI.triggered)
@@ -328,7 +310,6 @@ class VirtualKeyboard extends FlxGroup
 
 	private function checkInputMode():Void
 	{
-		// Check if mouse moved
 		if (FlxG.mouse.viewX != lastMouseX || FlxG.mouse.viewY != lastMouseY)
 		{
 			lastMouseX = FlxG.mouse.viewX;
@@ -339,9 +320,7 @@ class VirtualKeyboard extends FlxGroup
 			{
 				sharedReticle.visible = false;
 			}
-			// Don't manually clear button status - let FlxButton handle it
 		}
-		// Check if keyboard/gamepad input used
 		else if (Actions.upUI.triggered || Actions.downUI.triggered || Actions.leftUI.triggered || Actions.rightUI.triggered)
 		{
 			Globals.usingMouse = false;
@@ -401,7 +380,7 @@ class VirtualKeyboard extends FlxGroup
 		var row3Length = rows[2].length;
 		var totalCharKeys = row1Length + row2Length + row3Length;
 		if (currentKeyIndex < row1Length)
-			currentKeyIndex = keys.length - 1; // wrap to last action button
+			currentKeyIndex = keys.length - 1;
 		else if (currentKeyIndex < row1Length + row2Length)
 		{
 			var newIndex = currentKeyIndex - row1Length;
@@ -440,9 +419,7 @@ class VirtualKeyboard extends FlxGroup
 
 	private function toggleCase():Void
 	{
-		// Toggle state
 		isUppercase = !isUppercase;
-		// Update the case button label to reflect the new state immediately
 		if (caseButton != null)
 			caseButton.label.text = isUppercase ? "ABC" : "abc";
 		var rows = getCurrentRows();
@@ -475,12 +452,9 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (displayChar == null)
 			displayChar = char;
-		// Create the label FIRST with text
 		var label = new GameText(0, 0, displayChar);
-		// Force the graphic to be created by accessing it
 		label.updateHitbox();
 
-		// Then create the button
 		var btn = new NineSliceButton<GameText>(Std.int(x), Std.int(y), KEY_WIDTH, KEY_HEIGHT, function()
 		{
 			if (currentText.length < maxLength)
@@ -496,12 +470,9 @@ class VirtualKeyboard extends FlxGroup
 
 	private function createActionKey(x:Float, y:Float, width:Int, text:String, callback:Void->Void):NineSliceButton<GameText>
 	{
-		// Create the label FIRST with text
 		var label = new GameText(0, 0, text);
-		// Force the graphic to be created
 		label.updateHitbox();
 
-		// Then create the button
 		var btn = new NineSliceButton<GameText>(Std.int(x), Std.int(y), width, KEY_HEIGHT, callback);
 		btn.label = label;
 		btn.positionLabel();
@@ -553,16 +524,13 @@ class VirtualKeyboard extends FlxGroup
 		var usedSeparator = false;
 		var maxLength = 20;
 
-		// Generate 2-4 syllables
-		var numSyllables = 2 + Std.int(Math.random() * 3); // 2, 3, or 4
+		var numSyllables = 2 + Std.int(Math.random() * 3);
 
 		for (i in 0...numSyllables)
 		{
-			// Add syllable
 			var syl = syllables[Std.int(Math.random() * syllables.length)];
 			name += syl;
 
-			// Maybe add separator (space or hyphen) between syllables, but only once
 			if (!usedSeparator && i < numSyllables - 1 && Math.random() < 0.3)
 			{
 				var separator = Math.random() < 0.5 ? " " : "-";
@@ -570,18 +538,15 @@ class VirtualKeyboard extends FlxGroup
 				usedSeparator = true;
 			}
 
-			// Stop if we're getting too long
 			if (name.length >= maxLength - 3)
 				break;
 		}
 
-		// Truncate if needed
 		if (name.length > maxLength)
 		{
 			name = name.substring(0, maxLength);
 		}
 
-		// Title Case: capitalize first letter and letter after space/hyphen
 		var result = "";
 		var capitalizeNext = true;
 		for (i in 0...name.length)
@@ -618,8 +583,6 @@ class VirtualKeyboard extends FlxGroup
 
 	private function updateHighlight():Void
 	{
-		// Just position the reticle, don't manually set button status
-		// FlxButton manages its own status based on mouse interaction
 		if (currentKeyIndex < keys.length && sharedReticle != null)
 		{
 			var key = keys[currentKeyIndex];

@@ -13,7 +13,7 @@ import util.ColorHelpers;
 class GameResults extends FlxState
 {
 	private var bg:FlxSprite;
-	private var player:Player; // not used but handy
+	private var player:Player;
 	private var items:Array<CapturedInfo>;
 	private var selectedIndex:Int = 0;
 	private var nameText:GameText;
@@ -27,8 +27,6 @@ class GameResults extends FlxState
 	private var currentReward:Int = 0;
 	private var blackOut:BlackOut;
 	private var isTransitioning:Bool = false;
-
-	// Persistent text objects for star ratings
 	private var speedLabel:GameText;
 	private var speedStars:Array<FlxSprite> = [];
 	private var aggrLabel:GameText;
@@ -45,7 +43,6 @@ class GameResults extends FlxState
 	private var lastMouseX:Int = 0;
 	private var lastMouseY:Int = 0;
 
-	// Virtual Keyboard
 	private var virtualKeyboard:VirtualKeyboard;
 	private var currentCreatureName:String = "";
 
@@ -65,14 +62,12 @@ class GameResults extends FlxState
 		bg = new FlxSprite(0, 0, "assets/ui/room_report.png");
 		add(bg);
 
-		// UI: show first captured enemy if any
 		if (items.length > 0)
 		{
 			updateSelected(0);
 		}
 		else
 		{
-			// No creatures captured - show message and OK button in a dialog box
 			var dialogWidth:Float = 200;
 			var dialogHeight:Float = 80;
 			var dialogX:Float = (FlxG.width - dialogWidth) / 2;
@@ -86,16 +81,14 @@ class GameResults extends FlxState
 			nameText.x = dialogX + (dialogWidth - nameText.width) / 2;
 			nameText.y = dialogY + 10;
 
-			// Change submit button to "OK" and make it return to office
 			var okLabel = new GameText(0, 0, "OK");
-			okLabel.updateHitbox(); // Force graphic creation
+			okLabel.updateHitbox();
 
 			submitBtn = new NineSliceButton<GameText>(dialogX + (dialogWidth - 40) / 2, dialogY + dialogHeight - 26, 40, 16, returnToOffice);
 			submitBtn.label = okLabel;
 			submitBtn.positionLabel();
 			add(submitBtn);
 
-			// Create virtual keyboard and reticle (needed for input handling)
 			virtualKeyboard = new VirtualKeyboard();
 			virtualKeyboard.onSubmit = onKeyboardSubmit;
 			virtualKeyboard.onCancel = onKeyboardCancel;
@@ -105,30 +98,25 @@ class GameResults extends FlxState
 			add(highlightSprite);
 			virtualKeyboard.sharedReticle = highlightSprite;
 
-			// Setup simple UI navigation for OK button
 			uiObjects = [submitBtn];
 			currentUIIndex = 0;
-			// Initialize highlightSprite with the OK button's bounds
 			highlightSprite.setTarget(Std.int(submitBtn.x), Std.int(submitBtn.y), Std.int(submitBtn.width), Std.int(submitBtn.height));
 			highlightSprite.visible = !Globals.usingMouse;
 
-			// Skip the rest of the UI setup
 			setupBlackOutAndMusic();
 			super.create();
 			return;
 		}
 
-		// Create submit button at bottom right
 		var saveLabel = new GameText(0, 0, "Save");
-		saveLabel.updateHitbox(); // Force graphic creation
+		saveLabel.updateHitbox();
 
 		submitBtn = new NineSliceButton<GameText>(FlxG.width - 50, FlxG.height - 26, 40, 16, activateSubmitAction);
 		submitBtn.label = saveLabel;
 		submitBtn.positionLabel();
-		add(submitBtn); // Add date text to bottom left (pocket area)
-		// Position it on top of the folder, same x as "Reward:" label
+		add(submitBtn);
 		dateText = new GameText(14 + 18, FlxG.height - 66, "10/27/2025");
-		add(dateText); // Add photo counter centered above folder
+		add(dateText);
 		if (items.length > 0)
 		{
 			var counterStr = "Photo "
@@ -142,7 +130,6 @@ class GameResults extends FlxState
 
 		setupBlackOutAndMusic();
 
-		// Create virtual keyboard and reticle LAST so they're on top of everything
 		virtualKeyboard = new VirtualKeyboard();
 		virtualKeyboard.onSubmit = onKeyboardSubmit;
 		virtualKeyboard.onCancel = onKeyboardCancel;
@@ -151,8 +138,7 @@ class GameResults extends FlxState
 		highlightSprite = new AnimatedReticle();
 		add(highlightSprite);
 		virtualKeyboard.sharedReticle = highlightSprite;
-		
-		// Setup UI objects for navigation AFTER creating highlightSprite
+
 		setupUINavigation();
 		
 		super.create();
@@ -160,7 +146,6 @@ class GameResults extends FlxState
 
 	private function setupBlackOutAndMusic():Void
 	{
-		// BlackOut for fade in from black
 		var overCam = new flixel.FlxCamera(0, 0, FlxG.width, FlxG.height);
 		overCam.bgColor = FlxColor.TRANSPARENT;
 		FlxG.cameras.add(overCam, false);
@@ -168,18 +153,14 @@ class GameResults extends FlxState
 		blackOut = new BlackOut(overCam);
 		add(blackOut);
 
-		// Fade in from black
 		blackOut.fade(null, false, 1.0, FlxColor.BLACK);
 
-		// Continue playing office music (if not already playing)
 		util.SoundHelper.playMusic("office");
 	}
 
 	private function returnToOffice():Void
 	{
-		// Track returning to office with no photos saved
 		axollib.AxolAPI.sendEvent("OFFICE_RETURN_NO_SAVES");
-		// Fade to black and return to office
 		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 1.0, FlxColor.BLACK);
 	}
 
@@ -188,20 +169,17 @@ class GameResults extends FlxState
 		selectedIndex = idx;
 		var ci:CapturedInfo = items[idx];
 
-		// compute layout bases (center split between two pages)
 		var centerX:Int = Std.int(FlxG.width / 2);
 		var pageMargin:Int = 14;
 		var baseRightX:Int = centerX + pageMargin;
 		var leftInnerRight:Int = centerX - pageMargin;
 
-		// Create or update Name label on first call
 		if (nameLabel == null)
 		{
 			nameLabel = new GameText(baseRightX, 40, "Name:");
 			add(nameLabel);
 		}
 
-		// Create or update name field
 		if (nameText == null)
 		{
 			nameText = new GameText(baseRightX, 56, "[EDIT]");
@@ -214,7 +192,6 @@ class GameResults extends FlxState
 			nameText.text = "[EDIT]";
 		}
 
-		// Speed stars (normalize speed 20..70 -> 1..5)
 		var minSpeed:Float = 20.0;
 		var maxSpeed:Float = 70.0;
 		var t:Float = (ci.speed - minSpeed) / (maxSpeed - minSpeed);
@@ -223,14 +200,12 @@ class GameResults extends FlxState
 		if (t > 1)
 			t = 1;
 		var speedStarsCount:Int = Std.int(Math.floor(t * 4.0)) + 1;
-		
-		// Create or update speed label and stars
+
 		if (speedLabel == null)
 		{
 			speedLabel = new GameText(baseRightX, 88, "Speed:");
 			add(speedLabel);
 
-			// Create 5 star sprites (blue colored)
 			for (i in 0...5)
 			{
 				var star = new FlxSprite(baseRightX + speedLabel.width + 4 + (i * 10), 90, "assets/ui/star_pip.png");
@@ -240,12 +215,10 @@ class GameResults extends FlxState
 			}
 		}
 
-		// Update star visibility
 		for (i in 0...5)
 		{
 			speedStars[i].visible = (i < speedStarsCount);
 		}
-		// Aggression stars (map -1..1 -> 1..5)
 		var a:Float = ci.aggression;
 		if (a < -1)
 			a = -1;
@@ -254,13 +227,11 @@ class GameResults extends FlxState
 		var an:Float = (a + 1.0) / 2.0;
 		var aggrStarsCount:Int = Std.int(Math.floor(an * 4.0)) + 1;
 
-		// Create or update aggression label and stars
 		if (aggrLabel == null)
 		{
 			aggrLabel = new GameText(baseRightX, 108, "Aggression:");
 			add(aggrLabel);
 
-			// Create 5 star sprites (red colored)
 			for (i in 0...5)
 			{
 				var star = new FlxSprite(baseRightX + aggrLabel.width + 4 + (i * 10), 110, "assets/ui/star_pip.png");
@@ -270,24 +241,21 @@ class GameResults extends FlxState
 			}
 		}
 
-		// Update star visibility
 		for (i in 0...5)
 		{
 			aggrStars[i].visible = (i < aggrStarsCount);
-		} // Power stars (1-5, directly from ci.power)
+		}
 		var powerStarsCount:Int = ci.power;
 		if (powerStarsCount < 1)
 			powerStarsCount = 1;
 		if (powerStarsCount > 5)
 			powerStarsCount = 5;
 
-		// Create or update power label and stars
 		if (powerLabel == null)
 		{
 			powerLabel = new GameText(baseRightX, 128, "Power:");
 			add(powerLabel);
 
-			// Create 5 star sprites (green colored)
 			for (i in 0...5)
 			{
 				var star = new FlxSprite(baseRightX + powerLabel.width + 4 + (i * 10), 130, "assets/ui/star_pip.png");
@@ -297,17 +265,14 @@ class GameResults extends FlxState
 			}
 		}
 
-		// Update star visibility
 		for (i in 0...5)
 		{
 			powerStars[i].visible = (i < powerStarsCount);
 		}
 
-		// reward = (speed stars + aggression stars + power stars) * $5
 		var reward:Int = (speedStarsCount + aggrStarsCount + powerStarsCount) * 5;
-		currentReward = reward; // Store for later use when saving
+		currentReward = reward;
 
-		// Create or update reward label and amount on left page
 		var leftLabelX:Int = pageMargin + 18;
 		if (rewardLabel == null)
 		{
@@ -326,20 +291,17 @@ class GameResults extends FlxState
 			rewardAmount.text = "$" + Std.string(reward);
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 		}
-		
-		// Create or update photo sprite
+
 		if (photoSprite == null)
 		{
 			photoSprite = new FlxSprite();
 			photoSprite.x = 45;
 			photoSprite.y = 45;
 			add(photoSprite);
-			
-			// Add paperclip on top
+
 			add(new FlxSprite(0, 0, "assets/ui/paperclip.png"));
 		}
 
-		// Update photo frame
 		photoSprite.frames = FlxAtlasFrames.fromSparrow(ColorHelpers.getHueColoredBmp("assets/images/photos.png", ci.hue), "assets/images/photos.xml");
 		var framesForVariant = photoSprite.frames.getAllByPrefix(ci.variant);
 		var frameIndex = FlxG.random.int(0, framesForVariant.length - 1);
@@ -351,7 +313,6 @@ class GameResults extends FlxState
 		super.update(elapsed);
 		Constants.Mouse.update(elapsed);
 
-		// Don't process input during transitions
 		if (isTransitioning)
 			return;
 
@@ -402,7 +363,6 @@ class GameResults extends FlxState
 			uiObjects.push(submitBtn);
 
 		currentUIIndex = 0;
-		// Initialize highlightSprite with the first UI object's bounds
 		if (uiObjects.length > 0 && highlightSprite != null)
 		{
 			var firstObj = uiObjects[0];
@@ -415,7 +375,6 @@ class GameResults extends FlxState
 		if (keyboardActive)
 			return;
 
-		// Navigate between UI objects
 		if (Actions.rightUI.triggered || Actions.downUI.triggered)
 		{
 			currentUIIndex = (currentUIIndex + 1) % uiObjects.length;
@@ -425,7 +384,6 @@ class GameResults extends FlxState
 			currentUIIndex = currentUIIndex > 0 ? currentUIIndex - 1 : uiObjects.length - 1;
 		}
 
-		// Activate current UI object
 		if (Actions.pressUI.triggered)
 		{
 			activateCurrentUIObject();
@@ -441,13 +399,11 @@ class GameResults extends FlxState
 		{
 			var mousePos = FlxG.mouse.getWorldPosition();
 
-			// Check nameText click
 			if (nameText != null && nameText.overlapsPoint(mousePos))
 			{
 				currentUIIndex = 0;
 				activateRenameAction();
 			}
-			// Check submit button click
 			else if (submitBtn != null && submitBtn.overlapsPoint(mousePos))
 			{
 				currentUIIndex = 1;
@@ -496,7 +452,6 @@ class GameResults extends FlxState
 		keyboardActive = true;
 		highlightSprite.visible = false;
 
-		// Hide the save button while keyboard is active
 		if (submitBtn != null)
 			submitBtn.visible = false;
 		
@@ -505,18 +460,15 @@ class GameResults extends FlxState
 
 	private function activateSubmitAction():Void
 	{
-		// Prevent multiple submissions during transition
 		if (isTransitioning)
 			return;
 
-		// Only allow save if name is non-empty
 		if (currentCreatureName == null || currentCreatureName.length == 0)
 		{
 			trace("Cannot save: name is empty");
 			return;
 		}
 
-		// Get current creature data
 		if (items.length > 0 && selectedIndex < items.length)
 		{
 			var ci = items[selectedIndex];
@@ -535,19 +487,15 @@ class GameResults extends FlxState
 			trace("Saved creature: " + currentCreatureName + " for $" + currentReward);
 			trace("Total money: $" + Globals.playerMoney);
 
-			// Track creature save with reward amount
 			axollib.AxolAPI.sendEvent("CREATURE_SAVED", currentReward);
 
-			// Move to next creature or transition to OfficeState
 			if (selectedIndex < items.length - 1)
 			{
-				// More creatures to process - move to next
 				isTransitioning = true;
-				currentCreatureName = ""; // Reset name for next creature
+				currentCreatureName = "";
 				selectedIndex++;
 				updateSelected(selectedIndex);
 
-				// Update photo counter
 				if (photoCounterText != null)
 				{
 					var counterStr = "Photo " + StringTools.lpad(Std.string(selectedIndex + 1), "0", 2) + "/"
@@ -560,10 +508,8 @@ class GameResults extends FlxState
 			}
 			else
 			{
-				// Last creature - transition to OfficeState
 				isTransitioning = true;
 
-				// Track returning to office after saving all creatures
 				axollib.AxolAPI.sendEvent("OFFICE_RETURN_ALL_SAVED", items.length);
 
 				blackOut.fade(() ->
@@ -578,7 +524,6 @@ class GameResults extends FlxState
 		currentCreatureName = newName;
 		keyboardActive = false;
 
-		// Show the save button again
 		if (submitBtn != null)
 			submitBtn.visible = true;
 
@@ -586,7 +531,6 @@ class GameResults extends FlxState
 		{
 			nameText.text = newName.length > 0 ? newName : "[EDIT]";
 		}
-		// Target back to the [EDIT] field
 		if (uiObjects.length > 0)
 		{
 			var editField = uiObjects[0];
@@ -598,12 +542,9 @@ class GameResults extends FlxState
 	private function onKeyboardCancel():Void
 	{
 		keyboardActive = false;
-		// Show the save button again
 		if (submitBtn != null)
 			submitBtn.visible = true;
-		
-		// Don't change the current name
-		// Target back to the [EDIT] field
+
 		if (uiObjects.length > 0)
 		{
 			var editField = uiObjects[0];
