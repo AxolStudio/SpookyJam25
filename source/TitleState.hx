@@ -94,4 +94,14 @@ class TitleState extends FlxState
 			}, true, 1.0, FlxColor.BLACK);
 		}
 	}
+	override public function destroy():Void
+	{
+		bg = flixel.util.FlxDestroyUtil.destroy(bg);
+		logo = flixel.util.FlxDestroyUtil.destroy(logo);
+		logoShader = null;
+		promptText = flixel.util.FlxDestroyUtil.destroy(promptText);
+		blackOut = flixel.util.FlxDestroyUtil.destroy(blackOut);
+
+		super.destroy();
+	}
 }

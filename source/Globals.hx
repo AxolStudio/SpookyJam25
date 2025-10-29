@@ -24,10 +24,11 @@ class Globals
 
 		FlxG.autoPause = false;
 
-		FlxG.scaleMode = new flixel.system.scaleModes.PixelPerfectScaleMode();
-
 		Actions.init();
 		SoundHelper.initSounds();
+
+		// Preload commonly used graphics to prevent lag spikes
+		preloadAssets();
 
 		if (Constants.Mouse == null)
 		{
@@ -40,9 +41,40 @@ class Globals
 
 		// Initialize save system
 		initSave();
-
+		AxolAPI.initSave(playerID, gameSave);
 		AxolAPI.initialize("7F2F79A96ED8A86D115894216E9EB", playerID);
 		AxolAPI.sendEvent("GAME_START");
+	}
+	private static function preloadAssets():Void
+	{
+		// Preload all commonly used graphics
+		FlxG.bitmap.add("assets/images/reticle.png");
+		FlxG.bitmap.add("assets/images/small-font.png");
+		FlxG.bitmap.add("assets/ui/ui_box_16x16.png");
+		FlxG.bitmap.add("assets/ui/mainmenu_bg.png");
+		FlxG.bitmap.add("assets/ui/mainmenu_logo.png");
+		FlxG.bitmap.add("assets/ui/bg.png");
+		FlxG.bitmap.add("assets/ui/board.png");
+		FlxG.bitmap.add("assets/ui/desk.png");
+		FlxG.bitmap.add("assets/ui/hover_desk.png");
+		FlxG.bitmap.add("assets/ui/phone.png");
+		FlxG.bitmap.add("assets/ui/hover_phone.png");
+		FlxG.bitmap.add("assets/ui/office_portal.png");
+		FlxG.bitmap.add("assets/ui/hover_portal.png");
+		FlxG.bitmap.add("assets/ui/trash.png");
+		FlxG.bitmap.add("assets/ui/hover_trash.png");
+		FlxG.bitmap.add("assets/images/player.png");
+		FlxG.bitmap.add("assets/images/enemies.png");
+		FlxG.bitmap.add("assets/images/portal.png");
+		FlxG.bitmap.add("assets/images/floor.png");
+		FlxG.bitmap.add("assets/images/autotiles.png");
+		FlxG.bitmap.add("assets/images/hud_film.png");
+		FlxG.bitmap.add("assets/images/hud_o2.png");
+		FlxG.bitmap.add("assets/images/hud_bulb.png");
+		FlxG.bitmap.add("assets/ui/room_report.png");
+		FlxG.bitmap.add("assets/ui/paperclip.png");
+		FlxG.bitmap.add("assets/ui/star_pip.png");
+		FlxG.bitmap.add("assets/images/photos.png");
 	}
 
 	public static function initSave():Void

@@ -93,7 +93,9 @@ class GameResults extends FlxState
 			submitBtn = new NineSliceButton<GameText>(dialogX + (dialogWidth - 40) / 2, dialogY + dialogHeight - 26, 40, 16, returnToOffice);
 			submitBtn.label = okLabel;
 			submitBtn.positionLabel();
-			add(submitBtn); // Create virtual keyboard and reticle (needed for input handling)
+			add(submitBtn);
+
+			// Create virtual keyboard and reticle (needed for input handling)
 			virtualKeyboard = new VirtualKeyboard();
 			virtualKeyboard.onSubmit = onKeyboardSubmit;
 			virtualKeyboard.onCancel = onKeyboardCancel;
@@ -101,9 +103,14 @@ class GameResults extends FlxState
 
 			highlightSprite = new AnimatedReticle();
 			add(highlightSprite);
-			virtualKeyboard.sharedReticle = highlightSprite; // Setup simple UI navigation for OK button
+			virtualKeyboard.sharedReticle = highlightSprite;
+
+			// Setup simple UI navigation for OK button
 			uiObjects = [submitBtn];
 			currentUIIndex = 0;
+			// Initialize highlightSprite with the OK button's bounds
+			highlightSprite.setTarget(Std.int(submitBtn.x), Std.int(submitBtn.y), Std.int(submitBtn.width), Std.int(submitBtn.height));
+			highlightSprite.visible = !Globals.usingMouse;
 
 			// Skip the rest of the UI setup
 			setupBlackOutAndMusic();
@@ -133,9 +140,6 @@ class GameResults extends FlxState
 			add(photoCounterText);
 		}
 
-		// Setup UI objects for navigation
-		setupUINavigation();
-
 		setupBlackOutAndMusic();
 
 		// Create virtual keyboard and reticle LAST so they're on top of everything
@@ -147,6 +151,9 @@ class GameResults extends FlxState
 		highlightSprite = new AnimatedReticle();
 		add(highlightSprite);
 		virtualKeyboard.sharedReticle = highlightSprite;
+		
+		// Setup UI objects for navigation AFTER creating highlightSprite
+		setupUINavigation();
 		
 		super.create();
 	}
@@ -395,6 +402,13 @@ class GameResults extends FlxState
 			uiObjects.push(submitBtn);
 
 		currentUIIndex = 0;
+		// Initialize highlightSprite with the first UI object's bounds
+		if (uiObjects.length > 0 && highlightSprite != null)
+		{
+			var firstObj = uiObjects[0];
+			highlightSprite.setTarget(Std.int(firstObj.x), Std.int(firstObj.y), Std.int(firstObj.width), Std.int(firstObj.height));
+			highlightSprite.visible = !Globals.usingMouse;
+		}
 	}
 	private function handleUINavigation():Void
 	{
@@ -596,5 +610,61 @@ class GameResults extends FlxState
 			highlightSprite.setTarget(Std.int(editField.x), Std.int(editField.y), Std.int(editField.width), Std.int(editField.height));
 			highlightSprite.visible = !Globals.usingMouse;
 		}
+	}
+	override public function destroy():Void
+	{
+		bg = flixel.util.FlxDestroyUtil.destroy(bg);
+		nameText = flixel.util.FlxDestroyUtil.destroy(nameText);
+		nameLabel = flixel.util.FlxDestroyUtil.destroy(nameLabel);
+		infoText = flixel.util.FlxDestroyUtil.destroy(infoText);
+		rewardText = flixel.util.FlxDestroyUtil.destroy(rewardText);
+		submitBtn = flixel.util.FlxDestroyUtil.destroy(submitBtn);
+		dateText = flixel.util.FlxDestroyUtil.destroy(dateText);
+		photoCounterText = flixel.util.FlxDestroyUtil.destroy(photoCounterText);
+		blackOut = flixel.util.FlxDestroyUtil.destroy(blackOut);
+
+		speedLabel = flixel.util.FlxDestroyUtil.destroy(speedLabel);
+		if (speedStars != null)
+		{
+			for (star in speedStars)
+				flixel.util.FlxDestroyUtil.destroy(star);
+			speedStars = null;
+		}
+
+		aggrLabel = flixel.util.FlxDestroyUtil.destroy(aggrLabel);
+		if (aggrStars != null)
+		{
+			for (star in aggrStars)
+				flixel.util.FlxDestroyUtil.destroy(star);
+			aggrStars = null;
+		}
+
+		powerLabel = flixel.util.FlxDestroyUtil.destroy(powerLabel);
+		if (powerStars != null)
+		{
+			for (star in powerStars)
+				flixel.util.FlxDestroyUtil.destroy(star);
+			powerStars = null;
+		}
+
+		rewardLabel = flixel.util.FlxDestroyUtil.destroy(rewardLabel);
+		rewardAmount = flixel.util.FlxDestroyUtil.destroy(rewardAmount);
+		photoSprite = flixel.util.FlxDestroyUtil.destroy(photoSprite);
+
+		highlightSprite = flixel.util.FlxDestroyUtil.destroy(highlightSprite);
+		virtualKeyboard = flixel.util.FlxDestroyUtil.destroy(virtualKeyboard);
+
+		if (uiObjects != null)
+		{
+			uiObjects = null;
+		}
+		if (items != null)
+		{
+			items = null;
+		}
+
+		player = null;
+
+		super.destroy();
 	}
 }

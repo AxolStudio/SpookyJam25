@@ -5,10 +5,7 @@ This document describes all the analytics events that have been implemented thro
 ## Event Types
 
 ### sendEvent(name, value)
-Generic events with optional numeric values
-
-### sendDeath(name, value)
-Death/failure events
+All events use this method with optional numeric values
 
 ---
 
@@ -70,7 +67,7 @@ Death/failure events
   - Value: Number of photos captured in that run
   - Location: `PlayState.hx`
 
-### Death Events (sendDeath)
+### Death/Failure Events
 - **O2_DEPLETED** - Player ran out of oxygen
   - Value: 0 (no O2 left)
   - Location: `PlayState.hx`

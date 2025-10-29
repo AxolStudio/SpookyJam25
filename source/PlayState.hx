@@ -160,7 +160,7 @@ class PlayState extends FlxState
 			if (player.o2 <= 0)
 			{
 				// Track death by O2 depletion
-				axollib.AxolAPI.sendDeath("O2_DEPLETED", 0);
+				axollib.AxolAPI.sendEvent("O2_DEPLETED", 0);
 				triggerGameOver();
 				return;
 			}
@@ -330,7 +330,7 @@ class PlayState extends FlxState
 		// If this hit causes knockout, track it
 		if (playerObj.o2 <= 0)
 		{
-			axollib.AxolAPI.sendDeath("ENEMY_KNOCKOUT", enemyObj.power);
+			axollib.AxolAPI.sendEvent("ENEMY_KNOCKOUT", enemyObj.power);
 		}
 
 		// Calculate knockback direction (opposite from enemy)

@@ -16,13 +16,15 @@ class AnimatedReticle extends FlxSprite
 	private static inline var FRAME_SIZE:Int = 16;
 
 	private var _sourceGraphic:FlxGraphic;
-	private var _targetX:Float = 0;
-	private var _targetY:Float = 0;
-	private var _targetWidth:Float = 0;
-	private var _targetHeight:Float = 0;
 	private var _padding:Float = 0;
 	private var _lastBuiltWidth:Int = 0;
 	private var _lastBuiltHeight:Int = 0;
+
+	// Simple public fields for FlxTween to use (avoids DCE issues with properties)
+	@:keep public var targetX:Float = 0;
+	@:keep public var targetY:Float = 0;
+	@:keep public var targetWidth:Float = 0;
+	@:keep public var targetHeight:Float = 0;
 
 	public function new(x:Float = 0, y:Float = 0, width:Float = 16, height:Float = 16)
 	{
@@ -31,10 +33,10 @@ class AnimatedReticle extends FlxSprite
 		_sourceGraphic = FlxG.bitmap.add("assets/images/reticle.png");
 		visible = false;
 
-		_targetX = x;
-		_targetY = y;
-		_targetWidth = width;
-		_targetHeight = height;
+		targetX = x;
+		targetY = y;
+		targetWidth = width;
+		targetHeight = height;
 
 		rebuild();
 	}
@@ -42,14 +44,14 @@ class AnimatedReticle extends FlxSprite
 	public function setTarget(x:Float, y:Float, width:Float, height:Float, padding:Float = 3):Void
 	{
 		_padding = padding;
-		_targetX = x - padding;
-		_targetY = y - padding;
-		_targetWidth = width + padding * 2;
-		_targetHeight = height + padding * 2;
+		targetX = x - padding;
+		targetY = y - padding;
+		targetWidth = width + padding * 2;
+		targetHeight = height + padding * 2;
 
 		FlxTween.cancelTweensOf(this);
 		rebuild();
-		setPosition(_targetX, _targetY);
+		setPosition(targetX, targetY);
 	}
 
 	public function changeTarget(x:Float, y:Float, width:Float, height:Float, padding:Float = 3):Void
@@ -63,25 +65,38 @@ class AnimatedReticle extends FlxSprite
 
 		FlxTween.cancelTweensOf(this);
 		FlxTween.tween(this, {
-			_targetX: newX,
-			_targetY: newY,
-			_targetWidth: newW,
-			_targetHeight: newH
+			targetX: newX,
+			targetY: newY,
+			targetWidth: newW,
+			targetHeight: newH
 		}, 0.15, {
-			ease: FlxEase.quadOut,
-			onUpdate: function(_)
-			{
-				rebuild();
-				setPosition(_targetX, _targetY);
-			}
+			ease: FlxEase.quadOut
 		});
+	}
+
+	override public function update(elapsed:Float):Void
+	{
+		super.update(elapsed);
+
+		// Sync position to target
+		if (this.x != targetX || this.y != targetY)
+		{
+			setPosition(targetX, targetY);
+		}
+
+		// Check if size changed and needs rebuild
+		var w = Std.int(targetWidth);
+		var h = Std.int(targetHeight);
+		if (w != _lastBuiltWidth || h != _lastBuiltHeight)
+		{
+			rebuild();
+		}
 	}
 
 	private function rebuild():Void
 	{
-		var w = Std.int(_targetWidth);
-		var h = Std.int(_targetHeight);
-
+		var w = Std.int(targetWidth);
+		var h = Std.int(targetHeight);
 		if (w < CORNER_SIZE * 2 || h < CORNER_SIZE * 2)
 			return;
 

@@ -32,6 +32,9 @@ class VirtualKeyboard extends FlxGroup
 	private var lastMouseX:Int = 0;
 	private var lastMouseY:Int = 0;
 
+	// Simple public field for FlxTween to use (avoids DCE issues with complex properties)
+	@:keep public var tweenY:Float = 0;
+
 	// Layout constants
 	private static inline var KEY_WIDTH:Int = 14;
 	private static inline var KEY_HEIGHT:Int = 14;
@@ -261,8 +264,9 @@ class VirtualKeyboard extends FlxGroup
 
 		var offY = FlxG.height + 20;
 		this.y = offY;
+		tweenY = offY;
 		var targetY:Float = FlxG.height - 8 - this.height;
-		FlxTween.tween(this, {y: targetY}, 0.28, {
+		FlxTween.tween(this, {tweenY: targetY}, 0.28, {
 			ease: FlxEase.backOut,
 			onComplete: function(_)
 			{
@@ -280,13 +284,24 @@ class VirtualKeyboard extends FlxGroup
 	{
 		isVisible = false;
 		var targetY = FlxG.height + 20;
-		FlxTween.tween(this, {y: targetY}, 0.2, {
+		FlxTween.tween(this, {tweenY: targetY}, 0.2, {
 			ease: FlxEase.backIn,
 			onComplete: function(_)
 			{
 				exists = false;
 			}
 		});
+	}
+
+	override public function update(elapsed:Float):Void
+	{
+		super.update(elapsed);
+
+		// Sync tweenY to actual y position
+		if (this.y != tweenY)
+		{
+			this.y = tweenY;
+		}
 	}
 
 	public function handleInput():Void

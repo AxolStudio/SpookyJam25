@@ -465,6 +465,39 @@ class OfficeState extends FlxState
 		Globals.clearAllData();
 		moneyText.text = "$" + Globals.playerMoney;
 	}
+	override public function destroy():Void
+	{
+		blackOut = flixel.util.FlxDestroyUtil.destroy(blackOut);
+
+		desk = flixel.util.FlxDestroyUtil.destroy(desk);
+		deskHover = flixel.util.FlxDestroyUtil.destroy(deskHover);
+		phone = flixel.util.FlxDestroyUtil.destroy(phone);
+		phoneHover = flixel.util.FlxDestroyUtil.destroy(phoneHover);
+		portal = flixel.util.FlxDestroyUtil.destroy(portal);
+		portalHover = flixel.util.FlxDestroyUtil.destroy(portalHover);
+		trash = flixel.util.FlxDestroyUtil.destroy(trash);
+		trashHover = flixel.util.FlxDestroyUtil.destroy(trashHover);
+
+		confirmDialog = flixel.util.FlxDestroyUtil.destroy(confirmDialog);
+		confirmText = flixel.util.FlxDestroyUtil.destroy(confirmText);
+		yesButton = flixel.util.FlxDestroyUtil.destroy(yesButton);
+		noButton = flixel.util.FlxDestroyUtil.destroy(noButton);
+
+		if (interactiveObjects != null)
+		{
+			for (obj in interactiveObjects)
+			{
+				if (obj.bounds != null)
+					obj.bounds.put();
+			}
+			interactiveObjects = null;
+		}
+
+		selectionText = flixel.util.FlxDestroyUtil.destroy(selectionText);
+		moneyText = flixel.util.FlxDestroyUtil.destroy(moneyText);
+
+		super.destroy();
+	}
 }
 
 typedef InteractiveObject =
