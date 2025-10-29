@@ -88,6 +88,8 @@ class PlayState extends FlxState
 		overCam.setScrollBoundsRect(0, 0, Std.int(tilemap.width), Std.int(tilemap.height), true);
 		overCam.follow(player);
 
+		SoundHelper.playMusic("bgm");
+
 		blackOut.fade(() ->
 		{
 			FlxTween.tween(portalShader, {globalAlpha: 1,}, 0.66, {
@@ -210,6 +212,7 @@ class PlayState extends FlxState
 							enemy.stop();
 						}
 					}
+					SoundHelper.fadeOutMusic("bgm", 1);
 					blackOut.fade(() ->
 					{
 						// pass captured items to GameResults

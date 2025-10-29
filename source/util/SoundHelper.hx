@@ -37,6 +37,7 @@ class SoundHelper
 		// Music
 		musicLibrary.set("office", "assets/music/office_music.ogg");
 		musicLibrary.set("title", "assets/music/title.ogg");
+		musicLibrary.set("bgm", "assets/music/bgm.ogg");
 
 		// Cache ALL assets at once - this is efficient and prevents loading delays
 		FlxG.sound.cacheAll();
