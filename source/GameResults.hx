@@ -33,6 +33,8 @@ class GameResults extends FlxState
 	private var aggrStars:Array<FlxSprite> = [];
 	private var powerLabel:GameText;
 	private var powerStars:Array<FlxSprite> = [];
+	private var skittLabel:GameText;
+	private var skittStars:Array<FlxSprite> = [];
 	private var rewardLabel:GameText;
 	private var rewardAmount:GameText;
 	private var fameLabel:GameText;
@@ -262,6 +264,33 @@ class GameResults extends FlxState
 		{
 			aggrStars[i].visible = (i < aggrStarsCount);
 		}
+		// Skittishness stars (how hard to catch - flee behavior) - show before power
+		var skitt:Float = ci.skittishness;
+		if (skitt < 0)
+			skitt = 0;
+		if (skitt > 1)
+			skitt = 1;
+		var skittStarsCount:Int = Std.int(Math.floor(skitt * 4.0)) + 1; // 1-5 stars
+
+		if (skittLabel == null)
+		{
+			skittLabel = new GameText(baseRightX, 128, "Skittish:");
+			add(skittLabel);
+
+			for (i in 0...5)
+			{
+				var star = new FlxSprite(baseRightX + skittLabel.width + 4 + (i * 10), 130, "assets/ui/star_pip.png");
+				star.color = FlxColor.YELLOW;
+				skittStars.push(star);
+				add(star);
+			}
+		}
+
+		for (i in 0...5)
+		{
+			skittStars[i].visible = (i < skittStarsCount);
+		}
+		
 		var powerStarsCount:Int = ci.power;
 		if (powerStarsCount < 1)
 			powerStarsCount = 1;
@@ -270,12 +299,12 @@ class GameResults extends FlxState
 
 		if (powerLabel == null)
 		{
-			powerLabel = new GameText(baseRightX, 128, "Power:");
+			powerLabel = new GameText(baseRightX, 148, "Power:");
 			add(powerLabel);
 
 			for (i in 0...5)
 			{
-				var star = new FlxSprite(baseRightX + powerLabel.width + 4 + (i * 10), 130, "assets/ui/star_pip.png");
+				var star = new FlxSprite(baseRightX + powerLabel.width + 4 + (i * 10), 150, "assets/ui/star_pip.png");
 				star.color = FlxColor.GREEN;
 				powerStars.push(star);
 				add(star);
@@ -287,24 +316,35 @@ class GameResults extends FlxState
 			powerStars[i].visible = (i < powerStarsCount);
 		}
 
-		// Calculate base fame from power stars (1-5)
-		currentFame = powerStarsCount;
+		// New reward system based on total difficulty (star count)
+		// Fame: ~20% of what's needed for next level, scaled by total stars
+		// Money: ~$2 per star * level, with some variation
 
-		// Calculate reward with fame level multiplier
-		var baseReward:Int = (speedStarsCount + aggrStarsCount + powerStarsCount) * 5;
-		var reward:Int = baseReward * Globals.fameLevel;
+		var totalStars:Int = speedStarsCount + aggrStarsCount + powerStarsCount + skittStarsCount;
+		var maxStars:Int = 20; // 5+5+5+5
+
+		// Fame calculation: Base is 20% of fame needed, scaled by difficulty
+		var fameNeeded:Int = Globals.getFameNeededForNextLevel();
+		var baseFame:Float = fameNeeded * 0.20; // Target 20% per creature
+		var difficultyMultiplier:Float = totalStars / maxStars; // 0.2 to 1.0 for 3-15 stars
+		currentFame = Std.int(Math.max(3, Math.round(baseFame * difficultyMultiplier)));
+
+		// Money calculation: ~$2 per star * level
+		var baseMoneyPerStar:Int = 2;
+		var moneyMultiplier:Float = 0.8 + (difficultyMultiplier * 0.4); // 0.8-1.2 variation
+		var reward:Int = Std.int(Math.max(5, totalStars * baseMoneyPerStar * Globals.fameLevel * moneyMultiplier));
 		currentReward = reward;
 
 		var leftLabelX:Int = pageMargin + 18;
 		if (rewardLabel == null)
 		{
-			rewardLabel = new GameText(leftLabelX, 140, "Reward:");
+			rewardLabel = new GameText(leftLabelX, 160, "Reward:");
 			add(rewardLabel);
 		}
 
 		if (rewardAmount == null)
 		{
-			rewardAmount = new GameText(0, 140, "$" + Std.string(reward));
+			rewardAmount = new GameText(0, 160, "$" + Std.string(reward));
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 			add(rewardAmount);
 		}
@@ -317,13 +357,13 @@ class GameResults extends FlxState
 		// Fame display
 		if (fameLabel == null)
 		{
-			fameLabel = new GameText(leftLabelX, 152, "Fame:");
+			fameLabel = new GameText(leftLabelX, 172, "Fame:");
 			add(fameLabel);
 		}
 
 		if (fameAmount == null)
 		{
-			fameAmount = new GameText(0, 152, "+" + Std.string(currentFame));
+			fameAmount = new GameText(0, 172, "+" + Std.string(currentFame));
 			fameAmount.x = leftInnerRight - Std.int(fameAmount.width);
 			add(fameAmount);
 		}
@@ -517,6 +557,7 @@ class GameResults extends FlxState
 				hue: ci.hue,
 				speed: ci.speed,
 				aggression: ci.aggression,
+				skittishness: ci.skittishness,
 				power: ci.power,
 				name: currentCreatureName,
 				date: "10/27/2025",
@@ -648,6 +689,14 @@ class GameResults extends FlxState
 			for (star in powerStars)
 				flixel.util.FlxDestroyUtil.destroy(star);
 			powerStars = null;
+		}
+
+		skittLabel = flixel.util.FlxDestroyUtil.destroy(skittLabel);
+		if (skittStars != null)
+		{
+			for (star in skittStars)
+				flixel.util.FlxDestroyUtil.destroy(star);
+			skittStars = null;
 		}
 
 		rewardLabel = flixel.util.FlxDestroyUtil.destroy(rewardLabel);

@@ -61,8 +61,8 @@ class FameResultsState extends FlxState
 		bg = new FlxSprite(0, 0, "assets/ui/bg.png");
 		add(bg);
 
-		// Make panel taller - 75% of screen height
-		var panelHeight = Std.int(FlxG.height * 0.75);
+		// Make panel moderately sized - 65% of screen height
+		var panelHeight = Std.int(FlxG.height * 0.65);
 		var panelY = Std.int((FlxG.height - panelHeight) / 2);
 		panel = new NineSliceSprite(Std.int(FlxG.width * 0.15), panelY, Std.int(FlxG.width * 0.7), panelHeight,
 			"assets/ui/ui_box_16x16.png");
@@ -112,8 +112,8 @@ class FameResultsState extends FlxState
 		moneyEarnedAmount.visible = false;
 		add(moneyEarnedAmount);
 
-		// "Total Funds:" on left, "$XXX" on right (same line) - at bottom of panel with same margin as top
-		var totalFundsY = Std.int(panel.y + panel.height - topMargin - 8); // 8 is approximate text height
+		// "Total Funds:" on left, "$XXX" on right (same line) - close below money earned
+		var totalFundsY = moneyBaseY + 16; // Just 16 pixels below money earned
 		totalFundsLabel = new GameText(fameBar.x + 4, totalFundsY, "Total Funds:");
 		totalFundsLabel.visible = false;
 		add(totalFundsLabel);
@@ -396,37 +396,42 @@ class FameResultsState extends FlxState
 		var startingMoney = Globals.playerMoney;
 		var endingMoney = startingMoney + actualMoneyToAdd;
 
-		// Animate the money draining from earned to total
-		moneyAnimating = true;
-		var tween = FlxTween.num(actualMoneyToAdd, 0, 1.0, {ease: FlxEase.quadOut}, (v:Float) ->
+		// Pause for 0.75 seconds so player can read the amounts before they start draining
+		var pauseTimer = new FlxTimer().start(0.75, (_) ->
 		{
-			var remaining = Std.int(v);
-			var addedSoFar = actualMoneyToAdd - remaining;
-
-			moneyEarnedAmount.text = "$" + remaining + " x " + Globals.fameLevel;
-			// Right-align on the bar
-			moneyEarnedAmount.x = fameBar.x + fameBar.width - moneyEarnedAmount.width - 4;
-
-			totalFundsAmount.text = "$" + (startingMoney + addedSoFar);
-			// Right-align on the bar
-			totalFundsAmount.x = fameBar.x + fameBar.width - totalFundsAmount.width - 4;
-		});
-		activeTweens.push(tween);
-		tween.onComplete = (_) ->
-		{
-			moneyAnimating = false;
-
-			// Add money to globals after animation completes
-			Globals.addMoney(actualMoneyToAdd);
-			trace("Added $" + actualMoneyToAdd + " to player funds. New total: $" + Globals.playerMoney);
-
-			// Wait a moment, then show the continue button
-			var timer = new FlxTimer().start(0.5, (_) ->
+			// Animate the money draining from earned to total
+			moneyAnimating = true;
+			var tween = FlxTween.num(actualMoneyToAdd, 0, 1.0, {ease: FlxEase.quadOut}, (v:Float) ->
 			{
-				continueBtn.visible = true;
+				var remaining = Std.int(v);
+				var addedSoFar = actualMoneyToAdd - remaining;
+
+				moneyEarnedAmount.text = "$" + remaining + " x " + Globals.fameLevel;
+				// Right-align on the bar
+				moneyEarnedAmount.x = fameBar.x + fameBar.width - moneyEarnedAmount.width - 4;
+
+				totalFundsAmount.text = "$" + (startingMoney + addedSoFar);
+				// Right-align on the bar
+				totalFundsAmount.x = fameBar.x + fameBar.width - totalFundsAmount.width - 4;
 			});
-			activeTimers.push(timer);
-		};
+			activeTweens.push(tween);
+			tween.onComplete = (_) ->
+			{
+				moneyAnimating = false;
+
+				// Add money to globals after animation completes
+				Globals.addMoney(actualMoneyToAdd);
+				trace("Added $" + actualMoneyToAdd + " to player funds. New total: $" + Globals.playerMoney);
+
+				// Wait a moment, then show the continue button
+				var timer = new FlxTimer().start(0.5, (_) ->
+				{
+					continueBtn.visible = true;
+				});
+				activeTimers.push(timer);
+			};
+		});
+		activeTimers.push(pauseTimer);
 	}
 
 	private function onContinue():Void

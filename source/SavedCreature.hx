@@ -7,6 +7,7 @@ typedef SavedCreature =
 	var hue:Float;
 	var speed:Float;
 	var aggression:Float;
+	var skittishness:Float; // 0.0-1.0, how likely to flee
 	var power:Int; // 1-5 stars
 	var name:String;
 	var date:String; // MM/DD/YYYY format

@@ -22,6 +22,8 @@ class ArchiveState extends FlxState
 	private var aggrStars:Array<FlxSprite> = [];
 	private var powerLabel:GameText;
 	private var powerStars:Array<FlxSprite> = [];
+	private var skittLabel:GameText;
+	private var skittStars:Array<FlxSprite> = [];
 	private var rewardLabel:GameText;
 	private var rewardAmount:GameText;
 	private var fameLabel:GameText;
@@ -32,8 +34,8 @@ class ArchiveState extends FlxState
 	private var blackOut:BlackOut;
 	private var isTransitioning:Bool = false;
 	private var closeBtn:NineSliceButton<GameText>;
-	private var prevBtn:NineSliceButton<GameText>;
-	private var nextBtn:NineSliceButton<GameText>;
+	private var prevBtn:NineSliceButton<FlxSprite>;
+	private var nextBtn:NineSliceButton<FlxSprite>;
 	private var shareBtn:NineSliceButton<GameText>;
 
 	private var currentUIIndex:Int = 0;
@@ -121,14 +123,14 @@ class ArchiveState extends FlxState
 	{
 		var arrowY = Std.int(FlxG.height / 2 - 8);
 
-		var leftArrow = new GameText(0, 0, "<");
-		prevBtn = new NineSliceButton<GameText>(10, arrowY, 24, 24, navigatePrev);
+		var leftArrow = new FlxSprite(0, 0, "assets/ui/back.png");
+		prevBtn = new NineSliceButton<FlxSprite>(10, arrowY, 24, 24, navigatePrev);
 		prevBtn.label = leftArrow;
 		prevBtn.positionLabel();
 		add(prevBtn);
 
-		var rightArrow = new GameText(0, 0, ">");
-		nextBtn = new NineSliceButton<GameText>(FlxG.width - 34, arrowY, 24, 24, navigateNext);
+		var rightArrow = new FlxSprite(0, 0, "assets/ui/next.png");
+		nextBtn = new NineSliceButton<FlxSprite>(FlxG.width - 34, arrowY, 24, 24, navigateNext);
 		nextBtn.label = rightArrow;
 		nextBtn.positionLabel();
 		add(nextBtn);
@@ -202,8 +204,8 @@ class ArchiveState extends FlxState
 	{
 		hideUIForScreenshot();
 
-		// Wait for UI to be hidden, then take screenshot
-		new flixel.util.FlxTimer().start(0.1, (_) ->
+		// Wait for UI to be hidden and one more frame to render, then take screenshot
+		new flixel.util.FlxTimer().start(0.15, (_) ->
 		{
 			var timestamp = Date.now().getTime();
 			var filename = "creature_" + timestamp + ".png";
@@ -211,60 +213,29 @@ class ArchiveState extends FlxState
 			#if html5
 			try
 			{
-				// Use FlxG's rendering system to capture all cameras properly
-				// We need to get the bitmap data from the game's renderer
-				var bitmapData = new openfl.display.BitmapData(FlxG.width, FlxG.height, false, 0xFF000000);
-
-				// Draw each camera to the bitmap data
-				@:privateAccess
-				for (camera in FlxG.cameras.list)
+				// Use the HTML5 canvas directly for the most accurate screenshot
+				var canvas:js.html.CanvasElement = cast js.Browser.document.querySelector("canvas");
+				if (canvas != null)
 				{
-					if (camera != null && camera.visible)
-					{
-						// Get the camera's flash sprite and draw it
-						camera.flashSprite.cacheAsBitmap = true;
-						var matrix = new openfl.geom.Matrix();
-						matrix.translate(camera.x, camera.y);
-						bitmapData.draw(camera.flashSprite, matrix, null, null, null, true);
-						camera.flashSprite.cacheAsBitmap = false;
-					}
+					var dataURL = canvas.toDataURL("image/png");
+					var link = js.Browser.document.createAnchorElement();
+					link.download = filename;
+					link.href = dataURL;
+					link.style.display = "none";
+					js.Browser.document.body.appendChild(link);
+					link.click();
+					js.Browser.document.body.removeChild(link);
+					trace("Screenshot download triggered: " + filename);
 				}
-
-				// Convert to PNG and download
-				var png = bitmapData.encode(bitmapData.rect, new openfl.display.PNGEncoderOptions());
-				var base64 = haxe.crypto.Base64.encode(png);
-				var dataURL = "data:image/png;base64," + base64;
-
-				var link = js.Browser.document.createAnchorElement();
-				link.download = filename;
-				link.href = dataURL;
-				link.style.display = "none";
-				js.Browser.document.body.appendChild(link);
-				link.click();
-				js.Browser.document.body.removeChild(link);
-				bitmapData.dispose();
-				trace("Screenshot download triggered: " + filename);
 			}
 			catch (e:Dynamic)
 			{
 				trace("Screenshot failed: " + e);
 			}
 			#elseif (sys || nodejs)
-			var bitmapData = new openfl.display.BitmapData(FlxG.width, FlxG.height, false, 0xFF000000);
-			@:privateAccess
-			for (camera in FlxG.cameras.list)
-			{
-				if (camera != null && camera.visible)
-				{
-					camera.flashSprite.cacheAsBitmap = true;
-					var matrix = new openfl.geom.Matrix();
-					matrix.translate(camera.x, camera.y);
-					bitmapData.draw(camera.flashSprite, matrix, null, null, null, true);
-					camera.flashSprite.cacheAsBitmap = false;
-				}
-			}
-			var success = bitmapData.encode(bitmapData.rect, new openfl.display.PNGEncoderOptions()).saveToFile(filename);
-			bitmapData.dispose();
+			// For desktop, capture the window's pixels
+			var pixels = FlxG.stage.window.readPixels();
+			var success = pixels.encode(pixels.rect, new openfl.display.PNGEncoderOptions()).saveToFile(filename);
 			if (success)
 			{
 				trace("Screenshot saved: " + filename);
@@ -279,6 +250,7 @@ class ArchiveState extends FlxState
 
 	private function hideUIForScreenshot():Void
 	{
+		// Hide buttons and cursor, but KEEP date and file counter visible
 		if (prevBtn != null)
 			prevBtn.visible = false;
 		if (nextBtn != null)
@@ -289,16 +261,15 @@ class ArchiveState extends FlxState
 			shareBtn.visible = false;
 		if (highlightSprite != null)
 			highlightSprite.visible = false;
-		if (photoCounterText != null)
-			photoCounterText.visible = false;
-		if (dateText != null)
-			dateText.visible = false;
 		if (blackOut != null)
 			blackOut.visible = false;
+		// Hide the mouse cursor
+		FlxG.mouse.visible = false;
 	}
 
 	private function showUIAfterScreenshot():Void
 	{
+		// Restore buttons and cursor
 		if (prevBtn != null && selectedIndex > 0)
 			prevBtn.visible = true;
 		if (nextBtn != null && selectedIndex < creatures.length - 1)
@@ -309,12 +280,10 @@ class ArchiveState extends FlxState
 			shareBtn.visible = true;
 		if (highlightSprite != null)
 			highlightSprite.visible = !Globals.usingMouse;
-		if (photoCounterText != null)
-			photoCounterText.visible = true;
-		if (dateText != null)
-			dateText.visible = true;
 		if (blackOut != null)
 			blackOut.visible = true;
+		// Restore mouse cursor visibility based on current input mode
+		FlxG.mouse.visible = Globals.usingMouse;
 	}
 
 	private function updateSelected(idx:Int):Void
@@ -400,6 +369,33 @@ class ArchiveState extends FlxState
 			aggrStars[i].visible = (i < aggrStarsCount);
 		}
 
+		// Skittishness stars - show before power
+		var skitt:Float = creature.skittishness;
+		if (skitt < 0)
+			skitt = 0;
+		if (skitt > 1)
+			skitt = 1;
+		var skittStarsCount:Int = Std.int(Math.floor(skitt * 4.0)) + 1;
+
+		if (skittLabel == null)
+		{
+			skittLabel = new GameText(baseRightX, 128, "Skittish:");
+			add(skittLabel);
+
+			for (i in 0...5)
+			{
+				var star = new FlxSprite(baseRightX + skittLabel.width + 4 + (i * 10), 130, "assets/ui/star_pip.png");
+				star.color = FlxColor.YELLOW;
+				skittStars.push(star);
+				add(star);
+			}
+		}
+
+		for (i in 0...5)
+		{
+			skittStars[i].visible = (i < skittStarsCount);
+		}
+
 		var pn:Float = creature.power;
 		if (pn < 0)
 			pn = 0;
@@ -409,12 +405,12 @@ class ArchiveState extends FlxState
 
 		if (powerLabel == null)
 		{
-			powerLabel = new GameText(baseRightX, 128, "Power:");
+			powerLabel = new GameText(baseRightX, 148, "Power:");
 			add(powerLabel);
 
 			for (i in 0...5)
 			{
-				var star = new FlxSprite(baseRightX + powerLabel.width + 4 + (i * 10), 130, "assets/ui/star_pip.png");
+				var star = new FlxSprite(baseRightX + powerLabel.width + 4 + (i * 10), 150, "assets/ui/star_pip.png");
 				star.color = FlxColor.GREEN;
 				powerStars.push(star);
 				add(star);
@@ -429,14 +425,14 @@ class ArchiveState extends FlxState
 		var leftLabelX:Int = pageMargin + 18;
 		if (rewardLabel == null)
 		{
-			rewardLabel = new GameText(leftLabelX, 140, "Reward:");
+			rewardLabel = new GameText(leftLabelX, 168, "Reward:");
 			add(rewardLabel);
 		}
 
 		var calculatedReward:Int = calculateReward(creature);
 		if (rewardAmount == null)
 		{
-			rewardAmount = new GameText(0, 140, "$" + calculatedReward);
+			rewardAmount = new GameText(0, 168, "$" + calculatedReward);
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 			add(rewardAmount);
 		}
@@ -448,14 +444,14 @@ class ArchiveState extends FlxState
 
 		if (fameLabel == null)
 		{
-			fameLabel = new GameText(leftLabelX, 152, "Fame:");
+			fameLabel = new GameText(leftLabelX, 180, "Fame:");
 			add(fameLabel);
 		}
 
-		var calculatedFame:Int = creature.power;
+		var calculatedFame:Int = calculateFame(creature);
 		if (fameAmount == null)
 		{
-			fameAmount = new GameText(0, 152, "+" + calculatedFame);
+			fameAmount = new GameText(0, 180, "+" + calculatedFame);
 			fameAmount.x = leftInnerRight - Std.int(fameAmount.width);
 			add(fameAmount);
 		}
@@ -524,8 +520,57 @@ class ArchiveState extends FlxState
 
 		var powerStarsCount:Int = creature.power;
 
-		var baseReward:Int = (speedStarsCount + aggrStarsCount + powerStarsCount) * 5;
-		return baseReward * Globals.fameLevel;
+		var skitt:Float = creature.skittishness;
+		if (skitt < 0)
+			skitt = 0;
+		if (skitt > 1)
+			skitt = 1;
+		var skittStarsCount:Int = Std.int(Math.floor(skitt * 4.0)) + 1;
+
+		// New system: ~$2 per star * level
+		var totalStars:Int = speedStarsCount + aggrStarsCount + powerStarsCount + skittStarsCount;
+		var maxStars:Int = 20;
+		var difficultyMultiplier:Float = totalStars / maxStars;
+		var baseMoneyPerStar:Int = 2;
+		var moneyMultiplier:Float = 0.8 + (difficultyMultiplier * 0.4);
+		return Std.int(Math.max(5, totalStars * baseMoneyPerStar * Globals.fameLevel * moneyMultiplier));
+	}
+
+	private function calculateFame(creature:SavedCreature):Int
+	{
+		var minSpeed:Float = 20.0;
+		var maxSpeed:Float = 70.0;
+		var t:Float = (creature.speed - minSpeed) / (maxSpeed - minSpeed);
+		if (t < 0)
+			t = 0;
+		if (t > 1)
+			t = 1;
+		var speedStarsCount:Int = Std.int(Math.floor(t * 4.0)) + 1;
+
+		var a:Float = creature.aggression;
+		if (a < -1)
+			a = -1;
+		if (a > 1)
+			a = 1;
+		var an:Float = (a + 1.0) / 2.0;
+		var aggrStarsCount:Int = Std.int(Math.floor(an * 4.0)) + 1;
+
+		var powerStarsCount:Int = creature.power;
+
+		var skitt:Float = creature.skittishness;
+		if (skitt < 0)
+			skitt = 0;
+		if (skitt > 1)
+			skitt = 1;
+		var skittStarsCount:Int = Std.int(Math.floor(skitt * 4.0)) + 1;
+
+		// New system: ~20% of fame needed per creature
+		var totalStars:Int = speedStarsCount + aggrStarsCount + powerStarsCount + skittStarsCount;
+		var maxStars:Int = 20;
+		var fameNeeded:Int = Globals.getFameNeededForNextLevel();
+		var baseFame:Float = fameNeeded * 0.20;
+		var difficultyMultiplier:Float = totalStars / maxStars;
+		return Std.int(Math.max(3, Math.round(baseFame * difficultyMultiplier)));
 	}
 
 	private function setupUINavigation():Void
@@ -675,6 +720,15 @@ class ArchiveState extends FlxState
 				star = flixel.util.FlxDestroyUtil.destroy(star);
 			}
 			powerStars = null;
+		}
+
+		if (skittStars != null)
+		{
+			for (star in skittStars)
+			{
+				star = flixel.util.FlxDestroyUtil.destroy(star);
+			}
+			skittStars = null;
 		}
 
 		uiObjects = null;

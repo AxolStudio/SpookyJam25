@@ -104,7 +104,7 @@ class Enemy extends GameObject
 		_captured = true;
 		if (byPlayer != null)
 		{
-			var ci = new CapturedInfo(variant != null ? variant : "enemy", aggression, wanderSpeed, hue, 1, power);
+			var ci = new CapturedInfo(variant != null ? variant : "enemy", aggression, wanderSpeed, hue, 1, power, skittishness);
 			byPlayer.captured.push(ci);
 		}
 
@@ -159,22 +159,63 @@ class Enemy extends GameObject
 
 	public function randomizeBehavior():Void
 	{
-		var mag:Float = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
-		var sign:Int = if (FlxG.random.float() < 0.5) -1 else 1;
-		aggression = (Math.round(mag * 10.0) / 10.0) * sign;
-		skittishness = Math.max(0.0, Math.min(1.0, FlxG.random.float() * FlxG.random.float()));
+		// Scale difficulty with fame level
+		// Fame 1: average ~5 stars (25% of max), Fame 10: average ~15 stars (75% of max)
+		var fameLevel:Int = Globals.fameLevel;
+		var difficultyScale:Float = 0.25 + ((fameLevel - 1) / 9.0) * 0.50; // 0.25 at level 1, 0.75 at level 10
+		var variation:Float = 0.3; // ±30% variation
+		var targetDifficulty:Float = difficultyScale + (FlxG.random.float(-variation, variation) * difficultyScale);
+		targetDifficulty = Math.max(0.15, Math.min(0.95, targetDifficulty)); // Clamp to 15%-95%
+
+		// Distribute difficulty across stats with some randomization
+		// Each stat gets a portion of the total difficulty budget
+		var speedPortion:Float = FlxG.random.float(0.15, 0.35);
+		var aggrPortion:Float = FlxG.random.float(0.15, 0.35);
+		var powerPortion:Float = FlxG.random.float(0.15, 0.35);
+		var skittPortion:Float = 1.0 - (speedPortion + aggrPortion + powerPortion);
+		skittPortion = Math.max(0.10, Math.min(0.40, skittPortion));
+
+		// Normalize portions to sum to 1.0
+		var totalPortions:Float = speedPortion + aggrPortion + powerPortion + skittPortion;
+		speedPortion /= totalPortions;
+		aggrPortion /= totalPortions;
+		powerPortion /= totalPortions;
+		skittPortion /= totalPortions;
+
+		// Apply difficulty to each stat
+		var speedDifficulty:Float = targetDifficulty * speedPortion;
+		var aggrDifficulty:Float = targetDifficulty * aggrPortion;
+		var powerDifficulty:Float = targetDifficulty * powerPortion;
+		var skittDifficulty:Float = targetDifficulty * skittPortion;
+
+		// Convert to actual values
+		// Speed: 20-70 range maps to difficulty
+		wanderSpeed = 20 + (speedDifficulty * 4.0) * 50.0; // Multiply by 4 since speedDifficulty is ~25% of target
+		wanderSpeed = Math.max(20, Math.min(70, wanderSpeed));
+
+		// Aggression: -1 to 1 range, favor positive aggression at higher difficulties
+		var aggrSign:Int = if (FlxG.random.float() < (0.3 + aggrDifficulty * 0.5)) 1 else -1;
+		aggression = (aggrDifficulty * 4.0) * aggrSign; // Multiply by 4
+		aggression = Math.max(-1.0, Math.min(1.0, aggression));
+		aggression = Math.round(aggression * 10.0) / 10.0;
+
+		// Skittishness: 0-1 range
+		skittishness = skittDifficulty * 4.0; // Multiply by 4
+		skittishness = Math.max(0.0, Math.min(1.0, skittishness));
 		skittishness = Math.round(skittishness * 10.0) / 10.0;
 
-		wanderSpeed = 20 + FlxG.random.float() * 50.0;
+		// Power: 1-5 stars (stored as 1-5, not 5-15 damage anymore)
+		power = Std.int(Math.max(1, Math.min(5, Math.round((powerDifficulty * 4.0) * 5.0))));
 
 		speed = wanderSpeed;
-
 		aiDecisionInterval = FlxG.random.float(0.3, 1.2);
+		// Calculate AI value for damage (5-15 damage range based on power stars)
 		var valF:Float = 1.0 + aggression * 3.0 + (wanderSpeed - 20.0) / 30.0 - skittishness * 2.0;
 		var valI:Int = Std.int(Math.max(1, Math.round(valF)));
 		aiValue = valI;
-		// Power range: 5-15 damage (multiply by 3 to make enemies more threatening)
-		power = Std.int(Math.max(5, Math.min(15, valI * 3)));
+		// Damage is now based on power stars directly
+		var damagePerStar:Int = 3; // 3 damage per power star
+		aiValue = Std.int(Math.max(5, Math.min(15, power * damagePerStar)));
 
 		aiTimer = 0.0;
 	}
