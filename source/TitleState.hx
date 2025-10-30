@@ -32,14 +32,17 @@ class TitleState extends FlxState
 		bg.makeGraphic(FlxG.width, FlxG.height, FlxColor.BLACK);
 		bgShader = new TitleFog();
 		bgShader.hue = FlxG.random.float(0, 360);
-		bgShader.sat = 0.6;
-		bgShader.vDark = 0.15;
-		bgShader.vLight = 0.35;
-		bgShader.contrast = 0.2;
+		bgShader.sat = 0.85;
+		bgShader.vDark = 0.10;
+		bgShader.vLight = 0.50;
+		bgShader.contrast = 0.5;
 		bg.shader = bgShader;
 		add(bg);
 
-		logo = new FlxSprite(0, 0, "assets/ui/mainmenu_logo.png");
+		logo = new FlxSprite(0, 0);
+		logo.loadGraphic("assets/ui/mainmenu_logo.png", true, 320, 240);
+		logo.animation.add("idle", [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5], 12, true);
+		logo.animation.play("idle");
 		logoShader = new AlphaDither();
 		logoShader.globalAlpha = 0.0;
 		logo.shader = logoShader;

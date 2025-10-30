@@ -18,6 +18,7 @@ class FameResultsState extends FlxState
 	private var fameBar:FlxBar;
 	private var fameCounterText:GameText;
 	private var levelText:GameText;
+	private var levelSprite:FlxSprite;
 	private var titleText:GameText;
 	private var continueBtn:NineSliceButton<GameText>;
 	private var blackOut:BlackOut;
@@ -50,18 +51,28 @@ class FameResultsState extends FlxState
 		add(bg);
 
 		panel = new NineSliceSprite(Std.int(FlxG.width * 0.15), Std.int(FlxG.height * 0.2), Std.int(FlxG.width * 0.7), Std.int(FlxG.height * 0.6),
-			"assets/ui/button.png");
+			"assets/ui/ui_box_16x16.png");
 		add(panel);
 
-		titleText = new GameText(0, Std.int(panel.y + 30), "FAME GAINED");
+		// Level icon at the very top
+		levelSprite = new FlxSprite(0, Std.int(panel.y + 20));
+		levelSprite.loadGraphic("assets/ui/fame_level_lg.png", true, 42, 42);
+		levelSprite.x = Std.int((FlxG.width - 42) / 2);
+		setupLevelAnimation();
+		add(levelSprite);
+
+		// New fame amount below the icon
+		fameCounterText = new GameText(0, Std.int(levelSprite.y + 42 + 16), "+" + totalFameToAdd);
+		fameCounterText.x = Std.int((FlxG.width - fameCounterText.width) / 2);
+		add(fameCounterText);
+
+		// "FAME GAINED" label
+		titleText = new GameText(0, Std.int(fameCounterText.y + 20), "FAME GAINED");
 		titleText.x = Std.int((FlxG.width - titleText.width) / 2);
 		add(titleText);
 
-		levelText = new GameText(0, Std.int(titleText.y + 40), "LEVEL " + Globals.getFameLevelDisplay());
-		levelText.x = Std.int((FlxG.width - levelText.width) / 2);
-		add(levelText);
-
-		fameBar = new FlxBar(Std.int(panel.x + 40), Std.int(levelText.y + 50), LEFT_TO_RIGHT, Std.int(panel.width - 80), 30);
+		// Fame bar below the label
+		fameBar = new FlxBar(Std.int(panel.x + 40), Std.int(titleText.y + 16), LEFT_TO_RIGHT, Std.int(panel.width - 80), 24);
 		fameBar.createFilledBar(0xFF3D2B2B, 0xFF00FF00, true, FlxColor.BLACK);
 
 		var maxFame = Globals.getFameNeededForNextLevel();
@@ -71,10 +82,7 @@ class FameResultsState extends FlxState
 		fameBar.value = Globals.currentFame;
 		add(fameBar);
 
-		fameCounterText = new GameText(0, Std.int(fameBar.y + 50), "+" + totalFameToAdd + " Fame");
-		fameCounterText.x = Std.int((FlxG.width - fameCounterText.width) / 2);
-		add(fameCounterText);
-
+		// Continue button below the bar, inside the panel, initially invisible
 		var buttonLabel = new GameText(0, 0, "Continue");
 		continueBtn = new NineSliceButton<GameText>(Std.int((FlxG.width - 160) / 2), Std.int(panel.y + panel.height - 60), 160, 40, onContinue);
 		continueBtn.label = buttonLabel;
@@ -89,18 +97,24 @@ class FameResultsState extends FlxState
 		blackOut = new BlackOut(overCam);
 		add(blackOut);
 
-		FlxG.sound.playMusic("assets/music/office.ogg", 0.5, true);
+		blackOut.fade(null, false, 1.0, FlxColor.BLACK);
+
+		FlxG.sound.playMusic("assets/music/office_music.ogg", 0.5, true);
+
+		// Delay before starting fame processing
+		new FlxTimer().start(0.75, (_) ->
+		{
+			if (!isProcessing && !processingComplete)
+			{
+				isProcessing = true;
+				processFame();
+			}
+		});
 	}
 
 	override public function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
-
-		if (!isProcessing && !processingComplete)
-		{
-			isProcessing = true;
-			processFame();
-		}
 	}
 
 	private function processFame():Void
@@ -153,6 +167,45 @@ class FameResultsState extends FlxState
 		}
 	}
 
+	private function setupLevelAnimation():Void
+	{
+		var currentLevel = Globals.fameLevel - 1;
+		var baseFrame = currentLevel * 7;
+
+		var frames:Array<Int> = [
+			baseFrame + 1,
+			baseFrame + 2,
+			baseFrame + 3,
+			baseFrame + 4,
+			baseFrame + 5,
+			baseFrame + 6,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame,
+			baseFrame
+		];
+
+		levelSprite.animation.add("shine", frames, 12, true);
+		levelSprite.animation.play("shine");
+	}
+
 	private function levelUp():Void
 	{
 		Globals.fameLevel++;
@@ -164,14 +217,13 @@ class FameResultsState extends FlxState
 		fameBar.setRange(0, maxFame);
 		fameBar.value = 0;
 
-		levelText.text = "LEVEL " + Globals.getFameLevelDisplay();
-		levelText.x = Std.int((FlxG.width - levelText.width) / 2);
+		setupLevelAnimation();
 
-		FlxTween.tween(levelText.scale, {x: 1.5, y: 1.5}, 0.15, {
+		FlxTween.tween(levelSprite.scale, {x: 1.5, y: 1.5}, 0.15, {
 			ease: FlxEase.backOut,
 			onComplete: (_) ->
 			{
-				FlxTween.tween(levelText.scale, {x: 1.0, y: 1.0}, 0.15, {
+				FlxTween.tween(levelSprite.scale, {x: 1.0, y: 1.0}, 0.15, {
 					ease: FlxEase.backIn,
 					onComplete: (_) ->
 					{
@@ -185,17 +237,21 @@ class FameResultsState extends FlxState
 
 	private function updateFameCounter():Void
 	{
-		fameCounterText.text = "+" + fameRemaining + " Fame";
+		fameCounterText.text = "+" + fameRemaining;
 		fameCounterText.x = Std.int((FlxG.width - fameCounterText.width) / 2);
 	}
 
 	private function onProcessingComplete():Void
 	{
 		processingComplete = true;
-		continueBtn.visible = true;
 
-		fameCounterText.text = "Total: +" + totalFameToAdd + " Fame";
+		fameCounterText.text = "+0";
 		fameCounterText.x = Std.int((FlxG.width - fameCounterText.width) / 2);
+		// Wait a moment, then show the continue button
+		new FlxTimer().start(0.5, (_) ->
+		{
+			continueBtn.visible = true;
+		});
 	}
 
 	private function onContinue():Void

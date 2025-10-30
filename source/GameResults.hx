@@ -47,7 +47,8 @@ class GameResults extends FlxState
 	private var virtualKeyboard:VirtualKeyboard;
 	private var currentCreatureName:String = "";
 	private var totalFameEarned:Int = 0;
-	private var currentFame:Int = 0; // Fame for current creature
+	private var currentFame:Int = 0;
+	private var currentFrameName:String = "";
 
 	public function new(items:Array<CapturedInfo>)
 	{
@@ -126,8 +127,7 @@ class GameResults extends FlxState
 				+ StringTools.lpad(Std.string(selectedIndex + 1), "0", 2)
 				+ "/"
 				+ StringTools.lpad(Std.string(items.length), "0", 2);
-			photoCounterText = new GameText(0, 16, counterStr);
-			photoCounterText.x = Std.int((FlxG.width - photoCounterText.width) / 2);
+			photoCounterText = new GameText(14 + 18, FlxG.height - 54, counterStr);
 			add(photoCounterText);
 		}
 
@@ -332,7 +332,8 @@ class GameResults extends FlxState
 		photoSprite.frames = FlxAtlasFrames.fromSparrow(ColorHelpers.getHueColoredBmp("assets/images/photos.png", ci.hue), "assets/images/photos.xml");
 		var framesForVariant = photoSprite.frames.getAllByPrefix(ci.variant);
 		var frameIndex = FlxG.random.int(0, framesForVariant.length - 1);
-		photoSprite.animation.frameName = framesForVariant[frameIndex].name;
+		currentFrameName = framesForVariant[frameIndex].name;
+		photoSprite.animation.frameName = currentFrameName;
 	}
 
 	override public function update(elapsed:Float):Void
@@ -507,7 +508,8 @@ class GameResults extends FlxState
 				aggression: ci.aggression,
 				power: ci.power,
 				name: currentCreatureName,
-				date: "10/27/2025"
+				date: "10/27/2025",
+				frameName: currentFrameName
 			};
 
 			Globals.saveCreature(savedCreature, currentReward);
@@ -529,7 +531,6 @@ class GameResults extends FlxState
 					var counterStr = "Photo " + StringTools.lpad(Std.string(selectedIndex + 1), "0", 2) + "/"
 						+ StringTools.lpad(Std.string(items.length), "0", 2);
 					photoCounterText.text = counterStr;
-					photoCounterText.x = Std.int((FlxG.width - photoCounterText.width) / 2);
 				}
 
 				isTransitioning = false;

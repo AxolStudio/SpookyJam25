@@ -193,25 +193,25 @@ class UpgradeItem extends flixel.group.FlxGroup
 		nameText = new GameText(Std.int(x), Std.int(y), name);
 		add(nameText);
 
+		// Pips showing level
+		for (i in 0...5)
+		{
+			var pip = new FlxSprite(x + 70 + i * 18, y + 2);
+			pip.loadGraphic("assets/ui/purchase_pip.png", true, 16, 16);
+			pip.animation.frameIndex = i < level ? 1 : 0;
+			pips.push(pip);
+			add(pip);
+		}
+
 		// Price (moved further right for spacing)
 		var priceStr = price > 0 ? "$" + price : "SOLD OUT";
-		priceText = new GameText(Std.int(x + 135), Std.int(y), priceStr);
+		priceText = new GameText(Std.int(x + 165), Std.int(y), priceStr);
 		// Color price based on affordability
 		if (price > 0)
 		{
 			priceText.color = Globals.playerMoney >= price ? 0xFF00FF00 : 0xFFFF0000;
 		}
 		add(priceText);
-
-		// Pips showing level
-		for (i in 0...5)
-		{
-			var pip = new FlxSprite(x + 70 + i * 10, y + 2);
-			pip.loadGraphic("assets/ui/purchase_pip.png", true, 8, 8);
-			pip.animation.frameIndex = i < level ? 1 : 0; // 1 = filled, 0 = empty
-			pips.push(pip);
-			add(pip);
-		}
 
 		// Buy button - taller and more square
 		if (level < 5)

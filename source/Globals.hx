@@ -55,6 +55,7 @@ class Globals
 		FlxG.bitmap.add("assets/images/reticle.png");
 		FlxG.bitmap.add("assets/images/small-font.png");
 		FlxG.bitmap.add("assets/ui/ui_box_16x16.png");
+		FlxG.bitmap.add("assets/ui/button.png");
 		FlxG.bitmap.add("assets/ui/mainmenu_bg.png");
 		FlxG.bitmap.add("assets/ui/mainmenu_logo.png");
 		FlxG.bitmap.add("assets/ui/bg.png");
@@ -78,6 +79,7 @@ class Globals
 		FlxG.bitmap.add("assets/ui/room_report.png");
 		FlxG.bitmap.add("assets/ui/paperclip.png");
 		FlxG.bitmap.add("assets/ui/star_pip.png");
+		FlxG.bitmap.add("assets/ui/fame_level_lg.png");
 		FlxG.bitmap.add("assets/images/photos.png");
 	}
 

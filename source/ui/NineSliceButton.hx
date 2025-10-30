@@ -79,7 +79,10 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 
 		if (sharedSourceBitmap == null)
 		{
-			sharedSourceBitmap = FlxG.bitmap.add("assets/ui/button.png").bitmap;
+			var graphic = FlxG.bitmap.add("assets/ui/button.png");
+			graphic.persist = true;
+			graphic.destroyOnNoUse = false;
+			sharedSourceBitmap = graphic.bitmap;
 		}
 		sourceBitmap = sharedSourceBitmap;
 

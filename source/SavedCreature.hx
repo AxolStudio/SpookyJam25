@@ -10,4 +10,5 @@ typedef SavedCreature =
 	var power:Int; // 1-5 stars
 	var name:String;
 	var date:String; // MM/DD/YYYY format
+	var frameName:String; // The specific photo frame name selected
 }
