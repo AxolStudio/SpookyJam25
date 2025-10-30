@@ -36,7 +36,6 @@ class ArchiveState extends FlxState
 	private var closeBtn:NineSliceButton<GameText>;
 	private var prevBtn:NineSliceButton<FlxSprite>;
 	private var nextBtn:NineSliceButton<FlxSprite>;
-	private var shareBtn:NineSliceButton<GameText>;
 
 	private var currentUIIndex:Int = 0;
 	private var uiObjects:Array<FlxSprite> = [];
@@ -66,19 +65,13 @@ class ArchiveState extends FlxState
 			setupNavigationButtons();
 		}
 
-		var shareLabel = new GameText(0, 0, "Share");
-		shareLabel.updateHitbox();
 
-		shareBtn = new NineSliceButton<GameText>(10, FlxG.height - 26, 40, 16, onShareClick);
-		shareBtn.label = shareLabel;
-		shareBtn.positionLabel();
-		shareBtn.visible = (creatures.length > 0);
-		add(shareBtn);
 
 		var closeLabel = new GameText(0, 0, "Close");
 		closeLabel.updateHitbox();
 
 		closeBtn = new NineSliceButton<GameText>(FlxG.width - 50, FlxG.height - 26, 40, 16, returnToOffice);
+		closeBtn.isCancelButton = true;
 		closeBtn.label = closeLabel;
 		closeBtn.positionLabel();
 		add(closeBtn);
@@ -150,6 +143,7 @@ class ArchiveState extends FlxState
 	{
 		if (selectedIndex > 0)
 		{
+			util.SoundHelper.playRandomPageTurn();
 			selectedIndex--;
 			updateSelected(selectedIndex);
 			updateNavigationButtons();
@@ -161,6 +155,7 @@ class ArchiveState extends FlxState
 	{
 		if (selectedIndex < creatures.length - 1)
 		{
+			util.SoundHelper.playRandomPageTurn();
 			selectedIndex++;
 			updateSelected(selectedIndex);
 			updateNavigationButtons();
@@ -200,91 +195,7 @@ class ArchiveState extends FlxState
 		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 0.33, FlxColor.BLACK);
 	}
 
-	private function onShareClick():Void
-	{
-		hideUIForScreenshot();
 
-		// Wait for UI to be hidden and one more frame to render, then take screenshot
-		new flixel.util.FlxTimer().start(0.15, (_) ->
-		{
-			var timestamp = Date.now().getTime();
-			var filename = "creature_" + timestamp + ".png";
-
-			#if html5
-			try
-			{
-				// Use the HTML5 canvas directly for the most accurate screenshot
-				var canvas:js.html.CanvasElement = cast js.Browser.document.querySelector("canvas");
-				if (canvas != null)
-				{
-					var dataURL = canvas.toDataURL("image/png");
-					var link = js.Browser.document.createAnchorElement();
-					link.download = filename;
-					link.href = dataURL;
-					link.style.display = "none";
-					js.Browser.document.body.appendChild(link);
-					link.click();
-					js.Browser.document.body.removeChild(link);
-					trace("Screenshot download triggered: " + filename);
-				}
-			}
-			catch (e:Dynamic)
-			{
-				trace("Screenshot failed: " + e);
-			}
-			#elseif (sys || nodejs)
-			// For desktop, capture the window's pixels
-			var pixels = FlxG.stage.window.readPixels();
-			var success = pixels.encode(pixels.rect, new openfl.display.PNGEncoderOptions()).saveToFile(filename);
-			if (success)
-			{
-				trace("Screenshot saved: " + filename);
-			}
-			#else
-			trace("Screenshot not supported on this platform");
-			#end
-
-			showUIAfterScreenshot();
-		});
-	}
-
-	private function hideUIForScreenshot():Void
-	{
-		// Hide buttons and cursor, but KEEP date and file counter visible
-		if (prevBtn != null)
-			prevBtn.visible = false;
-		if (nextBtn != null)
-			nextBtn.visible = false;
-		if (closeBtn != null)
-			closeBtn.visible = false;
-		if (shareBtn != null)
-			shareBtn.visible = false;
-		if (highlightSprite != null)
-			highlightSprite.visible = false;
-		if (blackOut != null)
-			blackOut.visible = false;
-		// Hide the mouse cursor
-		FlxG.mouse.visible = false;
-	}
-
-	private function showUIAfterScreenshot():Void
-	{
-		// Restore buttons and cursor
-		if (prevBtn != null && selectedIndex > 0)
-			prevBtn.visible = true;
-		if (nextBtn != null && selectedIndex < creatures.length - 1)
-			nextBtn.visible = true;
-		if (closeBtn != null)
-			closeBtn.visible = true;
-		if (shareBtn != null)
-			shareBtn.visible = true;
-		if (highlightSprite != null)
-			highlightSprite.visible = !Globals.usingMouse;
-		if (blackOut != null)
-			blackOut.visible = true;
-		// Restore mouse cursor visibility based on current input mode
-		FlxG.mouse.visible = Globals.usingMouse;
-	}
 
 	private function updateSelected(idx:Int):Void
 	{
@@ -425,14 +336,14 @@ class ArchiveState extends FlxState
 		var leftLabelX:Int = pageMargin + 18;
 		if (rewardLabel == null)
 		{
-			rewardLabel = new GameText(leftLabelX, 168, "Reward:");
+			rewardLabel = new GameText(leftLabelX, 128, "Reward:");
 			add(rewardLabel);
 		}
 
 		var calculatedReward:Int = calculateReward(creature);
 		if (rewardAmount == null)
 		{
-			rewardAmount = new GameText(0, 168, "$" + calculatedReward);
+			rewardAmount = new GameText(0, 128, "$" + calculatedReward);
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 			add(rewardAmount);
 		}
@@ -444,14 +355,14 @@ class ArchiveState extends FlxState
 
 		if (fameLabel == null)
 		{
-			fameLabel = new GameText(leftLabelX, 180, "Fame:");
+			fameLabel = new GameText(leftLabelX, 148, "Fame:");
 			add(fameLabel);
 		}
 
 		var calculatedFame:Int = calculateFame(creature);
 		if (fameAmount == null)
 		{
-			fameAmount = new GameText(0, 180, "+" + calculatedFame);
+			fameAmount = new GameText(0, 148, "+" + calculatedFame);
 			fameAmount.x = leftInnerRight - Std.int(fameAmount.width);
 			add(fameAmount);
 		}
@@ -576,8 +487,6 @@ class ArchiveState extends FlxState
 	private function setupUINavigation():Void
 	{
 		uiObjects = [];
-		if (shareBtn != null)
-			uiObjects.push(shareBtn);
 		if (prevBtn != null)
 			uiObjects.push(prevBtn);
 		if (nextBtn != null)
@@ -689,7 +598,6 @@ class ArchiveState extends FlxState
 		dateText = flixel.util.FlxDestroyUtil.destroy(dateText);
 		photoCounterText = flixel.util.FlxDestroyUtil.destroy(photoCounterText);
 		closeBtn = flixel.util.FlxDestroyUtil.destroy(closeBtn);
-		shareBtn = flixel.util.FlxDestroyUtil.destroy(shareBtn);
 		prevBtn = flixel.util.FlxDestroyUtil.destroy(prevBtn);
 		nextBtn = flixel.util.FlxDestroyUtil.destroy(nextBtn);
 		highlightSprite = flixel.util.FlxDestroyUtil.destroy(highlightSprite);

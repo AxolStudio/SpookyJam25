@@ -30,6 +30,10 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 
 	private var instanceId:Int;
 
+	public var isCancelButton:Bool = false;
+
+	private var previousStatus:FlxButtonState = NORMAL;
+
 	private static var NORMAL_SLICES:Array<Rectangle> = [
 		new Rectangle(0, 0, 4, 3), // top-left
 		new Rectangle(4, 0, 8, 3), // top-center
@@ -107,6 +111,9 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 				gameText.autoSize = false;
 				gameText.fieldWidth = Std.int(buttonWidth - 8);
 				gameText.alignment = FlxTextAlign.CENTER;
+
+				// Force update the text field to recalculate dimensions
+				gameText.updateHitbox();
 
 				labelOffsets[0].set(4, calculateLabelY(3, 6, gameText.height));
 				labelOffsets[1].set(4, calculateLabelY(4, 5, gameText.height));
@@ -293,7 +300,26 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 		if (normalGraphic == null || highlightGraphic == null || pressedGraphic == null)
 			return result;
 
-		// Check if graphics are still valid, recreate if needed
+		// Play hover sound when transitioning to HIGHLIGHT state
+		if (value == HIGHLIGHT && previousStatus != HIGHLIGHT)
+		{
+			util.SoundHelper.playSound("ui_hover");
+		}
+
+		// Play click sound when transitioning to PRESSED state
+		if (value == PRESSED && previousStatus != PRESSED)
+		{
+			if (isCancelButton)
+			{
+				util.SoundHelper.playSound("ui_cancel");
+			}
+			else
+			{
+				util.SoundHelper.playSound("ui_select");
+			}
+		}
+
+		previousStatus = value; // Check if graphics are still valid, recreate if needed
 		if (normalGraphic.bitmap == null)
 		{
 			normalGraphic = render9Slice(NORMAL_SLICES, "normal");

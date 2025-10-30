@@ -338,13 +338,13 @@ class GameResults extends FlxState
 		var leftLabelX:Int = pageMargin + 18;
 		if (rewardLabel == null)
 		{
-			rewardLabel = new GameText(leftLabelX, 160, "Reward:");
+			rewardLabel = new GameText(leftLabelX, 128, "Reward:");
 			add(rewardLabel);
 		}
 
 		if (rewardAmount == null)
 		{
-			rewardAmount = new GameText(0, 160, "$" + Std.string(reward));
+			rewardAmount = new GameText(0, 128, "$" + Std.string(reward));
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 			add(rewardAmount);
 		}
@@ -357,13 +357,13 @@ class GameResults extends FlxState
 		// Fame display
 		if (fameLabel == null)
 		{
-			fameLabel = new GameText(leftLabelX, 172, "Fame:");
+			fameLabel = new GameText(leftLabelX, 148, "Fame:");
 			add(fameLabel);
 		}
 
 		if (fameAmount == null)
 		{
-			fameAmount = new GameText(0, 172, "+" + Std.string(currentFame));
+			fameAmount = new GameText(0, 148, "+" + Std.string(currentFame));
 			fameAmount.x = leftInnerRight - Std.int(fameAmount.width);
 			add(fameAmount);
 		}
@@ -565,6 +565,7 @@ class GameResults extends FlxState
 			};
 
 			Globals.saveCreature(savedCreature);
+			util.SoundHelper.playRandomPageTurn();
 			totalFameEarned += currentFame;
 			totalMoneyEarned += currentReward;
 			trace("Saved creature: " + currentCreatureName + " for $" + currentReward + " and +" + currentFame + " fame");

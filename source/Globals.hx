@@ -189,5 +189,11 @@ class Globals
 		fameLevel = 1;
 		currentFame = 0;
 		initSave();
+		// Save the reset values
+		gameSave.data.money = playerMoney;
+		gameSave.data.fameLevel = fameLevel;
+		gameSave.data.currentFame = currentFame;
+		gameSave.data.creatures = savedCreatures;
+		gameSave.flush();
 	}
 }

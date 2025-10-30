@@ -26,6 +26,11 @@ class Hud extends FlxGroup
 
 	private var cooldownTarget:Float = 0;
 	private var cooldownTweenActive:Bool = false;
+	private var o2FlashTimer:Float = 0;
+	private var o2FlashState:Bool = false;
+	private var lowAirSoundTimer:Float = 0;
+
+	public var isLowAirSoundActive:Bool = false;
 
 	public function new(P:Player)
 	{
@@ -116,8 +121,61 @@ class Hud extends FlxGroup
 			if (cooldownBarWhite != null)
 				cooldownBarWhite.visible = (val >= Constants.PHOTO_COOLDOWN);
 			o2Bar.value = player.o2;
+			// Flash O2 bar red when below 20%
+			var maxO2:Float = o2Bar.max;
+			var o2Percentage:Float = (player.o2 / maxO2);
+			if (o2Percentage <= 0.2)
+			{
+				o2FlashTimer += elapsed;
+				if (o2FlashTimer >= 0.25) // Flash every 0.25 seconds
+				{
+					o2FlashTimer = 0;
+					o2FlashState = !o2FlashState;
+
+					if (o2FlashState)
+					{
+						o2Bar.createFilledBar(0xFF000000, 0xFFFF0000, true, 0xFF000000, 1); // Red
+					}
+					else
+					{
+						o2Bar.createFilledBar(0xFF000000, 0xFF00FFFF, true, 0xFF000000, 1); // Cyan
+					}
+				}
+				// Play low air sound every 0.5 seconds
+				lowAirSoundTimer += elapsed;
+				if (lowAirSoundTimer >= 0.5)
+				{
+					lowAirSoundTimer = 0;
+					util.SoundHelper.playSound("low_air");
+					isLowAirSoundActive = true;
+				}
+			}
+			else
+			{
+				// Reset to normal color if O2 goes back above 20%
+				if (o2FlashState)
+				{
+					o2Bar.createFilledBar(0xFF000000, 0xFF00FFFF, true, 0xFF000000, 1); // Cyan
+					o2FlashState = false;
+					o2FlashTimer = 0;
+				}
+
+				// Stop low air sound when O2 goes back above 20%
+				if (isLowAirSoundActive)
+				{
+					isLowAirSoundActive = false;
+					lowAirSoundTimer = 0;
+				}
+			}
 		}
 	}
+
+	public function stopLowAirSound():Void
+	{
+		isLowAirSoundActive = false;
+		lowAirSoundTimer = 0;
+	}
+
 	override public function destroy():Void
 	{
 		player = null;

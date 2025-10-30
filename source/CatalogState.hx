@@ -31,21 +31,20 @@ class CatalogState extends FlxState
 		bg = new FlxSprite(0, 0, "assets/ui/room_catalog.png");
 		add(bg);
 
-		// Money display - top right area with label
-		var fundsLabel = new GameText(FlxG.width - 100, 30, "YOUR FUNDS");
-		add(fundsLabel);
-
-		moneyText = new GameText(FlxG.width - 100, 42, "$" + Globals.playerMoney);
+		// Money display - single line at top
+		moneyText = new GameText(35, 30, "YOUR FUNDS: $" + Globals.playerMoney);
 		add(moneyText);
 
-		// Create upgrade items
-		createUpgradeItem("O2 LEVEL", "o2", 60, 80);
-		createUpgradeItem("SPEED", "speed", 60, 120);
-		createUpgradeItem("ARMOR", "armor", 60, 160);
+		// Create upgrade items (moved up by ~8 pixels, which is about half a pip height)
+		createUpgradeItem("O2 LEVEL", "o2", 25, 62);
+		createUpgradeItem("SPEED", "speed", 25, 97);
+		createUpgradeItem("ARMOR", "armor", 25, 132);
+		createUpgradeItem("FILM", "film", 25, 167);
 
-		// Close button
+		// Close button (moved down)
 		var closeIcon = new FlxSprite(0, 0, "assets/ui/close.png");
-		closeBtn = new NineSliceButton<FlxSprite>(FlxG.width - 60, FlxG.height - 40, 50, 24, onClose);
+		closeBtn = new NineSliceButton<FlxSprite>(FlxG.width - 60, FlxG.height - 25, 50, 24, onClose);
+		closeBtn.isCancelButton = true;
 		closeBtn.label = closeIcon;
 		closeBtn.positionLabel();
 		add(closeBtn);
@@ -101,7 +100,9 @@ class CatalogState extends FlxState
 		if (currentLevel >= MAX_LEVEL)
 			return 0;
 
-		return BASE_PRICE * Std.int(Math.pow(2, currentLevel));
+		// Level 1 = $50, Level 2 = $150, Level 3 = $400, Level 4 = $1000, Level 5 = maxed out
+		// Using a steeper exponential curve: 50 * (3^level)
+		return BASE_PRICE * Std.int(Math.pow(3, currentLevel));
 	}
 
 	private function onBuy(upgradeKey:String):Void
@@ -126,11 +127,14 @@ class CatalogState extends FlxState
 		setUpgradeLevel(upgradeKey, currentLevel + 1);
 		Globals.gameSave.flush();
 
+		// Play purchase sound
+		util.SoundHelper.playSound("upgrade_buy");
+
 		// Track purchase event
 		axollib.AxolAPI.sendEvent("UPGRADE_PURCHASED_" + upgradeKey.toUpperCase(), currentLevel + 1);
 
 		// Update money display
-		moneyText.text = "$" + Globals.playerMoney;
+		moneyText.text = "YOUR FUNDS: $" + Globals.playerMoney;
 
 		// Refresh all upgrade items (affordability may have changed)
 		for (item in upgradeItems)
@@ -189,23 +193,23 @@ class UpgradeItem extends flixel.group.FlxGroup
 		this.currentLevel = level;
 		this.onBuyCallback = onBuy;
 
-		// Name
-		nameText = new GameText(Std.int(x), Std.int(y), name);
+		// Name (moved right by ~10 pixels, about 2 letter widths)
+		nameText = new GameText(Std.int(x + 10), Std.int(y), name);
 		add(nameText);
 
 		// Pips showing level
 		for (i in 0...5)
 		{
-			var pip = new FlxSprite(x + 70 + i * 18, y + 2);
+			var pip = new FlxSprite(x + 64 + i * 18, y + 2);
 			pip.loadGraphic("assets/ui/purchase_pip.png", true, 16, 16);
 			pip.animation.frameIndex = i < level ? 1 : 0;
 			pips.push(pip);
 			add(pip);
 		}
 
-		// Price (moved further right for spacing)
+		// Price - same y as name
 		var priceStr = price > 0 ? "$" + price : "SOLD OUT";
-		priceText = new GameText(Std.int(x + 165), Std.int(y), priceStr);
+		priceText = new GameText(Std.int(x + 159), Std.int(y), priceStr);
 		// Color price based on affordability
 		if (price > 0)
 		{
@@ -220,7 +224,7 @@ class UpgradeItem extends flixel.group.FlxGroup
 			// Make button fit icon properly: icon is likely ~16x16, so use height that fits middle slice
 			var btnHeight = Std.int(buyIcon.height + 9); // Top + bottom slices + icon
 			var btnWidth = Std.int(Math.max(buyIcon.width + 8, btnHeight)); // Make square-ish
-			buyBtn = new NineSliceButton<FlxSprite>(Std.int(x + 195), Std.int(y - 3), btnWidth, btnHeight, onBuyClick);
+			buyBtn = new NineSliceButton<FlxSprite>(Std.int(x + 209), Std.int(y - 3), btnWidth, btnHeight, onBuyClick);
 			buyBtn.label = buyIcon;
 			buyBtn.positionLabel();
 			add(buyBtn);
@@ -268,7 +272,7 @@ class UpgradeItem extends flixel.group.FlxGroup
 		// Just update price color based on current money
 		if (currentLevel < 5)
 		{
-			var price = 50 * Std.int(Math.pow(2, currentLevel));
+			var price = 50 * Std.int(Math.pow(3, currentLevel));
 			priceText.color = currentMoney >= price ? 0xFF00FF00 : 0xFFFF0000;
 		}
 	}

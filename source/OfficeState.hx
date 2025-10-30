@@ -35,6 +35,7 @@ class OfficeState extends FlxState
 	private var currentIndex:Int = 0;
 	private var lastMouseX:Int = 0;
 	private var lastMouseY:Int = 0;
+	private var lastHoveredIndex:Int = -1;
 	private var selectionText:GameText;
 	private var moneyText:GameText;
 	private var fameLevelSprite:FlxSprite;
@@ -208,6 +209,10 @@ class OfficeState extends FlxState
 
 	private function showDeathDialog():Void
 	{
+		// Make sure mouse is visible for the dialog
+		FlxG.mouse.visible = true;
+		Globals.usingMouse = true;
+		
 		var dialogWidth = 240;
 		var dialogHeight = 100;
 		var dialogX = Std.int((FlxG.width - dialogWidth) / 2);
@@ -221,7 +226,6 @@ class OfficeState extends FlxState
 		message.y = Std.int(dialogY + 12);
 		add(message);
 
-		var okLabel = new GameText(0, 0, "OK");
 		var okBtn:NineSliceButton<GameText> = null;
 		var onOkClick = () ->
 		{
@@ -229,11 +233,10 @@ class OfficeState extends FlxState
 			remove(message);
 			if (okBtn != null)
 				remove(okBtn);
-			FlxG.mouse.visible = true;
-			Globals.usingMouse = true;
 			ready = true;
 		};
 		okBtn = new NineSliceButton<GameText>(Std.int(dialogX + (dialogWidth - 60) / 2), Std.int(dialogY + dialogHeight - 34), 60, 24, onOkClick);
+		var okLabel = new GameText(0, 0, "OK");
 		okBtn.label = okLabel;
 		okBtn.positionLabel();
 		add(okBtn);
@@ -296,6 +299,7 @@ class OfficeState extends FlxState
 				currentIndex = i;
 				if (FlxG.mouse.justPressed)
 				{
+					util.SoundHelper.playSound("ui_select");
 					obj.callback();
 				}
 				break;
@@ -307,6 +311,8 @@ class OfficeState extends FlxState
 
 	private function handleKeyboardInput():Void
 	{
+		var oldIndex = currentIndex;
+		
 		if (Actions.leftUI.triggered)
 		{
 			currentIndex--;
@@ -320,8 +326,15 @@ class OfficeState extends FlxState
 				currentIndex = 0;
 		}
 
+		// Play hover sound if selection changed
+		if (oldIndex != currentIndex)
+		{
+			util.SoundHelper.playSound("ui_hover");
+		}
+
 		if (Actions.pressUI.triggered)
 		{
+			util.SoundHelper.playSound("ui_select");
 			interactiveObjects[currentIndex].callback();
 		}
 
@@ -335,12 +348,48 @@ class OfficeState extends FlxState
 		{
 			// Mouse mode - check hover
 			var mousePos = FlxG.mouse.getPosition();
-			for (obj in interactiveObjects)
+			var hoveredIndex:Int = -1;
+
+			for (i in 0...interactiveObjects.length)
 			{
+				var obj = interactiveObjects[i];
 				var isHovered = obj.bounds.containsPoint(mousePos);
 				obj.normalSprite.visible = !isHovered;
 				obj.hoverSprite.visible = isHovered;
+				if (isHovered)
+				{
+					hoveredIndex = i;
+				}
 			}
+			// Play object-specific hover sound when hovering over a new object
+			if (hoveredIndex != lastHoveredIndex)
+			{
+				// Play exit sound for previously hovered object
+				if (lastHoveredIndex != -1)
+				{
+					var lastObj = interactiveObjects[lastHoveredIndex];
+					if (lastObj.name == "desk")
+					{
+						util.SoundHelper.playSound("drawer_close");
+					}
+				}
+
+				// Play enter sound for newly hovered object
+				if (hoveredIndex != -1)
+				{
+					var newObj = interactiveObjects[hoveredIndex];
+					if (newObj.name == "desk")
+					{
+						util.SoundHelper.playSound("drawer_open");
+					}
+					else
+					{
+						util.SoundHelper.playSound("ui_hover");
+					}
+				}
+			}
+			lastHoveredIndex = hoveredIndex;
+			
 			mousePos.put();
 		}
 		else
@@ -408,6 +457,8 @@ class OfficeState extends FlxState
 	{
 		trace("Portal clicked - transition to PlayState");
 		isTransitioning = true;
+		// Hide mouse immediately when portal is clicked
+		FlxG.mouse.visible = false;
 
 		// Track portal entry with current money
 		axollib.AxolAPI.sendEvent("PORTAL_ENTER", Globals.playerMoney);
@@ -441,6 +492,7 @@ class OfficeState extends FlxState
 		trace("Phone clicked - opening catalog");
 		// Track phone/catalog interaction
 		axollib.AxolAPI.sendEvent("PHONE_CLICKED");
+		util.SoundHelper.playSound("phone_pickup");
 		blackOut.fade(() -> FlxG.switchState(() -> new CatalogState()), true, 0.33, FlxColor.BLACK);
 	}
 
@@ -449,6 +501,7 @@ class OfficeState extends FlxState
 		trace("Trash clicked - show confirmation dialog");
 		// Track trash can interaction
 		axollib.AxolAPI.sendEvent("TRASH_CLICKED");
+		util.SoundHelper.playSound("trashcan_rustle");
 		showConfirmationDialog();
 	}
 
@@ -486,6 +539,7 @@ class OfficeState extends FlxState
 		noLabel.updateHitbox(); // Force graphic creation
 
 		noButton = new NineSliceButton<GameText>(dialogX + dialogWidth - 60, dialogY + dialogHeight - 26, 40, 16, onNoClick);
+		noButton.isCancelButton = true;
 		noButton.label = noLabel;
 		noButton.positionLabel();
 		add(noButton);
@@ -528,6 +582,7 @@ class OfficeState extends FlxState
 		// Track save data clear with how many creatures and how much money was lost
 		axollib.AxolAPI.sendEvent("DATA_CLEARED_CREATURES", Globals.savedCreatures.length);
 		axollib.AxolAPI.sendEvent("DATA_CLEARED_MONEY", Globals.playerMoney);
+		util.SoundHelper.playSound("trashcan_throw_away");
 		hideConfirmationDialog();
 		clearSaveData();
 	}
@@ -542,6 +597,8 @@ class OfficeState extends FlxState
 	{
 		Globals.clearAllData();
 		moneyText.text = "$" + Globals.playerMoney;
+		// Update fame level sprite to show level 1
+		setupFameLevelAnimation();
 	}
 	override public function destroy():Void
 	{

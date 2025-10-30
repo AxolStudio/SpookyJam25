@@ -107,6 +107,7 @@ class PlayState extends FlxState
 							player.shader = null;
 							portal.shader = null;
 							ready = true;
+							player.canDepleteo2 = true;
 							// Track run start with initial O2
 							axollib.AxolAPI.sendEvent("RUN_START", player.o2);
 						}
@@ -194,6 +195,10 @@ class PlayState extends FlxState
 				{
 					ready = false;
 					player.stop();
+
+					// Stop low air sound when entering portal
+					if (hud != null)
+						hud.stopLowAirSound();
 
 					// Track successful run completion with remaining O2
 					axollib.AxolAPI.sendEvent("RUN_COMPLETE", player.o2);
@@ -327,6 +332,9 @@ class PlayState extends FlxState
 		var damage:Float = Math.max(1, enemyObj.power - playerObj.armor); // Minimum 1 damage
 		playerObj.o2 -= damage;
 
+		// Play random hurt sound
+		SoundHelper.playRandomHurtSound();
+
 		// Track enemy hit event with damage dealt
 		axollib.AxolAPI.sendEvent("ENEMY_HIT", damage);
 
@@ -365,6 +373,13 @@ class PlayState extends FlxState
 		ready = false;
 		player.stop();
 		player.o2 = 0;
+
+		// Stop low air sound when dying
+		if (hud != null)
+			hud.stopLowAirSound();
+
+		// Play out of oxygen sound
+		SoundHelper.playSound("out_of_oxygen");
 
 		// Clear captured photos
 		player.clearCaptured();

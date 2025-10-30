@@ -53,6 +53,7 @@ class Player extends GameObject
 		var o2Level = getUpgradeLevel("o2");
 		var speedLevel = getUpgradeLevel("speed");
 		var armorLevel = getUpgradeLevel("armor");
+		var filmLevel = getUpgradeLevel("film");
 
 		// Apply speed upgrade: +10% per level
 		speed = BASE_SPEED * (1.0 + speedLevel * 0.1);
@@ -63,7 +64,15 @@ class Player extends GameObject
 		// Apply armor upgrade: -1 damage per level
 		armor = armorLevel;
 
-		trace("Player upgrades applied - Speed: " + speed + ", O2: " + o2 + ", Armor: " + armor);
+		// Apply film upgrade: base film + (5 + (level - 1)) per level
+		// Level 0: 5, Level 1: 10 (5+5), Level 2: 16 (5+5+6), Level 3: 23 (5+5+6+7), Level 4: 31 (5+5+6+7+8), Level 5: 40 (5+5+6+7+8+9)
+		film = Constants.PHOTO_START_FILM;
+		for (i in 0...filmLevel)
+		{
+			film += 5 + i;
+		}
+
+		trace("Player upgrades applied - Speed: " + speed + ", O2: " + o2 + ", Armor: " + armor + ", Film: " + film);
 	}
 
 	private function getUpgradeLevel(key:String):Int
@@ -146,12 +155,15 @@ class Player extends GameObject
 		if (animation != null)
 			animation.play(idleName);
 	}
+	public var canDepleteo2:Bool = false;
+	
 	public override function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
 		if (photoCooldown > 0)
 			photoCooldown -= elapsed;
-		o2 -= elapsed;
+		if (canDepleteo2)
+			o2 -= elapsed;
 		if (invincibilityTimer > 0)
 		{
 			invincibilityTimer -= elapsed;

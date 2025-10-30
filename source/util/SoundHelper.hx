@@ -30,6 +30,30 @@ class SoundHelper
 		soundLibrary.set("chimera_squeakly", "assets/sounds/chimera_cry_squeakly.ogg");
 		soundLibrary.set("chimera_whimpy", "assets/sounds/chimera_cry_whimpy.ogg");
 
+		soundLibrary.set("player_hurt_1", "assets/sounds/player_hurt_1.ogg");
+		soundLibrary.set("player_hurt_2", "assets/sounds/player_hurt_2.ogg");
+		soundLibrary.set("player_hurt_3", "assets/sounds/player_hurt_3.ogg");
+		soundLibrary.set("player_hurt_4", "assets/sounds/player_hurt_4.ogg");
+		soundLibrary.set("player_hurt_5", "assets/sounds/player_hurt_5.ogg");
+
+		soundLibrary.set("ui_hover", "assets/sounds/ui_hover.ogg");
+		soundLibrary.set("ui_select", "assets/sounds/ui_select.ogg");
+		soundLibrary.set("ui_cancel", "assets/sounds/ui_cancel.ogg");
+
+		soundLibrary.set("drawer_open", "assets/sounds/drawer_open.ogg");
+		soundLibrary.set("drawer_close", "assets/sounds/drawer_close.ogg");
+		soundLibrary.set("phone_pickup", "assets/sounds/phone_pickup.ogg");
+		soundLibrary.set("trashcan_rustle", "assets/sounds/trashcan_rustle.ogg");
+		soundLibrary.set("upgrade_buy", "assets/sounds/upgrade_buy.ogg");
+		soundLibrary.set("trashcan_throw_away", "assets/sounds/trashcan_throw_away.ogg");
+		soundLibrary.set("out_of_oxygen", "assets/sounds/out_of_oxygen.ogg");
+		soundLibrary.set("low_air", "assets/sounds/low_air.ogg");
+
+		soundLibrary.set("page_turn_1", "assets/sounds/page_turn_1.ogg");
+		soundLibrary.set("page_turn_2", "assets/sounds/page_turn_2.ogg");
+		soundLibrary.set("page_turn_3", "assets/sounds/page_turn_3.ogg");
+		soundLibrary.set("page_turn_4", "assets/sounds/page_turn_4.ogg");
+
 		musicLibrary.set("office", "assets/music/office_music.ogg");
 		musicLibrary.set("title", "assets/music/title.ogg");
 		musicLibrary.set("bgm", "assets/music/bgm.ogg");
@@ -58,6 +82,16 @@ class SoundHelper
 	}
 
 	private static var chimeraSounds:Array<String> = ["chimera_gruntly", "chimera_roar", "chimera_squeakly", "chimera_whimpy"];
+	private static var playerHurtSounds:Array<String> = [
+		"player_hurt_1",
+		"player_hurt_2",
+		"player_hurt_3",
+		"player_hurt_4",
+		"player_hurt_5"
+	];
+	private static var pageTurnSounds:Array<String> = ["page_turn_1", "page_turn_2", "page_turn_3", "page_turn_4"];
+	private static var lastHurtSound:String = "";
+	private static var lastPageTurnSound:String = "";
 
 	public static function playRandomChimeraCry(isVisible:Bool = false):FlxSound
 	{
@@ -78,6 +112,56 @@ class SoundHelper
 		var sound:FlxSound = FlxG.sound.load(assetPath, baseVolume, false, FlxG.sound.defaultSoundGroup, false, false);
 		
 		return sound;
+	}
+
+	public static function playRandomHurtSound():Void
+	{
+		if (!soundsInitialized)
+			initSounds();
+
+		// Filter out the last played sound
+		var availableSounds:Array<String> = playerHurtSounds.filter(function(s:String):Bool
+		{
+			return s != lastHurtSound;
+		});
+
+		// Pick a random sound from the available ones
+		var soundName:String = availableSounds[FlxG.random.int(0, availableSounds.length - 1)];
+		lastHurtSound = soundName;
+
+		var assetPath:String = soundLibrary.get(soundName);
+		if (assetPath == null)
+		{
+			trace("Hurt sound not found: " + soundName);
+			return;
+		}
+
+		FlxG.sound.play(assetPath, 0.5);
+	}
+
+	public static function playRandomPageTurn():Void
+	{
+		if (!soundsInitialized)
+			initSounds();
+
+		// Filter out the last played sound
+		var availableSounds:Array<String> = pageTurnSounds.filter(function(s:String):Bool
+		{
+			return s != lastPageTurnSound;
+		});
+
+		// Pick a random sound from the available ones
+		var soundName:String = availableSounds[FlxG.random.int(0, availableSounds.length - 1)];
+		lastPageTurnSound = soundName;
+
+		var assetPath:String = soundLibrary.get(soundName);
+		if (assetPath == null)
+		{
+			trace("Page turn sound not found: " + soundName);
+			return;
+		}
+
+		FlxG.sound.play(assetPath, 0.5);
 	}
 
 	public static function playMusic(name:String):Void
