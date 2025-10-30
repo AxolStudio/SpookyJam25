@@ -3,9 +3,8 @@ package;
 import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.FlxState;
+import flixel.ui.FlxBar;
 import flixel.util.FlxColor;
-import flixel.math.FlxPoint;
-import flixel.ui.FlxButton.FlxTypedButton;
 import ui.GameText;
 import ui.NineSliceButton;
 
@@ -38,6 +37,8 @@ class OfficeState extends FlxState
 	private var lastMouseY:Int = 0;
 	private var selectionText:GameText;
 	private var moneyText:GameText;
+	private var fameBar:FlxBar;
+	private var fameLevelText:GameText;
 
 	private var ready:Bool = false;
 
@@ -85,8 +86,23 @@ class OfficeState extends FlxState
 		add(portalHover);
 
 		// Money display - yellow zone on board (top left area)
-		moneyText = new GameText(34, 47, "$" + Globals.playerMoney);
+		moneyText = new GameText(50, 47, "$" + Globals.playerMoney);
 		add(moneyText);
+
+		// Fame bar display
+		var barWidth = 24;
+		var barHeight = 8;
+		fameBar = new FlxBar(50, 70, LEFT_TO_RIGHT, barWidth, barHeight);
+		fameBar.createFilledBar(0xFF3D2B2B, 0xFF00FF00, true, FlxColor.BLACK);
+		var maxFame = Globals.getFameNeededForNextLevel();
+		if (maxFame == 0)
+			maxFame = 1;
+		fameBar.setRange(0, maxFame);
+		fameBar.value = Globals.currentFame;
+		add(fameBar);
+
+		fameLevelText = new GameText(50 + barWidth + 6, 68, Globals.getFameLevelDisplay());
+		add(fameLevelText);
 
 		// Selection label at bottom center
 		selectionText = new GameText(0, FlxG.height - 22, "");
@@ -351,19 +367,17 @@ class OfficeState extends FlxState
 	private function onDeskClick():Void
 	{
 		trace("Desk clicked - view saved files (TODO)");
-		// Track desk/catalog interaction
+		// Track desk interaction
 		axollib.AxolAPI.sendEvent("DESK_CLICKED");
 		// TODO: Create FilesState to view saved creatures
-		// For now, just trace
 	}
 
 	private function onPhoneClick():Void
 	{
-		trace("Phone clicked - open shop (TODO)");
-		// Track phone interaction
+		trace("Phone clicked - opening catalog");
+		// Track phone/catalog interaction
 		axollib.AxolAPI.sendEvent("PHONE_CLICKED");
-		// TODO: Create ShopState
-		// For now, just trace
+		blackOut.fade(() -> FlxG.switchState(() -> new CatalogState()), true, 1.0, FlxColor.BLACK);
 	}
 
 	private function onTrashClick():Void
@@ -495,6 +509,8 @@ class OfficeState extends FlxState
 
 		selectionText = flixel.util.FlxDestroyUtil.destroy(selectionText);
 		moneyText = flixel.util.FlxDestroyUtil.destroy(moneyText);
+		fameBar = flixel.util.FlxDestroyUtil.destroy(fameBar);
+		fameLevelText = flixel.util.FlxDestroyUtil.destroy(fameLevelText);
 
 		super.destroy();
 	}

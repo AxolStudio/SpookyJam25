@@ -1,15 +1,15 @@
 package ui;
 
-import flixel.text.FlxText.FlxTextAlign;
-import flixel.FlxSprite;
-import flixel.ui.FlxButton.FlxTypedButton;
-import flixel.ui.FlxButton.FlxButtonState;
 import flixel.FlxG;
-import flixel.math.FlxPoint;
+import flixel.FlxSprite;
 import flixel.graphics.FlxGraphic;
+import flixel.math.FlxPoint;
+import flixel.text.FlxText.FlxTextAlign;
+import flixel.ui.FlxButton.FlxButtonState;
+import flixel.ui.FlxButton.FlxTypedButton;
 import openfl.display.BitmapData;
-import openfl.geom.Rectangle;
 import openfl.geom.Point;
+import openfl.geom.Rectangle;
 
 /**
  * A 9-slice button that uses button.png with three states (normal, highlight, pressed).
@@ -112,13 +112,14 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 			}
 			else
 			{
+				// For FlxSprite labels (like icons), center in middle slice for each state
 				var xOffset:Float = (buttonWidth - label.width) / 2;
-				var yOffset:Float = (buttonHeight - label.height) / 2;
 
-				for (offset in labelOffsets)
-				{
-					offset.set(xOffset, yOffset);
-				}
+				// Apply same middle-slice centering logic as GameText
+				labelOffsets[0].set(xOffset, calculateLabelY(3, 6, label.height)); // NORMAL
+				labelOffsets[1].set(xOffset, calculateLabelY(4, 5, label.height)); // HIGHLIGHT
+				labelOffsets[2].set(xOffset, calculateLabelY(5, 4, label.height)); // PRESSED
+				labelOffsets[3].set(xOffset, calculateLabelY(3, 6, label.height)); // DISABLED
 			}
 		}
 	}
@@ -272,6 +273,7 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 
 		// Mark as persistent so it survives state changes
 		graphic.persist = true;
+		graphic.destroyOnNoUse = false;
 
 		// Add to our own static cache for reuse
 		graphicsCache.set(cacheKey, graphic);

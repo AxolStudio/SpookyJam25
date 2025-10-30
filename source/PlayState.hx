@@ -1,18 +1,18 @@
 package;
 
-import flixel.util.FlxDestroyUtil;
-import shaders.AlphaDither;
 import flixel.FlxCamera;
 import flixel.FlxG;
+import flixel.FlxObject;
 import flixel.FlxSprite;
 import flixel.FlxState;
-import flixel.FlxObject;
-import flixel.tweens.FlxTween;
 import flixel.group.FlxGroup.FlxTypedGroup;
 import flixel.math.FlxAngle;
 import flixel.math.FlxPoint;
-import flixel.util.FlxColor;
+import flixel.tweens.FlxTween;
 import flixel.ui.FlxButton.FlxTypedButton;
+import flixel.util.FlxColor;
+import flixel.util.FlxDestroyUtil;
+import shaders.AlphaDither;
 import ui.Hud;
 import util.SoundHelper;
 
@@ -323,8 +323,8 @@ class PlayState extends FlxState
 		if (enemyObj.stunTimer > 0)
 			return;
 
-		// Calculate damage based on enemy power (1-5 O2 per hit)
-		var damage:Float = enemyObj.power;
+		// Calculate damage based on enemy power, reduced by armor (flat reduction)
+		var damage:Float = Math.max(1, enemyObj.power - playerObj.armor); // Minimum 1 damage
 		playerObj.o2 -= damage;
 
 		// Track enemy hit event with damage dealt

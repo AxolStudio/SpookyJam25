@@ -4,7 +4,6 @@ import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.FlxState;
 import flixel.graphics.frames.FlxAtlasFrames;
-import flixel.ui.FlxButton.FlxTypedButton;
 import flixel.util.FlxColor;
 import ui.GameText;
 import ui.NineSliceButton;
@@ -35,6 +34,8 @@ class GameResults extends FlxState
 	private var powerStars:Array<FlxSprite> = [];
 	private var rewardLabel:GameText;
 	private var rewardAmount:GameText;
+	private var fameLabel:GameText;
+	private var fameAmount:GameText;
 	private var photoSprite:FlxSprite;
 
 	private var currentUIIndex:Int = 0;
@@ -45,6 +46,8 @@ class GameResults extends FlxState
 
 	private var virtualKeyboard:VirtualKeyboard;
 	private var currentCreatureName:String = "";
+	private var totalFameEarned:Int = 0;
+	private var currentFame:Int = 0; // Fame for current creature
 
 	public function new(items:Array<CapturedInfo>)
 	{
@@ -270,7 +273,12 @@ class GameResults extends FlxState
 			powerStars[i].visible = (i < powerStarsCount);
 		}
 
-		var reward:Int = (speedStarsCount + aggrStarsCount + powerStarsCount) * 5;
+		// Calculate base fame from power stars (1-5)
+		currentFame = powerStarsCount;
+
+		// Calculate reward with fame level multiplier
+		var baseReward:Int = (speedStarsCount + aggrStarsCount + powerStarsCount) * 5;
+		var reward:Int = baseReward * Globals.fameLevel;
 		currentReward = reward;
 
 		var leftLabelX:Int = pageMargin + 18;
@@ -290,6 +298,25 @@ class GameResults extends FlxState
 		{
 			rewardAmount.text = "$" + Std.string(reward);
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
+		}
+
+		// Fame display
+		if (fameLabel == null)
+		{
+			fameLabel = new GameText(leftLabelX, 152, "Fame:");
+			add(fameLabel);
+		}
+
+		if (fameAmount == null)
+		{
+			fameAmount = new GameText(0, 152, "+" + Std.string(currentFame));
+			fameAmount.x = leftInnerRight - Std.int(fameAmount.width);
+			add(fameAmount);
+		}
+		else
+		{
+			fameAmount.text = "+" + Std.string(currentFame);
+			fameAmount.x = leftInnerRight - Std.int(fameAmount.width);
 		}
 
 		if (photoSprite == null)
@@ -484,7 +511,8 @@ class GameResults extends FlxState
 			};
 
 			Globals.saveCreature(savedCreature, currentReward);
-			trace("Saved creature: " + currentCreatureName + " for $" + currentReward);
+			totalFameEarned += currentFame;
+			trace("Saved creature: " + currentCreatureName + " for $" + currentReward + " and +" + currentFame + " fame");
 			trace("Total money: $" + Globals.playerMoney);
 
 			axollib.AxolAPI.sendEvent("CREATURE_SAVED", currentReward);
@@ -514,7 +542,7 @@ class GameResults extends FlxState
 
 				blackOut.fade(() ->
 				{
-					FlxG.switchState(() -> new OfficeState());
+					FlxG.switchState(() -> new FameResultsState(totalFameEarned));
 				}, true, 1.0, FlxColor.BLACK);
 			}
 		}

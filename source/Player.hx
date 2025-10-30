@@ -1,17 +1,17 @@
 package;
 
-import util.SoundHelper;
 import flixel.FlxG;
-import flixel.util.FlxColor;
-import shaders.AlphaDither;
-import flixel.tweens.FlxTween;
+import util.SoundHelper;
 
 class Player extends GameObject
 {
-	public static inline var SPEED:Float = 50;
+	public static inline var BASE_SPEED:Float = 50;
+	public static inline var BASE_O2:Float = 50; // Halved from 100
+	public static inline var BASE_ARMOR:Int = 0; // Flat damage reduction
 
 	public var film:Int = Constants.PHOTO_START_FILM;
-	public var o2:Float = 100;
+	public var o2:Float = 50;
+	public var armor:Int = 0;
 
 	public var photoCooldown(default, null):Float = 0;
 
@@ -37,13 +37,42 @@ class Player extends GameObject
 	public function new(tileX:Int, tileY:Int)
 	{
 		super(tileX, tileY);
-		speed = SPEED;
+		// Apply upgrades
+		applyUpgrades();
+		
 		moveAngle = 90;
 		width = height = 12;
 		offset.x = 2;
 		offset.y = 7;
 		x += 2;
 		y -= height;
+	}
+	private function applyUpgrades():Void
+	{
+		// Get upgrade levels from Globals
+		var o2Level = getUpgradeLevel("o2");
+		var speedLevel = getUpgradeLevel("speed");
+		var armorLevel = getUpgradeLevel("armor");
+
+		// Apply speed upgrade: +10% per level
+		speed = BASE_SPEED * (1.0 + speedLevel * 0.1);
+
+		// Apply O2 upgrade: base * level (50, 100, 150, 200, 250)
+		o2 = BASE_O2 * (o2Level > 0 ? o2Level : 1);
+
+		// Apply armor upgrade: -1 damage per level
+		armor = armorLevel;
+
+		trace("Player upgrades applied - Speed: " + speed + ", O2: " + o2 + ", Armor: " + armor);
+	}
+
+	private function getUpgradeLevel(key:String):Int
+	{
+		if (Globals.gameSave.data.upgrades == null)
+			return 0;
+
+		var level = Reflect.field(Globals.gameSave.data.upgrades, key);
+		return level != null ? level : 0;
 	}
 
 	public override function buildGraphics():Void

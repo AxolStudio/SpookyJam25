@@ -4,8 +4,6 @@ import haxe.ds.StringMap;
 import flixel.FlxG;
 import flixel.effects.particles.FlxEmitter;
 import flixel.graphics.frames.FlxAtlasFrames;
-import flixel.math.FlxAngle;
-import flixel.math.FlxPoint;
 import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
 import util.ColorHelpers;
@@ -22,7 +20,7 @@ class Enemy extends GameObject
 	public var aggression:Float = 0.0;
 	public var skittishness:Float = 0.0;
 	public var wanderSpeed:Float = 40.0;
-	public var power:Int = 3; // 1-5 stars, calculated from stats
+	public var power:Int = 10; // 5-15 damage, calculated from stats
 
 	public var aiState:Int = 0;
 	public var aiTimer:Float = 0.0;
@@ -175,7 +173,8 @@ class Enemy extends GameObject
 		var valF:Float = 1.0 + aggression * 3.0 + (wanderSpeed - 20.0) / 30.0 - skittishness * 2.0;
 		var valI:Int = Std.int(Math.max(1, Math.round(valF)));
 		aiValue = valI;
-		power = Std.int(Math.max(1, Math.min(5, valI)));
+		// Power range: 5-15 damage (multiply by 3 to make enemies more threatening)
+		power = Std.int(Math.max(5, Math.min(15, valI * 3)));
 
 		aiTimer = 0.0;
 	}

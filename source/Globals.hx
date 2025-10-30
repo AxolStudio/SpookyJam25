@@ -16,6 +16,10 @@ class Globals
 
 	public static var playerID:String = "";
 
+	// Fame system
+	public static var fameLevel:Int = 1; // 1-10 (shown as 'A' at 10)
+	public static var currentFame:Int = 0;
+
 	public static function init():Void
 	{
 		if (_initialized)
@@ -102,6 +106,25 @@ class Globals
 			playerMoney = 0;
 		}
 
+		// Load fame data
+		if (gameSave.data.fameLevel != null)
+		{
+			fameLevel = gameSave.data.fameLevel;
+		}
+		else
+		{
+			fameLevel = 1;
+		}
+
+		if (gameSave.data.currentFame != null)
+		{
+			currentFame = gameSave.data.currentFame;
+		}
+		else
+		{
+			currentFame = 0;
+		}
+
 		if (gameSave.data.playerID != null)
 		{
 			playerID = gameSave.data.playerID;
@@ -123,6 +146,31 @@ class Globals
 		gameSave.flush();
 	}
 
+	public static function addFame(amount:Int):Void
+	{
+		currentFame += amount;
+		gameSave.data.currentFame = currentFame;
+		gameSave.data.fameLevel = fameLevel;
+		gameSave.flush();
+	}
+
+	public static function getFameNeededForLevel(level:Int):Int
+	{
+		return 50 * level; // 50, 100, 150, 200...
+	}
+
+	public static function getFameNeededForNextLevel():Int
+	{
+		if (fameLevel >= 10)
+			return 0; // Max level
+		return getFameNeededForLevel(fameLevel);
+	}
+
+	public static function getFameLevelDisplay():String
+	{
+		return fameLevel >= 10 ? "A" : Std.string(fameLevel);
+	}
+
 	public static function clearAllData():Void
 	{
 		if (gameSave != null)
@@ -131,6 +179,8 @@ class Globals
 		}
 		savedCreatures = [];
 		playerMoney = 0;
+		fameLevel = 1;
+		currentFame = 0;
 		initSave();
 	}
 }
