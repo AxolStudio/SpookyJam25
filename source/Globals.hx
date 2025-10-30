@@ -139,11 +139,16 @@ class Globals
 		}
 	}
 
-	public static function saveCreature(creature:SavedCreature, rewardAmount:Int):Void
+	public static function saveCreature(creature:SavedCreature):Void
 	{
 		savedCreatures.push(creature);
-		playerMoney += rewardAmount;
 		gameSave.data.creatures = savedCreatures;
+		gameSave.flush();
+	}
+
+	public static function addMoney(amount:Int):Void
+	{
+		playerMoney += amount;
 		gameSave.data.money = playerMoney;
 		gameSave.flush();
 	}

@@ -11,6 +11,7 @@ class OfficeState extends FlxState
 {
 	private var blackOut:BlackOut;
 	private var isTransitioning:Bool = false;
+	private var fromDeath:Bool = false;
 
 	// Interactive objects
 	private var desk:FlxSprite;
@@ -36,9 +37,15 @@ class OfficeState extends FlxState
 	private var lastMouseY:Int = 0;
 	private var selectionText:GameText;
 	private var moneyText:GameText;
-	private var fameLevelText:GameText;
+	private var fameLevelSprite:FlxSprite;
 
 	private var ready:Bool = false;
+
+	public function new(?fromDeath:Bool = false)
+	{
+		super();
+		this.fromDeath = fromDeath;
+	}
 
 	override public function create():Void
 	{
@@ -87,10 +94,12 @@ class OfficeState extends FlxState
 		moneyText = new GameText(42, 47, "$" + Globals.playerMoney);
 		add(moneyText);
 
-		// Fame level display - centered under money
-		fameLevelText = new GameText(0, 62, Globals.getFameLevelDisplay());
-		fameLevelText.x = Std.int(moneyText.x + (moneyText.width / 2) - (fameLevelText.width / 2));
-		add(fameLevelText);
+		// Fame level display - centered under money (animated sprite)
+		fameLevelSprite = new FlxSprite(0, 62);
+		fameLevelSprite.loadGraphic("assets/ui/fame_level_sm.png", true, 16, 16);
+		setupFameLevelAnimation();
+		fameLevelSprite.x = Std.int(moneyText.x + (moneyText.width / 2) - (fameLevelSprite.width / 2));
+		add(fameLevelSprite);
 
 		// Selection label at bottom center
 		selectionText = new GameText(0, FlxG.height - 22, "");
@@ -106,17 +115,52 @@ class OfficeState extends FlxState
 		blackOut = new BlackOut(overCam);
 		add(blackOut);
 
-		// Fade in from black
-		blackOut.fade(() ->
+		// Fade in (from white if fromDeath, from black otherwise)
+		if (fromDeath)
 		{
-			// Start with cursor visible (mouse mode by default)
-			FlxG.mouse.visible = true;
-			Globals.usingMouse = true;
-			ready = true;
-		}, false, 1.0, FlxColor.BLACK);
+			blackOut.fade(() ->
+			{
+				showDeathDialog();
+			}, false, 1.0, FlxColor.WHITE);
+		}
+		else
+		{
+			blackOut.fade(() ->
+			{
+				// Start with cursor visible (mouse mode by default)
+				FlxG.mouse.visible = true;
+				Globals.usingMouse = true;
+				ready = true;
+			}, false, 1.0, FlxColor.BLACK);
+		}
 
 		// Start playing office music (if not already playing)
 		util.SoundHelper.playMusic("office");
+	}
+
+	private function setupFameLevelAnimation():Void
+	{
+		var currentLevel = Globals.fameLevel - 1;
+		var baseFrame = currentLevel * 7;
+
+		// Longer delay between shines - hold on frame 0 for 40 frames instead of 20
+		var frames:Array<Int> = [
+			baseFrame + 1,
+			baseFrame + 2,
+			baseFrame + 3,
+			baseFrame + 4,
+			baseFrame + 5,
+			baseFrame + 6
+		];
+
+		// Add 40 frames of baseFrame (longer hold)
+		for (i in 0...40)
+		{
+			frames.push(baseFrame);
+		}
+
+		fameLevelSprite.animation.add("shine", frames, 12, true);
+		fameLevelSprite.animation.play("shine");
 	}
 
 	private function setupInteractiveObjects():Void
@@ -160,6 +204,39 @@ class OfficeState extends FlxState
 		currentIndex = 0;
 		updateHighlights();
 		updateSelectionText();
+	}
+
+	private function showDeathDialog():Void
+	{
+		var dialogWidth = 240;
+		var dialogHeight = 100;
+		var dialogX = Std.int((FlxG.width - dialogWidth) / 2);
+		var dialogY = Std.int((FlxG.height - dialogHeight) / 2);
+
+		var dialog = new NineSliceSprite(dialogX, dialogY, dialogWidth, dialogHeight, "assets/ui/ui_box_16x16.png");
+		add(dialog);
+
+		var message = new GameText(0, 0, "You fell unconscious and\nwere dragged back through\nthe portal by your assistant.\nHowever you lost your photos.");
+		message.x = Std.int(dialogX + (dialogWidth - message.width) / 2);
+		message.y = Std.int(dialogY + 12);
+		add(message);
+
+		var okLabel = new GameText(0, 0, "OK");
+		var okBtn:NineSliceButton<GameText> = null;
+		var onOkClick = () ->
+		{
+			remove(dialog);
+			remove(message);
+			if (okBtn != null)
+				remove(okBtn);
+			FlxG.mouse.visible = true;
+			Globals.usingMouse = true;
+			ready = true;
+		};
+		okBtn = new NineSliceButton<GameText>(Std.int(dialogX + (dialogWidth - 60) / 2), Std.int(dialogY + dialogHeight - 34), 60, 24, onOkClick);
+		okBtn.label = okLabel;
+		okBtn.positionLabel();
+		add(okBtn);
 	}
 
 	override public function update(elapsed:Float):Void
@@ -356,7 +433,7 @@ class OfficeState extends FlxState
 	{
 		trace("Desk clicked - opening archive");
 		axollib.AxolAPI.sendEvent("DESK_CLICKED");
-		blackOut.fade(() -> FlxG.switchState(() -> new ArchiveState()), true, 1.0, FlxColor.BLACK);
+		blackOut.fade(() -> FlxG.switchState(() -> new ArchiveState()), true, 0.33, FlxColor.BLACK);
 	}
 
 	private function onPhoneClick():Void
@@ -364,7 +441,7 @@ class OfficeState extends FlxState
 		trace("Phone clicked - opening catalog");
 		// Track phone/catalog interaction
 		axollib.AxolAPI.sendEvent("PHONE_CLICKED");
-		blackOut.fade(() -> FlxG.switchState(() -> new CatalogState()), true, 1.0, FlxColor.BLACK);
+		blackOut.fade(() -> FlxG.switchState(() -> new CatalogState()), true, 0.33, FlxColor.BLACK);
 	}
 
 	private function onTrashClick():Void
@@ -496,7 +573,7 @@ class OfficeState extends FlxState
 
 		selectionText = flixel.util.FlxDestroyUtil.destroy(selectionText);
 		moneyText = flixel.util.FlxDestroyUtil.destroy(moneyText);
-		fameLevelText = flixel.util.FlxDestroyUtil.destroy(fameLevelText);
+		fameLevelSprite = flixel.util.FlxDestroyUtil.destroy(fameLevelSprite);
 
 		super.destroy();
 	}

@@ -4,6 +4,7 @@ import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.FlxState;
 import flixel.graphics.frames.FlxAtlasFrames;
+import flixel.tweens.FlxTween;
 import flixel.util.FlxColor;
 import ui.GameText;
 import ui.NineSliceButton;
@@ -47,8 +48,10 @@ class GameResults extends FlxState
 	private var virtualKeyboard:VirtualKeyboard;
 	private var currentCreatureName:String = "";
 	private var totalFameEarned:Int = 0;
+	private var totalMoneyEarned:Int = 0;
 	private var currentFame:Int = 0;
 	private var currentFrameName:String = "";
+	private var nameTextPulseTween:FlxTween = null;
 
 	public function new(items:Array<CapturedInfo>)
 	{
@@ -118,6 +121,7 @@ class GameResults extends FlxState
 		submitBtn = new NineSliceButton<GameText>(FlxG.width - 50, FlxG.height - 26, 40, 16, activateSubmitAction);
 		submitBtn.label = saveLabel;
 		submitBtn.positionLabel();
+		submitBtn.visible = false; // Hide until name is entered
 		add(submitBtn);
 		dateText = new GameText(14 + 18, FlxG.height - 66, "10/27/2025");
 		add(dateText);
@@ -156,7 +160,7 @@ class GameResults extends FlxState
 		blackOut = new BlackOut(overCam);
 		add(blackOut);
 
-		blackOut.fade(null, false, 1.0, FlxColor.BLACK);
+		blackOut.fade(null, false, 0.33, FlxColor.BLACK);
 
 		util.SoundHelper.playMusic("office");
 	}
@@ -164,7 +168,7 @@ class GameResults extends FlxState
 	private function returnToOffice():Void
 	{
 		axollib.AxolAPI.sendEvent("OFFICE_RETURN_NO_SAVES");
-		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 1.0, FlxColor.BLACK);
+		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 0.33, FlxColor.BLACK);
 	}
 
 	private function updateSelected(idx:Int):Void
@@ -194,6 +198,16 @@ class GameResults extends FlxState
 		{
 			nameText.text = "[EDIT]";
 		}
+		// Start pulsing animation for [EDIT] text
+		if (nameTextPulseTween != null)
+		{
+			nameTextPulseTween.cancel();
+		}
+		nameTextPulseTween = FlxTween.tween(nameText, {alpha: 0.25}, 0.5, {
+			type: FlxTweenType.PINGPONG,
+			startDelay: 0,
+			loopDelay: 0
+		});
 
 		var minSpeed:Float = 20.0;
 		var maxSpeed:Float = 70.0;
@@ -423,6 +437,8 @@ class GameResults extends FlxState
 		if (keyboardActive)
 			return;
 
+		// Let FlxButton handle mouse input properly (on justReleased, not justPressed)
+		// Check for clicks on the name text field to activate rename
 		if (FlxG.mouse.justPressed)
 		{
 			var mousePos = FlxG.mouse.getWorldPosition();
@@ -431,11 +447,6 @@ class GameResults extends FlxState
 			{
 				currentUIIndex = 0;
 				activateRenameAction();
-			}
-			else if (submitBtn != null && submitBtn.overlapsPoint(mousePos))
-			{
-				currentUIIndex = 1;
-				activateSubmitAction();
 			}
 
 			mousePos.put();
@@ -512,10 +523,11 @@ class GameResults extends FlxState
 				frameName: currentFrameName
 			};
 
-			Globals.saveCreature(savedCreature, currentReward);
+			Globals.saveCreature(savedCreature);
 			totalFameEarned += currentFame;
+			totalMoneyEarned += currentReward;
 			trace("Saved creature: " + currentCreatureName + " for $" + currentReward + " and +" + currentFame + " fame");
-			trace("Total money: $" + Globals.playerMoney);
+			trace("Total money to earn: $" + totalMoneyEarned);
 
 			axollib.AxolAPI.sendEvent("CREATURE_SAVED", currentReward);
 
@@ -533,6 +545,10 @@ class GameResults extends FlxState
 					photoCounterText.text = counterStr;
 				}
 
+				// Hide save button since name is reset
+				if (submitBtn != null)
+					submitBtn.visible = false;
+
 				isTransitioning = false;
 			}
 			else
@@ -543,7 +559,7 @@ class GameResults extends FlxState
 
 				blackOut.fade(() ->
 				{
-					FlxG.switchState(() -> new FameResultsState(totalFameEarned));
+					FlxG.switchState(() -> new FameResultsState(totalFameEarned, totalMoneyEarned));
 				}, true, 1.0, FlxColor.BLACK);
 			}
 		}
@@ -553,12 +569,29 @@ class GameResults extends FlxState
 		currentCreatureName = newName;
 		keyboardActive = false;
 
+		// Only show save button if a name was actually entered
 		if (submitBtn != null)
-			submitBtn.visible = true;
+			submitBtn.visible = (newName != null && newName.length > 0);
 
 		if (nameText != null)
 		{
 			nameText.text = newName.length > 0 ? newName : "[EDIT]";
+			// Stop pulsing and restore full alpha when name is changed
+			if (nameTextPulseTween != null)
+			{
+				nameTextPulseTween.cancel();
+				nameTextPulseTween = null;
+			}
+			nameText.alpha = 1.0;
+			// If name is still "[EDIT]", start pulsing again
+			if (nameText.text == "[EDIT]")
+			{
+				nameTextPulseTween = FlxTween.tween(nameText, {alpha: 0.25}, 0.5, {
+					type: FlxTweenType.PINGPONG,
+					startDelay: 0,
+					loopDelay: 0
+				});
+			}
 		}
 		if (uiObjects.length > 0)
 		{

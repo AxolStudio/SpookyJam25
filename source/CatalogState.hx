@@ -58,7 +58,7 @@ class CatalogState extends FlxState
 		blackOut = new BlackOut(overCam);
 		add(blackOut);
 
-		blackOut.fade(null, false, 1.0, FlxColor.BLACK);
+		blackOut.fade(null, false, 0.33, FlxColor.BLACK);
 
 		FlxG.mouse.visible = true;
 	}
@@ -155,7 +155,7 @@ class CatalogState extends FlxState
 			return;
 
 		isTransitioning = true;
-		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 1.0, FlxColor.BLACK);
+		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 0.33, FlxColor.BLACK);
 	}
 
 	override public function update(elapsed:Float):Void

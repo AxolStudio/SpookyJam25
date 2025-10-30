@@ -366,6 +366,9 @@ class PlayState extends FlxState
 		player.stop();
 		player.o2 = 0;
 
+		// Clear captured photos
+		player.clearCaptured();
+
 		// Stop all enemies
 		for (enemy in enemies.members)
 		{
@@ -375,10 +378,10 @@ class PlayState extends FlxState
 			}
 		}
 
-		// Fade to WHITE
+		// Fade to WHITE and go to office
 		blackOut.fade(() ->
 		{
-			showGameOverDialog();
+			FlxG.switchState(() -> new OfficeState(true));
 		}, true, 1.0, FlxColor.WHITE);
 	}
 

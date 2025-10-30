@@ -187,7 +187,7 @@ class ArchiveState extends FlxState
 		blackOut = new BlackOut(overCam);
 		add(blackOut);
 
-		blackOut.fade(null, false, 1.0, FlxColor.BLACK);
+		blackOut.fade(null, false, 0.33, FlxColor.BLACK);
 
 		util.SoundHelper.playMusic("office");
 	}
@@ -195,13 +195,14 @@ class ArchiveState extends FlxState
 	private function returnToOffice():Void
 	{
 		axollib.AxolAPI.sendEvent("ARCHIVE_CLOSED");
-		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 1.0, FlxColor.BLACK);
+		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 0.33, FlxColor.BLACK);
 	}
 
 	private function onShareClick():Void
 	{
 		hideUIForScreenshot();
 
+		// Wait for UI to be hidden, then take screenshot
 		new flixel.util.FlxTimer().start(0.1, (_) ->
 		{
 			var timestamp = Date.now().getTime();
@@ -210,26 +211,60 @@ class ArchiveState extends FlxState
 			#if html5
 			try
 			{
-				var canvas:js.html.CanvasElement = cast js.Browser.document.querySelector("canvas");
-				if (canvas != null)
+				// Use FlxG's rendering system to capture all cameras properly
+				// We need to get the bitmap data from the game's renderer
+				var bitmapData = new openfl.display.BitmapData(FlxG.width, FlxG.height, false, 0xFF000000);
+
+				// Draw each camera to the bitmap data
+				@:privateAccess
+				for (camera in FlxG.cameras.list)
 				{
-					var dataURL = canvas.toDataURL("image/png");
-					var link = js.Browser.document.createAnchorElement();
-					link.download = filename;
-					link.href = dataURL;
-					link.style.display = "none";
-					js.Browser.document.body.appendChild(link);
-					link.click();
-					js.Browser.document.body.removeChild(link);
-					trace("Screenshot download triggered: " + filename);
+					if (camera != null && camera.visible)
+					{
+						// Get the camera's flash sprite and draw it
+						camera.flashSprite.cacheAsBitmap = true;
+						var matrix = new openfl.geom.Matrix();
+						matrix.translate(camera.x, camera.y);
+						bitmapData.draw(camera.flashSprite, matrix, null, null, null, true);
+						camera.flashSprite.cacheAsBitmap = false;
+					}
 				}
+
+				// Convert to PNG and download
+				var png = bitmapData.encode(bitmapData.rect, new openfl.display.PNGEncoderOptions());
+				var base64 = haxe.crypto.Base64.encode(png);
+				var dataURL = "data:image/png;base64," + base64;
+
+				var link = js.Browser.document.createAnchorElement();
+				link.download = filename;
+				link.href = dataURL;
+				link.style.display = "none";
+				js.Browser.document.body.appendChild(link);
+				link.click();
+				js.Browser.document.body.removeChild(link);
+				bitmapData.dispose();
+				trace("Screenshot download triggered: " + filename);
 			}
 			catch (e:Dynamic)
 			{
 				trace("Screenshot failed: " + e);
 			}
 			#elseif (sys || nodejs)
-			var success = FlxG.stage.window.application.window.readPixels().image.encode(openfl.display.PNGEncoderOptions.DEFAULT).saveToFile(filename);
+			var bitmapData = new openfl.display.BitmapData(FlxG.width, FlxG.height, false, 0xFF000000);
+			@:privateAccess
+			for (camera in FlxG.cameras.list)
+			{
+				if (camera != null && camera.visible)
+				{
+					camera.flashSprite.cacheAsBitmap = true;
+					var matrix = new openfl.geom.Matrix();
+					matrix.translate(camera.x, camera.y);
+					bitmapData.draw(camera.flashSprite, matrix, null, null, null, true);
+					camera.flashSprite.cacheAsBitmap = false;
+				}
+			}
+			var success = bitmapData.encode(bitmapData.rect, new openfl.display.PNGEncoderOptions()).saveToFile(filename);
+			bitmapData.dispose();
 			if (success)
 			{
 				trace("Screenshot saved: " + filename);
@@ -580,29 +615,8 @@ class ArchiveState extends FlxState
 
 	private function handleMouseInput():Void
 	{
-		if (FlxG.mouse.justPressed)
-		{
-			var mousePos = FlxG.mouse.getWorldPosition();
-
-			if (shareBtn != null && shareBtn.overlapsPoint(mousePos))
-			{
-				onShareClick();
-			}
-			else if (prevBtn != null && prevBtn.visible && prevBtn.overlapsPoint(mousePos))
-			{
-				navigatePrev();
-			}
-			else if (nextBtn != null && nextBtn.visible && nextBtn.overlapsPoint(mousePos))
-			{
-				navigateNext();
-			}
-			else if (closeBtn != null && closeBtn.overlapsPoint(mousePos))
-			{
-				returnToOffice();
-			}
-
-			mousePos.put();
-		}
+		// Let FlxButton handle mouse input properly (on justReleased, not justPressed)
+		// This prevents double-click issues where a single click fires twice
 	}
 
 	private function updateHighlight():Void
