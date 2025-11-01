@@ -158,6 +158,9 @@ class FameResultsState extends FlxState
 	override public function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
+		// Update input manager
+		util.InputManager.update();
+		
 		// Skip animations if user presses action and continue button is not visible
 		if (!continueBtn.visible && !isTransitioning)
 		{

@@ -33,8 +33,6 @@ class OfficeState extends FlxState
 	// UI navigation
 	private var interactiveObjects:Array<InteractiveObject> = [];
 	private var currentIndex:Int = 0;
-	private var lastMouseX:Int = 0;
-	private var lastMouseY:Int = 0;
 	private var lastHoveredIndex:Int = -1;
 	private var selectionText:GameText;
 	private var moneyText:GameText;
@@ -254,7 +252,8 @@ class OfficeState extends FlxState
 		if (showingConfirmDialog)
 			return;
 
-		checkInputMode();
+		// Update input manager
+		util.InputManager.update();
 
 		if (Globals.usingMouse)
 		{
@@ -266,24 +265,6 @@ class OfficeState extends FlxState
 		}
 
 		updateHighlights();
-	}
-
-	private function checkInputMode():Void
-	{
-		// Check if mouse moved
-		if (FlxG.mouse.viewX != lastMouseX || FlxG.mouse.viewY != lastMouseY)
-		{
-			lastMouseX = FlxG.mouse.viewX;
-			lastMouseY = FlxG.mouse.viewY;
-			Globals.usingMouse = true;
-			FlxG.mouse.visible = true;
-		}
-		// Check if keyboard/gamepad input used
-		else if (Actions.leftUI.triggered || Actions.rightUI.triggered || Actions.upUI.triggered || Actions.downUI.triggered)
-		{
-			Globals.usingMouse = false;
-			FlxG.mouse.visible = false;
-		}
 	}
 
 	private function handleMouseInput():Void

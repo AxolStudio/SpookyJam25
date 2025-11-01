@@ -13,6 +13,11 @@ class SoundHelper
 
 	private static var currentMusicName:String = null;
 
+	/**
+	 * Track if we've had user interaction (for HTML5 audio unlock)
+	 */
+	private static var audioUnlocked:Bool = false;
+
 	public static function initSounds():Void
 	{
 		if (soundsInitialized)
@@ -61,10 +66,15 @@ class SoundHelper
 		FlxG.sound.cacheAll();
 	}
 
-	public static function playSound(name:String, ?SourceMP:FlxPoint, ?Player:FlxObject):Void
+	public static function playSound(name:String, ?SourceMP:FlxPoint, ?Player:FlxObject, ?volume:Float):Void
 	{
 		if (!soundsInitialized)
 			initSounds();
+		// Don't play sounds if audio hasn't been unlocked yet (HTML5 audio context restriction)
+		#if web
+		if (!audioUnlocked)
+			return;
+		#end
 
 		var assetPath:String = soundLibrary.get(name);
 		if (assetPath == null)
@@ -73,7 +83,15 @@ class SoundHelper
 			return;
 		}
 
-		var sound:FlxSound = FlxG.sound.play(assetPath, 0.5);
+		// Custom volumes for specific sounds
+		var soundVolume:Float = volume != null ? volume : 0.5;
+		if (volume == null)
+		{
+			if (name == "low_air")
+				soundVolume = 0.25; // Reduce low_air by 50%
+		}
+
+		var sound:FlxSound = FlxG.sound.play(assetPath, soundVolume);
 
 		if (sound != null && Player != null && SourceMP != null)
 		{
@@ -98,6 +116,12 @@ class SoundHelper
 		if (!soundsInitialized)
 			initSounds();
 
+		// Don't play sounds if audio hasn't been unlocked yet (HTML5 audio context restriction)
+		#if web
+		if (!audioUnlocked)
+			return null;
+		#end
+
 		var soundName:String = chimeraSounds[FlxG.random.int(0, chimeraSounds.length - 1)];
 		var assetPath:String = soundLibrary.get(soundName);
 
@@ -119,6 +143,12 @@ class SoundHelper
 		if (!soundsInitialized)
 			initSounds();
 
+		// Don't play sounds if audio hasn't been unlocked yet (HTML5 audio context restriction)
+		#if web
+		if (!audioUnlocked)
+			return;
+		#end
+
 		// Filter out the last played sound
 		var availableSounds:Array<String> = playerHurtSounds.filter(function(s:String):Bool
 		{
@@ -136,13 +166,18 @@ class SoundHelper
 			return;
 		}
 
-		FlxG.sound.play(assetPath, 0.5);
+		FlxG.sound.play(assetPath, 0.75); // Increased from 0.5 to 0.75
 	}
 
 	public static function playRandomPageTurn():Void
 	{
 		if (!soundsInitialized)
 			initSounds();
+		// Don't play sounds if audio hasn't been unlocked yet (HTML5 audio context restriction)
+		#if web
+		if (!audioUnlocked)
+			return;
+		#end
 
 		// Filter out the last played sound
 		var availableSounds:Array<String> = pageTurnSounds.filter(function(s:String):Bool
@@ -168,6 +203,12 @@ class SoundHelper
 	{
 		if (!soundsInitialized)
 			initSounds();
+		// Don't play music if audio hasn't been unlocked yet (HTML5 audio context restriction)
+		#if web
+		if (!audioUnlocked)
+			return;
+		#end
+			
 		var assetPath:String = musicLibrary.get(name);
 		if (assetPath == null)
 		{
@@ -213,5 +254,35 @@ class SoundHelper
 				currentMusicName = null;
 			});
 		}
+	}
+	/**
+	 * Call this on first user interaction to unlock audio on HTML5
+	 * Returns true if audio was just unlocked, false if already unlocked
+	 */
+	public static function unlockAudio():Bool
+	{
+		#if web
+		if (!audioUnlocked)
+		{
+			audioUnlocked = true;
+			trace("Audio unlocked - user interaction detected");
+			return true;
+		}
+		#else
+		// On non-web platforms, audio is always "unlocked"
+		audioUnlocked = true;
+		#end
+		return false;
+	}
+
+	/**
+	 * Check if audio has been unlocked yet
+	 */
+	public static function isAudioUnlocked():Bool
+	{
+		#if !web
+		return true; // Always unlocked on non-web platforms
+		#end
+		return audioUnlocked;
 	}
 }

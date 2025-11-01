@@ -40,8 +40,6 @@ class ArchiveState extends FlxState
 	private var currentUIIndex:Int = 0;
 	private var uiObjects:Array<FlxSprite> = [];
 	private var highlightSprite:AnimatedReticle;
-	private var lastMouseX:Int = 0;
-	private var lastMouseY:Int = 0;
 
 	override public function create():Void
 	{
@@ -225,14 +223,8 @@ class ArchiveState extends FlxState
 			nameText.text = creature.name;
 		}
 
-		var minSpeed:Float = 20.0;
-		var maxSpeed:Float = 70.0;
-		var t:Float = (creature.speed - minSpeed) / (maxSpeed - minSpeed);
-		if (t < 0)
-			t = 0;
-		if (t > 1)
-			t = 1;
-		var speedStarsCount:Int = Std.int(Math.floor(t * 4.0)) + 1;
+		// Speed calculation - use unified utility
+		var speedStarsCount:Int = util.CreatureStats.calculateSpeedStars(creature.speed);
 
 		if (speedLabel == null)
 		{
@@ -253,13 +245,8 @@ class ArchiveState extends FlxState
 			speedStars[i].visible = (i < speedStarsCount);
 		}
 
-		var a:Float = creature.aggression;
-		if (a < -1)
-			a = -1;
-		if (a > 1)
-			a = 1;
-		var an:Float = (a + 1.0) / 2.0;
-		var aggrStarsCount:Int = Std.int(Math.floor(an * 4.0)) + 1;
+		// Aggression calculation - use unified utility
+		var aggrStarsCount:Int = util.CreatureStats.calculateAggressionStars(creature.aggression);
 
 		if (aggrLabel == null)
 		{
@@ -280,13 +267,8 @@ class ArchiveState extends FlxState
 			aggrStars[i].visible = (i < aggrStarsCount);
 		}
 
-		// Skittishness stars - show before power
-		var skitt:Float = creature.skittishness;
-		if (skitt < 0)
-			skitt = 0;
-		if (skitt > 1)
-			skitt = 1;
-		var skittStarsCount:Int = Std.int(Math.floor(skitt * 4.0)) + 1;
+		// Skittishness calculation - use unified utility
+		var skittStarsCount:Int = util.CreatureStats.calculateSkittishStars(creature.skittishness);
 
 		if (skittLabel == null)
 		{
@@ -307,12 +289,8 @@ class ArchiveState extends FlxState
 			skittStars[i].visible = (i < skittStarsCount);
 		}
 
-		var pn:Float = creature.power;
-		if (pn < 0)
-			pn = 0;
-		if (pn > 1)
-			pn = 1;
-		var powerStarsCount:Int = Std.int(Math.floor(pn * 4.0)) + 1;
+		// Power calculation - use unified utility
+		var powerStarsCount:Int = util.CreatureStats.calculatePowerStars(creature.power);
 
 		if (powerLabel == null)
 		{
@@ -412,76 +390,26 @@ class ArchiveState extends FlxState
 
 	private function calculateReward(creature:SavedCreature):Int
 	{
-		var minSpeed:Float = 20.0;
-		var maxSpeed:Float = 70.0;
-		var t:Float = (creature.speed - minSpeed) / (maxSpeed - minSpeed);
-		if (t < 0)
-			t = 0;
-		if (t > 1)
-			t = 1;
-		var speedStarsCount:Int = Std.int(Math.floor(t * 4.0)) + 1;
-
-		var a:Float = creature.aggression;
-		if (a < -1)
-			a = -1;
-		if (a > 1)
-			a = 1;
-		var an:Float = (a + 1.0) / 2.0;
-		var aggrStarsCount:Int = Std.int(Math.floor(an * 4.0)) + 1;
-
-		var powerStarsCount:Int = creature.power;
-
-		var skitt:Float = creature.skittishness;
-		if (skitt < 0)
-			skitt = 0;
-		if (skitt > 1)
-			skitt = 1;
-		var skittStarsCount:Int = Std.int(Math.floor(skitt * 4.0)) + 1;
-
-		// New system: ~$2 per star * level
-		var totalStars:Int = speedStarsCount + aggrStarsCount + powerStarsCount + skittStarsCount;
-		var maxStars:Int = 20;
-		var difficultyMultiplier:Float = totalStars / maxStars;
-		var baseMoneyPerStar:Int = 2;
-		var moneyMultiplier:Float = 0.8 + (difficultyMultiplier * 0.4);
-		return Std.int(Math.max(5, totalStars * baseMoneyPerStar * Globals.fameLevel * moneyMultiplier));
+		// Use unified utility for consistent calculations
+		var speedStarsCount:Int = util.CreatureStats.calculateSpeedStars(creature.speed);
+		var aggrStarsCount:Int = util.CreatureStats.calculateAggressionStars(creature.aggression);
+		var powerStarsCount:Int = util.CreatureStats.calculatePowerStars(creature.power);
+		var skittStarsCount:Int = util.CreatureStats.calculateSkittishStars(creature.skittishness);
+		
+		var totalStars:Int = util.CreatureStats.calculateTotalStars(speedStarsCount, aggrStarsCount, skittStarsCount, powerStarsCount);
+		return util.CreatureStats.calculateMoneyReward(totalStars, Globals.fameLevel);
 	}
 
 	private function calculateFame(creature:SavedCreature):Int
 	{
-		var minSpeed:Float = 20.0;
-		var maxSpeed:Float = 70.0;
-		var t:Float = (creature.speed - minSpeed) / (maxSpeed - minSpeed);
-		if (t < 0)
-			t = 0;
-		if (t > 1)
-			t = 1;
-		var speedStarsCount:Int = Std.int(Math.floor(t * 4.0)) + 1;
-
-		var a:Float = creature.aggression;
-		if (a < -1)
-			a = -1;
-		if (a > 1)
-			a = 1;
-		var an:Float = (a + 1.0) / 2.0;
-		var aggrStarsCount:Int = Std.int(Math.floor(an * 4.0)) + 1;
-
-		var powerStarsCount:Int = creature.power;
-
-		var skitt:Float = creature.skittishness;
-		if (skitt < 0)
-			skitt = 0;
-		if (skitt > 1)
-			skitt = 1;
-		var skittStarsCount:Int = Std.int(Math.floor(skitt * 4.0)) + 1;
-
-		// New system: ~20% of fame needed per creature
-		var totalStars:Int = speedStarsCount + aggrStarsCount + powerStarsCount + skittStarsCount;
-		var maxStars:Int = 20;
-		var fameNeeded:Int = Globals.getFameNeededForNextLevel();
-		var baseFame:Float = fameNeeded * 0.20;
-		var difficultyMultiplier:Float = totalStars / maxStars;
-		return Std.int(Math.max(3, Math.round(baseFame * difficultyMultiplier)));
+		// Use unified utility for consistent calculations
+		var speedStarsCount:Int = util.CreatureStats.calculateSpeedStars(creature.speed);
+		var aggrStarsCount:Int = util.CreatureStats.calculateAggressionStars(creature.aggression);
+		var powerStarsCount:Int = util.CreatureStats.calculatePowerStars(creature.power);
+		var skittStarsCount:Int = util.CreatureStats.calculateSkittishStars(creature.skittishness);
+		
+		var totalStars:Int = util.CreatureStats.calculateTotalStars(speedStarsCount, aggrStarsCount, skittStarsCount, powerStarsCount);
+		return util.CreatureStats.calculateFameReward(totalStars, Globals.fameLevel);
 	}
 
 	private function setupUINavigation():Void
@@ -510,28 +438,12 @@ class ArchiveState extends FlxState
 		if (isTransitioning)
 			return;
 
-		checkInputMode();
+		util.InputManager.update();
+		highlightSprite.visible = !util.InputManager.isUsingMouse();
+		
 		handleUINavigation();
 		handleMouseInput();
 		updateHighlight();
-	}
-
-	private function checkInputMode():Void
-	{
-		if (FlxG.mouse.viewX != lastMouseX || FlxG.mouse.viewY != lastMouseY)
-		{
-			lastMouseX = FlxG.mouse.viewX;
-			lastMouseY = FlxG.mouse.viewY;
-			Globals.usingMouse = true;
-			FlxG.mouse.visible = true;
-			highlightSprite.visible = false;
-		}
-		else if (Actions.upUI.triggered || Actions.downUI.triggered || Actions.leftUI.triggered || Actions.rightUI.triggered)
-		{
-			Globals.usingMouse = false;
-			FlxG.mouse.visible = false;
-			highlightSprite.visible = true;
-		}
 	}
 
 	private function handleUINavigation():Void

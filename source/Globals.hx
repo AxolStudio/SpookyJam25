@@ -30,6 +30,7 @@ class Globals
 
 		Actions.init();
 		SoundHelper.initSounds();
+		util.InputManager.init();
 
 		// Preload commonly used graphics to prevent lag spikes
 		preloadAssets();

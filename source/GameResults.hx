@@ -44,8 +44,6 @@ class GameResults extends FlxState
 	private var currentUIIndex:Int = 0;
 	private var uiObjects:Array<FlxSprite> = [];
 	private var highlightSprite:AnimatedReticle;
-	private var lastMouseX:Int = 0;
-	private var lastMouseY:Int = 0;
 
 	private var virtualKeyboard:VirtualKeyboard;
 	private var currentCreatureName:String = "";
@@ -238,13 +236,8 @@ class GameResults extends FlxState
 		{
 			speedStars[i].visible = (i < speedStarsCount);
 		}
-		var a:Float = ci.aggression;
-		if (a < -1)
-			a = -1;
-		if (a > 1)
-			a = 1;
-		var an:Float = (a + 1.0) / 2.0;
-		var aggrStarsCount:Int = Std.int(Math.floor(an * 4.0)) + 1;
+		// Aggression calculation - use unified utility
+		var aggrStarsCount:Int = util.CreatureStats.calculateAggressionStars(ci.aggression);
 
 		if (aggrLabel == null)
 		{
@@ -264,13 +257,8 @@ class GameResults extends FlxState
 		{
 			aggrStars[i].visible = (i < aggrStarsCount);
 		}
-		// Skittishness stars (how hard to catch - flee behavior) - show before power
-		var skitt:Float = ci.skittishness;
-		if (skitt < 0)
-			skitt = 0;
-		if (skitt > 1)
-			skitt = 1;
-		var skittStarsCount:Int = Std.int(Math.floor(skitt * 4.0)) + 1; // 1-5 stars
+		// Skittishness calculation - use unified utility
+		var skittStarsCount:Int = util.CreatureStats.calculateSkittishStars(ci.skittishness);
 
 		if (skittLabel == null)
 		{
@@ -291,11 +279,8 @@ class GameResults extends FlxState
 			skittStars[i].visible = (i < skittStarsCount);
 		}
 		
-		var powerStarsCount:Int = ci.power;
-		if (powerStarsCount < 1)
-			powerStarsCount = 1;
-		if (powerStarsCount > 5)
-			powerStarsCount = 5;
+		// Power calculation - use unified utility
+		var powerStarsCount:Int = util.CreatureStats.calculatePowerStars(ci.power);
 
 		if (powerLabel == null)
 		{
@@ -316,24 +301,10 @@ class GameResults extends FlxState
 			powerStars[i].visible = (i < powerStarsCount);
 		}
 
-		// New reward system based on total difficulty (star count)
-		// Fame: ~20% of what's needed for next level, scaled by total stars
-		// Money: ~$2 per star * level, with some variation
-
-		var totalStars:Int = speedStarsCount + aggrStarsCount + powerStarsCount + skittStarsCount;
-		var maxStars:Int = 20; // 5+5+5+5
-
-		// Fame calculation: Base is 20% of fame needed, scaled by difficulty
-		var fameNeeded:Int = Globals.getFameNeededForNextLevel();
-		var baseFame:Float = fameNeeded * 0.20; // Target 20% per creature
-		var difficultyMultiplier:Float = totalStars / maxStars; // 0.2 to 1.0 for 3-15 stars
-		currentFame = Std.int(Math.max(3, Math.round(baseFame * difficultyMultiplier)));
-
-		// Money calculation: ~$2 per star * level
-		var baseMoneyPerStar:Int = 2;
-		var moneyMultiplier:Float = 0.8 + (difficultyMultiplier * 0.4); // 0.8-1.2 variation
-		var reward:Int = Std.int(Math.max(5, totalStars * baseMoneyPerStar * Globals.fameLevel * moneyMultiplier));
-		currentReward = reward;
+		// Calculate rewards using unified utility
+		var totalStars:Int = util.CreatureStats.calculateTotalStars(speedStarsCount, aggrStarsCount, skittStarsCount, powerStarsCount);
+		currentFame = util.CreatureStats.calculateFameReward(totalStars, Globals.fameLevel);
+		currentReward = util.CreatureStats.calculateMoneyReward(totalStars, Globals.fameLevel);
 
 		var leftLabelX:Int = pageMargin + 18;
 		if (rewardLabel == null)
@@ -344,13 +315,13 @@ class GameResults extends FlxState
 
 		if (rewardAmount == null)
 		{
-			rewardAmount = new GameText(0, 128, "$" + Std.string(reward));
+			rewardAmount = new GameText(0, 128, "$" + Std.string(currentReward));
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 			add(rewardAmount);
 		}
 		else
 		{
-			rewardAmount.text = "$" + Std.string(reward);
+			rewardAmount.text = "$" + Std.string(currentReward);
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 		}
 
@@ -398,7 +369,13 @@ class GameResults extends FlxState
 		if (isTransitioning)
 			return;
 
-		checkInputMode();
+		// Update input manager and sync reticle visibility
+		util.InputManager.update();
+		if (!virtualKeyboard.isVisible)
+		{
+			highlightSprite.visible = !util.InputManager.isUsingMouse();
+		}
+		
 		if (virtualKeyboard.isVisible)
 		{
 			virtualKeyboard.handleInput();
@@ -408,30 +385,6 @@ class GameResults extends FlxState
 			handleUINavigation();
 			handleMouseInput();
 			updateHighlight();
-		}
-	}
-
-	private function checkInputMode():Void
-	{
-		if (FlxG.mouse.viewX != lastMouseX || FlxG.mouse.viewY != lastMouseY)
-		{
-			lastMouseX = FlxG.mouse.viewX;
-			lastMouseY = FlxG.mouse.viewY;
-			Globals.usingMouse = true;
-			FlxG.mouse.visible = true;
-			if (!virtualKeyboard.isVisible)
-			{
-				highlightSprite.visible = false;
-			}
-		}
-		else if (Actions.upUI.triggered || Actions.downUI.triggered || Actions.leftUI.triggered || Actions.rightUI.triggered)
-		{
-			Globals.usingMouse = false;
-			FlxG.mouse.visible = false;
-			if (!virtualKeyboard.isVisible)
-			{
-				highlightSprite.visible = true;
-			}
 		}
 	}
 

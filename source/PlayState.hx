@@ -46,7 +46,8 @@ class PlayState extends FlxState
 	{
 		Globals.init();
 		Actions.switchSet(Actions.gameplayIndex);
-		FlxG.mouse.visible = false;
+		// InputManager will handle mouse visibility based on input mode
+		util.InputManager.switchToGamepad();
 
 		atmosphereHue = FlxG.random.int(0, 359);
 		createCameras();
@@ -74,6 +75,7 @@ class PlayState extends FlxState
 			tilemap.spawnEnemies(enemies, atmosphereHue, Std.int(player.x / Constants.TILE_SIZE), Std.int(player.y / Constants.TILE_SIZE));
 		reticle = new Reticle(player);
 		add(reticle);
+		util.InputManager.setReticle(reticle);
 		hud = new Hud(player);
 		add(hud);
 		portal.cameras = tilemap.cameras = player.cameras = enemies.cameras = [mainCam];
@@ -147,6 +149,7 @@ class PlayState extends FlxState
 	override public function update(elapsed:Float):Void
 	{
 		Constants.Mouse.update(elapsed);
+		util.InputManager.update();
 
 		if (!ready)
 		{

@@ -58,8 +58,6 @@ class CatalogState extends FlxState
 		add(blackOut);
 
 		blackOut.fade(null, false, 0.33, FlxColor.BLACK);
-
-		FlxG.mouse.visible = true;
 	}
 
 	private function createUpgradeItem(name:String, upgradeKey:String, x:Float, y:Float):Void
@@ -165,6 +163,10 @@ class CatalogState extends FlxState
 	override public function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
+
+		// Update input manager - force mouse visible for catalog
+		util.InputManager.forceMouseVisibility(true);
+		util.InputManager.update();
 
 		// ESC to close
 		if (FlxG.keys.justPressed.ESCAPE && !isTransitioning)

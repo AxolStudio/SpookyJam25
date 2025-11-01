@@ -82,13 +82,31 @@ class TitleState extends FlxState
 	{
 		super.update(elapsed);
 
+		// Only update input manager if the state is ready to prevent issues
+		if (ready)
+			util.InputManager.update();
+
 		if (bgShader != null)
 			bgShader.time += elapsed;
 
 		if (!ready)
 			return;
 
-		if (Actions.pressUI.triggered || FlxG.mouse.justPressed)
+		// Check for user interaction to unlock audio (HTML5 requirement)
+		var userInteracted = (Actions.pressUI != null && Actions.pressUI.triggered) || FlxG.mouse.justPressed;
+
+		#if web
+		// On first interaction, unlock audio and start music, but don't proceed to next state
+		if (userInteracted && !util.SoundHelper.isAudioUnlocked())
+		{
+			util.SoundHelper.unlockAudio();
+			util.SoundHelper.playMusic("title"); // Now it will actually play
+			return; // Don't process the click as a "start game" action
+		}
+		#end
+
+		// Null-check Actions to prevent crash when window loses focus for extended period
+		if (userInteracted)
 		{
 			ready = false;
 
