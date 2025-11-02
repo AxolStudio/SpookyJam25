@@ -116,9 +116,9 @@ class ColorHelpers
 		var result:BitmapData = new BitmapData(src.width, src.height, true, 0x00000000);
 		result.copyPixels(src, src.rect, new Point(0, 0));
 
-		var sat:Float = 1.0; // Full saturation for vibrant rainbow
-		var vLight:Float = 0.90 + lumBoost; // Increased brightness
-		var vDark:Float = 0.40 + lumBoost; // Increased dark value too
+		var sat:Float = 1.0;
+		var vLight:Float = 0.90 + lumBoost;
+		var vDark:Float = 0.40 + lumBoost;
 		var hn:Float = (hue % 360) / 360.0;
 
 		for (yy in 0...result.height)

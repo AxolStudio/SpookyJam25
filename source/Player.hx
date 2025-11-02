@@ -6,24 +6,20 @@ import util.SoundHelper;
 class Player extends GameObject
 {
 	public static inline var BASE_SPEED:Float = 50;
-	public static inline var BASE_O2:Float = 50; // Halved from 100
-	public static inline var BASE_ARMOR:Int = 0; // Flat damage reduction
+	public static inline var BASE_O2:Float = 50;
+	public static inline var BASE_ARMOR:Int = 0;
 
 	public var film:Int = Constants.PHOTO_START_FILM;
 	public var o2:Float = 50;
 	public var armor:Int = 0;
-
 	public var photoCooldown(default, null):Float = 0;
-	private var noFilmSoundCooldown:Float = 0; // Cooldown for "no film" click sound
-
-	// Invincibility system for taking damage
 	public var invincibilityTimer:Float = 0;
-
 	public var flickerTimer:Float = 0;
-
-	private static inline var FLICKER_INTERVAL:Float = 0.1;
-
 	public var captured:Array<CapturedInfo> = [];
+
+	private var noFilmSoundCooldown:Float = 0;
+	private var currentDir:Int = 6;
+	private static inline var FLICKER_INTERVAL:Float = 0.1;
 
 	public function getCaptured():Array<CapturedInfo>
 	{
@@ -38,9 +34,7 @@ class Player extends GameObject
 	public function new(tileX:Int, tileY:Int)
 	{
 		super(tileX, tileY);
-		// Apply upgrades
 		applyUpgrades();
-		
 		moveAngle = 90;
 		width = height = 12;
 		offset.x = 2;
@@ -48,32 +42,20 @@ class Player extends GameObject
 		x += 2;
 		y -= height;
 	}
+
 	private function applyUpgrades():Void
 	{
-		// Get upgrade levels from Globals
 		var o2Level = getUpgradeLevel("o2");
 		var speedLevel = getUpgradeLevel("speed");
 		var armorLevel = getUpgradeLevel("armor");
 		var filmLevel = getUpgradeLevel("film");
 
-		// Apply speed upgrade: +10% per level
 		speed = BASE_SPEED * (1.0 + speedLevel * 0.1);
-
-		// Apply O2 upgrade: base * level (50, 100, 150, 200, 250)
 		o2 = BASE_O2 * (o2Level > 0 ? o2Level : 1);
-
-		// Apply armor upgrade: -1 damage per level
 		armor = armorLevel;
-
-		// Apply film upgrade: base film + (5 + (level - 1)) per level
-		// Level 0: 5, Level 1: 10 (5+5), Level 2: 16 (5+5+6), Level 3: 23 (5+5+6+7), Level 4: 31 (5+5+6+7+8), Level 5: 40 (5+5+6+7+8+9)
 		film = Constants.PHOTO_START_FILM;
 		for (i in 0...filmLevel)
-		{
 			film += 5 + i;
-		}
-
-		trace("Player upgrades applied - Speed: " + speed + ", O2: " + o2 + ", Armor: " + armor + ", Film: " + film);
 	}
 
 	private function getUpgradeLevel(key:String):Int
@@ -88,21 +70,16 @@ class Player extends GameObject
 	public override function buildGraphics():Void
 	{
 		loadGraphic("assets/images/player.png", true, 16, 19, false, "player");
-
 		var names = ["up_left", "up", "up_right", "left", "right", "down_left", "down", "down_right"];
 		for (i in 0...names.length)
 		{
 			var base = i * 4;
-
 			animation.add("walk_" + names[i], [base + 1, base + 2, base + 3, base + 0], 10, true);
-
 			animation.add("idle_" + names[i], [base + 0], 0, true);
 		}
 		currentDir = 6;
 		animation.play("idle_down");
 	}
-
-	private var currentDir:Int = 6;
 
 	private function angleToDirIndex(angle:Float):Int
 	{
@@ -148,16 +125,15 @@ class Player extends GameObject
 	public override function stop():Void
 	{
 		super.stop();
-
 		if (animation != null)
 			animation.stop();
-
 		var idleName = "idle_" + ["up_left", "up", "up_right", "left", "right", "down_left", "down", "down_right"][currentDir];
 		if (animation != null)
 			animation.play(idleName);
 	}
+
 	public var canDepleteo2:Bool = false;
-	
+
 	public override function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
@@ -171,17 +147,13 @@ class Player extends GameObject
 		{
 			invincibilityTimer -= elapsed;
 			flickerTimer -= elapsed;
-
 			if (flickerTimer <= 0)
 			{
 				visible = !visible;
 				flickerTimer = FLICKER_INTERVAL;
 			}
-
 			if (invincibilityTimer <= 0)
-			{
 				visible = true;
-			}
 		}
 	}
 
@@ -189,11 +161,10 @@ class Player extends GameObject
 	{
 		if (film <= 0)
 		{
-			// Play "no film" sound with cooldown to prevent spam
 			if (noFilmSoundCooldown <= 0)
 			{
 				SoundHelper.playSound("camera_no_film");
-				noFilmSoundCooldown = 0.5; // Half-second cooldown
+				noFilmSoundCooldown = 0.5;
 			}
 			axollib.AxolAPI.sendEvent("OUT_OF_FILM");
 			return false;
@@ -202,47 +173,26 @@ class Player extends GameObject
 			return false;
 		film -= 1;
 		if (film == 0)
-		{
 			axollib.AxolAPI.sendEvent("FILM_DEPLETED");
-		}
-		
 		photoCooldown = Constants.PHOTO_COOLDOWN;
-
 		SoundHelper.playSound("camera");
-		// Trigger flash via PlayState (white sprite, no alpha/transparency)
 		var playState = cast(FlxG.state, PlayState);
 		if (playState != null)
 			playState.triggerFlash();
-
 		return true;
 	}
-	/**
-	 * Take damage from enemy attack
-	 */
+
 	public function takeDamage(damage:Int):Void
 	{
-		// Ignore if invincible
 		if (invincibilityTimer > 0)
 			return;
-
-		// Apply armor reduction
 		var actualDamage = damage - armor;
 		if (actualDamage < 1)
-			actualDamage = 1; // Always take at least 1 damage
-
-		// Reduce O2 (health)
+			actualDamage = 1;
 		o2 -= actualDamage;
-
-		// Play hurt sound
 		SoundHelper.playRandomHurtSound();
-
-		// Start invincibility period (1 second)
 		invincibilityTimer = 1.0;
 		flickerTimer = FLICKER_INTERVAL;
-
-		// Track damage taken
 		axollib.AxolAPI.sendEvent("PLAYER_DAMAGED", actualDamage);
-
-		trace("Player took " + actualDamage + " damage, O2 now: " + o2);
 	}
 }

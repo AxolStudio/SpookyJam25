@@ -124,7 +124,7 @@ class VisibilityMask
 		{
 			if (this.map != null)
 				return !this.map.lineOfSight(worldPlayerX, worldPlayerY, worldTx, worldTy);
-			// fall back to tileGrid-based test (should not be used in normal operation)
+
 			var x0:Float = worldPlayerX;
 			var y0:Float = worldPlayerY;
 			var tx:Int = Std.int(Math.floor(x0 / tileSize));
@@ -242,9 +242,7 @@ class VisibilityMask
 			}
 		}
 
-		// Outline pass: compute distance to nearest transparent pixel (alpha==0)
-		// outlineWidth is specified in screen pixels; convert to mask pixels by maskScale
-		var outlineScreenPx:Int = 32; // increased from 16
+		var outlineScreenPx:Int = 32;
 		var outlineMaskPx:Int = Std.int(Math.max(1, Math.ceil(outlineScreenPx * maskScale)));
 		if (outlineMaskPx > 0)
 		{
@@ -254,7 +252,7 @@ class VisibilityMask
 			for (i in 0...maxIndex)
 				dist[i] = 0x3fffffff;
 			var q:Array<Int> = [];
-			// enqueue all transparent pixels as sources
+
 			for (i in 0...maxIndex)
 			{
 				if (alpha[i] == 0)
@@ -273,7 +271,7 @@ class VisibilityMask
 				var cd:Int = dist[idx];
 				if (cd >= outlineMaskPx)
 					continue;
-				// 4-neighbor propagation
+
 				if (cx > 0)
 				{
 					var n:Int = idx - 1;
@@ -312,13 +310,12 @@ class VisibilityMask
 				}
 			}
 
-			// apply outline alpha where appropriate using a linear gradient from 0 -> 255
 			for (i in 0...maxIndex)
 			{
 				if (alpha[i] == 255 && dist[i] > 0 && dist[i] <= outlineMaskPx)
 				{
 					var ratio:Float = (cast dist[i] : Float) / outlineMaskPx;
-					var a:Int = Std.int(ratio * 255.0); // linear curve
+					var a:Int = Std.int(ratio * 255.0);
 					if (a < 0)
 						a = 0;
 					if (a > 255)
@@ -349,7 +346,6 @@ class VisibilityMask
 			{
 				var idx = py * w + px;
 				var aVal:Int = alpha[idx];
-				// preserve semi-transparent outline (e.g., 128) by writing the actual alpha
 				bmp.setPixel32(px, py, (aVal << 24));
 			}
 		}

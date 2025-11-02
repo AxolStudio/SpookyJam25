@@ -25,9 +25,8 @@ class EnemyBrain
 	private static var CRY_CHECK_INTERVAL:Float = 0.5;
 	private static var nextCryCheckTime:Float = 0.0;
 
-	// Attack cry cooldown (separate from alert cries)
 	private static var attackCryCooldown:Float = 0.0;
-	private static var MIN_ATTACK_CRY_DELAY:Float = 3.0; // 3 seconds between attack cries
+	private static var MIN_ATTACK_CRY_DELAY:Float = 3.0;
 
 	private static var cryingEnemy:Enemy = null;
 	private static var activeChimeraCry:FlxSound = null;
@@ -42,10 +41,9 @@ class EnemyBrain
 	private static var pathRecalcDistance:Float = Constants.TILE_SIZE * 2;
 	private static var maxPathsPerFrame:Int = 3;
 
-	// Flood-fill sound propagation system (spreads incrementally over frames)
 	private static var activeSoundWaves:Array<SoundWave> = [];
 
-	private static inline var TILES_PER_FRAME:Int = 20; // How many tiles to expand per frame
+	private static inline var TILES_PER_FRAME:Int = 20;
 
 	private static function findClearAngle(tilemap:GameMap, fromX:Float, fromY:Float, baseAngleDeg:Float, stepPx:Float = 8):Float
 	{
@@ -95,16 +93,6 @@ class EnemyBrain
 		if (attackCryCooldown < 0)
 			attackCryCooldown = 0;
 
-		// DISABLED: Random ambient cries removed as per design
-		// Enemies only cry when alerted/attacking now
-		// nextCryCheckTime -= elapsed;
-		// var shouldCheckForCry = nextCryCheckTime <= 0;
-		// if (shouldCheckForCry)
-		// {
-		// 	nextCryCheckTime = CRY_CHECK_INTERVAL;
-		// 	tryTriggerChimeraCry(player, enemies, cam);
-		// }
-
 		for (e in enemies.members)
 		{
 			if (e == null || !e.exists || !e.alive)
@@ -129,7 +117,7 @@ class EnemyBrain
 			var dist2:Float = dx * dx + dy * dy;
 
 			var sees:Bool = false;
-			// Always check LOS if player is within range (regardless of aiTimer)
+
 			if (dist2 <= LOS_DISTANCE_SQR)
 			{
 				if (tilemap != null)
@@ -138,36 +126,30 @@ class EnemyBrain
 					sees = true;
 			}
 
-			// Handle state transitions when visibility changes
 			if (!e.lastSawPlayer && sees)
 			{
-				// Enemy just spotted player!
 				if (!e.seenPlayer)
 				{
-					// FIRST TIME seeing player - show "!" icon
 					e.seenPlayer = true;
 					e.showAlertIcon(0);
 				}
-				// Interrupt current action and chase
+
 				e.aiTimer = 0.0;
 				e.changeState(CHASE);
 				triggerAlertCry(e, player, enemies, tilemap);
 			}
 			else if (e.lastSawPlayer && !sees && (e.aiState == CHASE || e.aiState == ATTACK))
 			{
-				// Enemy lost sight of player
 				if (e.seenPlayer)
 				{
-					// Player completely lost - show "?" icon
 					e.seenPlayer = false;
 					e.showAlertIcon(1);
 				}
-				// Transition to searching
+
 				e.changeState(ALERT);
 				e.aiTimer = 0.8;
 			}
 
-			// Apply personality-specific behavior modifications
 			var dist:Float = Math.sqrt(dist2);
 			applyPersonalityBehavior(e, player, tilemap, sees, dist); // Check for attack range (if chasing and close enough)
 			if (!e.isAttacking && e.aiState == CHASE && sees && dist < e.attackRange)
@@ -180,7 +162,6 @@ class EnemyBrain
 				continue;
 			}
 
-			// If enemy has active timer, skip AI decision this frame
 			if (e.aiTimer > 0)
 			{
 				e.lastSawPlayer = sees;

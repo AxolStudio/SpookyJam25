@@ -2,7 +2,6 @@ package;
 
 import flixel.FlxSprite;
 
-
 class GameObject extends FlxSprite
 {
 	public var speed:Float = 80;
@@ -10,9 +9,7 @@ class GameObject extends FlxSprite
 
 	public function new(x:Int = 0, y:Int = 0)
 	{
-
 		super(x, y);
-
 		buildGraphics();
 	}
 

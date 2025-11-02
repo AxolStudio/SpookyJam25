@@ -292,10 +292,7 @@ class VirtualKeyboard extends FlxGroup
 		if (!isVisible)
 			return;
 		checkInputMode();
-
-		// Handle physical keyboard input FIRST (before nav keys)
 		handlePhysicalKeyboard();
-
 		if (Actions.rightUI.triggered)
 			navigateRight();
 		else if (Actions.leftUI.triggered)
@@ -311,49 +308,33 @@ class VirtualKeyboard extends FlxGroup
 		updateHighlight();
 	}
 
-	/**
-	 * Handle physical keyboard typing when virtual keyboard is visible
-	 */
 	private function handlePhysicalKeyboard():Void
 	{
-		// Only process if something was just pressed
 		if (!FlxG.keys.justPressed.ANY)
 			return;
-
-		// Check for backspace/delete
 		if (FlxG.keys.justPressed.BACKSPACE || FlxG.keys.justPressed.DELETE)
 		{
 			deleteChar();
 			return;
 		}
-
-		// Check for enter/escape
 		if (FlxG.keys.justPressed.ENTER)
 		{
 			submitName();
 			return;
 		}
-
 		if (FlxG.keys.justPressed.ESCAPE)
 		{
 			cancelInput();
 			return;
 		}
-
-		// Check for alphanumeric keys and allowed symbols
 		var validChars:String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -_";
-
-		// Get the pressed key as a string
 		var pressedKey:String = getJustPressedKey();
-
 		if (pressedKey != null && pressedKey.length == 1)
 		{
-			// Check if it's a valid character
 			if (validChars.indexOf(pressedKey) >= 0)
 			{
 				if (currentText.length < maxLength)
 				{
-					// Apply case (respect uppercase/lowercase mode of virtual keyboard)
 					var char = pressedKey;
 					if (isUppercase && char.toLowerCase() == char && char.toUpperCase() != char)
 					{
@@ -363,7 +344,6 @@ class VirtualKeyboard extends FlxGroup
 					{
 						char = char.toLowerCase();
 					}
-
 					currentText += char;
 					updateDisplay();
 				}
@@ -371,12 +351,8 @@ class VirtualKeyboard extends FlxGroup
 		}
 	}
 
-	/**
-	 * Get the character of the key that was just pressed
-	 */
 	private function getJustPressedKey():String
 	{
-		// Letters
 		if (FlxG.keys.justPressed.A)
 			return "a";
 		if (FlxG.keys.justPressed.B)
@@ -429,8 +405,6 @@ class VirtualKeyboard extends FlxGroup
 			return "y";
 		if (FlxG.keys.justPressed.Z)
 			return "z";
-
-		// Numbers
 		if (FlxG.keys.justPressed.ZERO)
 			return "0";
 		if (FlxG.keys.justPressed.ONE)
@@ -451,14 +425,10 @@ class VirtualKeyboard extends FlxGroup
 			return "8";
 		if (FlxG.keys.justPressed.NINE)
 			return "9";
-
-		// Special characters
 		if (FlxG.keys.justPressed.SPACE)
 			return " ";
 		if (FlxG.keys.justPressed.MINUS)
 			return "-";
-		// Note: underscore requires shift+minus, not handled here - use virtual keyboard for _
-
 		return null;
 	}
 

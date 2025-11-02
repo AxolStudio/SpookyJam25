@@ -115,37 +115,21 @@ class AlphaDither extends FlxShader
 	public function new()
 	{
 		super();
-		try
-		{
-			globalAlpha = 1.0;
-		}
-		catch (e:Dynamic) {}
-		try
-		{
-			size = [FlxG.width, FlxG.height];
-		}
-		catch (e:Dynamic) {}
+		globalAlpha = 1.0;
+		size = [FlxG.width, FlxG.height];
 	}
 
 	private function set_globalAlpha(v:Float):Float
 	{
 		globalAlpha = FlxMath.bound(v, 0.0, 1.0);
-		try
-		{
-			fGlobalAlpha.value = [globalAlpha];
-		}
-		catch (e:Dynamic) {}
+		fGlobalAlpha.value = [globalAlpha];
 		return globalAlpha;
 	}
 
 	private function set_size(v:Array<Float>):Array<Float>
 	{
 		size = v;
-		try
-		{
-			fSize.value = [size[0], size[1]];
-		}
-		catch (e:Dynamic) {}
+		fSize.value = [size[0], size[1]];
 		return size;
 	}
 }

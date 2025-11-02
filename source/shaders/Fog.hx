@@ -27,16 +27,16 @@ class Fog extends FlxShader
 	@:glFragmentSource('
 	#pragma header
 	uniform float iTime;
-	uniform float fHue; // 0..1
-	uniform float fSat; // saturation 0..1
-	uniform float fVDark; // value (brightness) for dark fog 0..1
-	uniform float fVLight; // value for light fog 0..1
-	uniform float fContrast; // 0..1 compresses vDark/vLight toward their midpoint
+	uniform float fHue;
+	uniform float fSat;
+	uniform float fVDark;
+	uniform float fVLight;
+	uniform float fContrast;
 
 	uniform float pX;
 	uniform float pY;
-	uniform float sX; // scale x = cam.width / camMin
-	uniform float sY; // scale y = cam.height / camMin
+	uniform float sX;
+	uniform float sY;
 
 	uniform float rInner;
 	uniform float rOuter;
@@ -97,13 +97,12 @@ class Fog extends FlxShader
             
 			float aspect = 1.0;
             
-			// sample mask early and skip heavy work if fully transparent
-				vec4 maskEarly = flixel_texture2D(bitmap, uv);
-				float maskAlphaEarly = maskEarly.a;
-				if (maskAlphaEarly <= 0.0) {
-					gl_FragColor = vec4(vec3(0.0), 0.0);
-					return;
-				}
+			vec4 maskEarly = flixel_texture2D(bitmap, uv);
+			float maskAlphaEarly = maskEarly.a;
+			if (maskAlphaEarly <= 0.0) {
+				gl_FragColor = vec4(vec3(0.0), 0.0);
+				return;
+			}
 
 				vec2 npos = uv * vec2(1.2, 1.2);
 				npos += vec2(iTime * 0.04, iTime * 0.03);
@@ -206,70 +205,34 @@ class Fog extends FlxShader
 	{
 		super();
 		time = 0.0;
-		if (iTime != null)
-			iTime.value = [time];
-
 		hue = 0.0;
-		if (fHue != null)
-			fHue.value = [hue / 360.0];
-
 		playerX = 0.5;
 		playerY = 0.5;
-		if (pX != null)
-			pX.value = [playerX];
-		if (pY != null)
-			pY.value = [playerY];
 		innerRadius = 0.15;
 		outerRadius = 0.30;
-		if (rInner != null)
-			rInner.value = [innerRadius];
-		if (rOuter != null)
-			rOuter.value = [outerRadius];
 		sat = 0.5;
 		vDark = 0.10;
 		vLight = 0.40;
-		if (fSat != null)
-			fSat.value = [sat];
-		if (fVDark != null)
-			fVDark.value = [vDark];
-		if (fVLight != null)
-			fVLight.value = [vLight];
-		try
-		{
-			useDither = 1.0;
-		}
-		catch (e:Dynamic) {}
+		useDither = 1.0;
 	}
 	private function set_maskTexelX(v:Float):Float
 	{
 		maskTexelX = v;
-		try
-		{
-			mTexelX.value = [maskTexelX];
-		}
-		catch (e:Dynamic) {}
+		mTexelX.value = [maskTexelX];
 		return maskTexelX;
 	}
 
 	private function set_maskTexelY(v:Float):Float
 	{
 		maskTexelY = v;
-		try
-		{
-			mTexelY.value = [maskTexelY];
-		}
-		catch (e:Dynamic) {}
+		mTexelY.value = [maskTexelY];
 		return maskTexelY;
 	}
 
 	private function set_time(v:Float):Float
 	{
 		time = v;
-		try
-		{
-			iTime.value = [time];
-		}
-		catch (e:Dynamic) {}
+		iTime.value = [time];
 		return time;
 	}
 
@@ -277,126 +240,83 @@ class Fog extends FlxShader
 	{
 		hue = v;
 		fHue.value = [hue / 360.0];
-
 		return hue;
 	}
 
 	private function set_sat(v:Float):Float
 	{
 		sat = v;
-		try
-		{
-			fSat.value = [sat];
-		}
-		catch (e:Dynamic) {}
+		fSat.value = [sat];
 		return sat;
 	}
 
 	private function set_vDark(v:Float):Float
 	{
 		vDark = v;
-		try
-		{
-			fVDark.value = [vDark];
-		}
-		catch (e:Dynamic) {}
+		fVDark.value = [vDark];
 		return vDark;
 	}
 
 	private function set_vLight(v:Float):Float
 	{
 		vLight = v;
-		try
-		{
-			fVLight.value = [vLight];
-		}
-		catch (e:Dynamic) {}
+		fVLight.value = [vLight];
 		return vLight;
 	}
 
 	private function set_playerX(v:Float):Float
 	{
 		playerX = v;
-		try
-		{
-			pX.value = [playerX];
-		}
-		catch (e:Dynamic) {}
+		pX.value = [playerX];
 		return playerX;
 	}
 
 	private function set_playerY(v:Float):Float
 	{
 		playerY = v;
-		try
-		{
-			pY.value = [playerY];
-		}
-		catch (e:Dynamic) {}
+		pY.value = [playerY];
 		return playerY;
 	}
 
 	private function set_innerRadius(v:Float):Float
 	{
 		innerRadius = v;
-		try
-		{
-			rInner.value = [innerRadius];
-		}
-		catch (e:Dynamic) {}
+		rInner.value = [innerRadius];
 		return innerRadius;
 	}
 
 	private function set_outerRadius(v:Float):Float
 	{
 		outerRadius = v;
-		try
-		{
-			rOuter.value = [outerRadius];
-		}
-		catch (e:Dynamic) {}
+		rOuter.value = [outerRadius];
 		return outerRadius;
 	}
 
 	private function set_scaleX(v:Float):Float
 	{
 		scaleX = v;
-		try
-		{
-			sX.value = [scaleX];
-		}
-		catch (e:Dynamic) {}
+		sX.value = [scaleX];
 		return scaleX;
 	}
 
 	private function set_scaleY(v:Float):Float
 	{
 		scaleY = v;
-		try
-		{
-			sY.value = [scaleY];
-		}
-		catch (e:Dynamic) {}
+		sY.value = [scaleY];
 		return scaleY;
 	}
+
 	private function set_contrast(v:Float):Float
 	{
 		contrast = v;
-		try
-		{
-			fContrast.value = [contrast];
-		}
-		catch (e:Dynamic) {}
+		fContrast.value = [contrast];
 		return contrast;
 	}
+
 	private function set_useDither(v:Float):Float
 	{
 		useDither = v;
-		try
-		{
-			fUseDither.value = [useDither];
-		}
-		catch (e:Dynamic) {}
+		fUseDither.value = [useDither];
 		return useDither;
 	}
 	public function updateFog(cam:flixel.FlxCamera, playerWorldX:Float, playerWorldY:Float, fogSprite:flixel.FlxSprite, maskState:MaskState,

@@ -11,10 +11,6 @@ import openfl.display.BitmapData;
 import openfl.geom.Point;
 import openfl.geom.Rectangle;
 
-/**
- * A 9-slice button that uses button.png with three states (normal, highlight, pressed).
- * Can be used with GameText or FlxSprite labels.
- */
 class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 {
 	private var buttonWidth:Float;
@@ -35,39 +31,39 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 	private var previousStatus:FlxButtonState = NORMAL;
 
 	private static var NORMAL_SLICES:Array<Rectangle> = [
-		new Rectangle(0, 0, 4, 3), // top-left
-		new Rectangle(4, 0, 8, 3), // top-center
-		new Rectangle(12, 0, 4, 3), // top-right
-		new Rectangle(0, 3, 4, 7), // middle-left
-		new Rectangle(4, 3, 8, 7), // middle-center
-		new Rectangle(12, 3, 4, 7), // middle-right
-		new Rectangle(0, 10, 4, 6), // bottom-left
-		new Rectangle(4, 10, 8, 6), // bottom-center
-		new Rectangle(12, 10, 4, 6) // bottom-right
+		new Rectangle(0, 0, 4, 3),
+		new Rectangle(4, 0, 8, 3),
+		new Rectangle(12, 0, 4, 3),
+		new Rectangle(0, 3, 4, 7),
+		new Rectangle(4, 3, 8, 7),
+		new Rectangle(12, 3, 4, 7),
+		new Rectangle(0, 10, 4, 6),
+		new Rectangle(4, 10, 8, 6),
+		new Rectangle(12, 10, 4, 6)
 	];
 
 	private static var HIGHLIGHT_SLICES:Array<Rectangle> = [
-		new Rectangle(16, 0, 4, 4), // top-left
-		new Rectangle(20, 0, 8, 4), // top-center
-		new Rectangle(28, 0, 4, 4), // top-right
-		new Rectangle(16, 4, 4, 7), // middle-left
-		new Rectangle(20, 4, 8, 7), // middle-center
-		new Rectangle(28, 4, 4, 7), // middle-right
-		new Rectangle(16, 11, 4, 5), // bottom-left
-		new Rectangle(20, 11, 8, 5), // bottom-center
-		new Rectangle(28, 11, 4, 5) // bottom-right
+		new Rectangle(16, 0, 4, 4),
+		new Rectangle(20, 0, 8, 4),
+		new Rectangle(28, 0, 4, 4),
+		new Rectangle(16, 4, 4, 7),
+		new Rectangle(20, 4, 8, 7),
+		new Rectangle(28, 4, 4, 7),
+		new Rectangle(16, 11, 4, 5),
+		new Rectangle(20, 11, 8, 5),
+		new Rectangle(28, 11, 4, 5)
 	];
 
 	private static var PRESSED_SLICES:Array<Rectangle> = [
-		new Rectangle(32, 0, 4, 5), // top-left
-		new Rectangle(36, 0, 8, 5), // top-center
-		new Rectangle(44, 0, 4, 5), // top-right
-		new Rectangle(32, 5, 4, 7), // middle-left
-		new Rectangle(36, 5, 8, 7), // middle-center
-		new Rectangle(44, 5, 4, 7), // middle-right
-		new Rectangle(32, 12, 4, 4), // bottom-left
-		new Rectangle(36, 12, 8, 4), // bottom-center
-		new Rectangle(44, 12, 4, 4) // bottom-right
+		new Rectangle(32, 0, 4, 5),
+		new Rectangle(36, 0, 8, 5),
+		new Rectangle(44, 0, 4, 5),
+		new Rectangle(32, 5, 4, 7),
+		new Rectangle(36, 5, 8, 7),
+		new Rectangle(44, 5, 4, 7),
+		new Rectangle(32, 12, 4, 4),
+		new Rectangle(36, 12, 8, 4),
+		new Rectangle(44, 12, 4, 4)
 	];
 
 	private var sourceBitmap:BitmapData;
@@ -111,8 +107,6 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 				gameText.autoSize = false;
 				gameText.fieldWidth = Std.int(buttonWidth - 8);
 				gameText.alignment = FlxTextAlign.CENTER;
-
-				// Force update the text field to recalculate dimensions
 				gameText.updateHitbox();
 
 				labelOffsets[0].set(4, calculateLabelY(3, 6, gameText.height));
@@ -122,14 +116,12 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 			}
 			else
 			{
-				// For FlxSprite labels (like icons), center in middle slice for each state
 				var xOffset:Float = (buttonWidth - label.width) / 2;
 
-				// Apply same middle-slice centering logic as GameText
-				labelOffsets[0].set(xOffset, calculateLabelY(3, 6, label.height)); // NORMAL
-				labelOffsets[1].set(xOffset, calculateLabelY(4, 5, label.height)); // HIGHLIGHT
-				labelOffsets[2].set(xOffset, calculateLabelY(5, 4, label.height)); // PRESSED
-				labelOffsets[3].set(xOffset, calculateLabelY(3, 6, label.height)); // DISABLED
+				labelOffsets[0].set(xOffset, calculateLabelY(3, 6, label.height));
+				labelOffsets[1].set(xOffset, calculateLabelY(4, 5, label.height));
+				labelOffsets[2].set(xOffset, calculateLabelY(5, 4, label.height));
+				labelOffsets[3].set(xOffset, calculateLabelY(3, 6, label.height));
 			}
 		}
 	}
@@ -140,9 +132,6 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 		return topSliceHeight + (middleSliceHeight - textHeight) / 2;
 	}
 
-	/**
-	 * Helper method to calculate the button size needed for a GameText label
-	 */
 	public static function sizeForText(text:GameText):FlxPoint
 	{
 		var width = text.width + 8;
@@ -150,9 +139,6 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 		return new FlxPoint(width, height);
 	}
 
-	/**
-	 * Helper method to calculate the button size needed for a FlxSprite label
-	 */
 	public static function sizeForSprite(sprite:FlxSprite):FlxPoint
 	{
 		var width = sprite.width + 8;
@@ -162,39 +148,25 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 
 	private function render9Slice(slices:Array<Rectangle>, stateName:String):FlxGraphic
 	{
-		// Use shared cache based on size and state, not instance
-		// This allows graphics to persist across state changes
 		var cacheKey = "button_" + stateName + "_" + Std.int(buttonWidth) + "x" + Std.int(buttonHeight);
 
-		// Check if we already have this graphic cached AND it's still valid
 		if (graphicsCache.exists(cacheKey))
 		{
 			var cachedGraphic = graphicsCache.get(cacheKey);
-			// Verify the graphic hasn't been destroyed/garbage collected
 			if (cachedGraphic != null && cachedGraphic.bitmap != null)
-			{
 				return cachedGraphic;
-			}
 			else
-			{
-				// Graphic was destroyed, remove from cache and recreate
 				graphicsCache.remove(cacheKey);
-			}
 		}
 
-		// Also check Flixel's bitmap cache
 		var flixelCached = FlxG.bitmap.get(cacheKey);
 		if (flixelCached != null && flixelCached.bitmap != null)
 		{
-			// Add back to our cache and return
 			graphicsCache.set(cacheKey, flixelCached);
 			return flixelCached;
 		}
-
-		// Create a new bitmap for this button state
 		var buttonBitmap = new BitmapData(Std.int(buttonWidth), Std.int(buttonHeight), true, 0x00000000);
 
-		// Calculate dimensions
 		var leftW = slices[0].width;
 		var rightW = slices[2].width;
 		var topH = slices[0].height;
@@ -205,11 +177,8 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 
 		var destPoint = new Point();
 
-		// Top row
 		destPoint.setTo(0, 0);
 		buttonBitmap.copyPixels(sourceBitmap, slices[0], destPoint);
-
-		// Tile top-center
 		var tx:Float = leftW;
 		while (tx < leftW + centerW)
 		{
@@ -224,19 +193,16 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 		destPoint.setTo(leftW + centerW, 0);
 		buttonBitmap.copyPixels(sourceBitmap, slices[2], destPoint);
 
-		// Middle row
 		var ty:Float = topH;
 		while (ty < topH + centerH)
 		{
 			var tileH = Math.min(slices[3].height, topH + centerH - ty);
 
-			// Left
 			destPoint.setTo(0, ty);
 			var srcRect = slices[3].clone();
 			srcRect.height = tileH;
 			buttonBitmap.copyPixels(sourceBitmap, srcRect, destPoint);
 
-			// Center (tile both x and y)
 			tx = leftW;
 			while (tx < leftW + centerW)
 			{
@@ -249,7 +215,6 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 				tx += tileW;
 			}
 
-			// Right
 			destPoint.setTo(leftW + centerW, ty);
 			srcRect = slices[5].clone();
 			srcRect.height = tileH;
@@ -257,12 +222,9 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 
 			ty += tileH;
 		}
-
-		// Bottom row
 		destPoint.setTo(0, topH + centerH);
 		buttonBitmap.copyPixels(sourceBitmap, slices[6], destPoint);
 
-		// Tile bottom-center
 		tx = leftW;
 		while (tx < leftW + centerW)
 		{
@@ -277,15 +239,9 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 		destPoint.setTo(leftW + centerW, topH + centerH);
 		buttonBitmap.copyPixels(sourceBitmap, slices[8], destPoint);
 
-		// Create FlxGraphic and ADD to Flixel's cache with persist flag
-		// This ensures the graphic won't be garbage collected
 		var graphic = FlxGraphic.fromBitmapData(buttonBitmap, true, cacheKey);
-
-		// Mark as persistent so it survives state changes
 		graphic.persist = true;
 		graphic.destroyOnNoUse = false;
-
-		// Add to our own static cache for reuse
 		graphicsCache.set(cacheKey, graphic);
 
 		return graphic;
@@ -295,45 +251,27 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 	{
 		var result = super.set_status(value);
 
-		// Only update graphics if they've been created
-		// This prevents errors during construction
 		if (normalGraphic == null || highlightGraphic == null || pressedGraphic == null)
 			return result;
 
-		// Play hover sound when transitioning to HIGHLIGHT state
 		if (value == HIGHLIGHT && previousStatus != HIGHLIGHT)
-		{
 			util.SoundHelper.playSound("ui_hover");
-		}
 
-		// Play click sound when transitioning to PRESSED state
 		if (value == PRESSED && previousStatus != PRESSED)
 		{
 			if (isCancelButton)
-			{
 				util.SoundHelper.playSound("ui_cancel");
-			}
 			else
-			{
 				util.SoundHelper.playSound("ui_select");
-			}
 		}
 
-		previousStatus = value; // Check if graphics are still valid, recreate if needed
+		previousStatus = value;
 		if (normalGraphic.bitmap == null)
-		{
 			normalGraphic = render9Slice(NORMAL_SLICES, "normal");
-		}
 		if (highlightGraphic.bitmap == null)
-		{
 			highlightGraphic = render9Slice(HIGHLIGHT_SLICES, "highlight");
-		}
 		if (pressedGraphic.bitmap == null)
-		{
 			pressedGraphic = render9Slice(PRESSED_SLICES, "pressed");
-		}
-
-		// Simply swap to the cached graphic for this state
 		switch (value)
 		{
 			case HIGHLIGHT:
@@ -352,13 +290,9 @@ class NineSliceButton<T:FlxSprite> extends FlxTypedButton<T>
 	override public function destroy():Void
 	{
 		sourceBitmap = null;
-
-		// Don't destroy the graphics - they're marked as persistent
-		// Just null out the references
 		normalGraphic = null;
 		highlightGraphic = null;
 		pressedGraphic = null;
-
 		super.destroy();
 	}
 }

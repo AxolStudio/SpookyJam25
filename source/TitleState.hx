@@ -75,8 +75,6 @@ class TitleState extends FlxState
 			});
 		}, false, 1.0, FlxColor.BLACK);
 
-		// Audio is already unlocked from SpookyAxolversaryState on desktop
-		// or will be unlocked on first click anywhere in the game on web
 		util.SoundHelper.playMusic("title");
 	}
 
@@ -84,10 +82,8 @@ class TitleState extends FlxState
 	{
 		super.update(elapsed);
 
-		// Update custom mouse cursor
 		Constants.Mouse.update(elapsed);
 
-		// Only update input manager if the state is ready to prevent issues
 		if (ready)
 			util.InputManager.update();
 
@@ -97,34 +93,25 @@ class TitleState extends FlxState
 		if (!ready)
 			return;
 
-		// Check for user interaction to start game
 		var userInteracted = (Actions.pressUI != null && Actions.pressUI.triggered) || FlxG.mouse.justPressed;
 
-		// On web, unlock audio on first click if not already unlocked
-		// This ensures music plays even if user skipped the splash screen click
 		#if web
 		if (userInteracted && !util.SoundHelper.isAudioUnlocked())
 		{
 			util.SoundHelper.unlockAudio();
-			util.SoundHelper.playMusic("title"); // Start music now
-			return; // Don't start game on this click, just unlock audio
+			util.SoundHelper.playMusic("title");
+			return;
 		}
 		#end
-
-		// Start game on user interaction
 		if (userInteracted)
 		{
 			ready = false;
-
 			axollib.AxolAPI.sendEvent("TITLE_TO_OFFICE");
-
 			SoundHelper.fadeOutMusic("title", 0.66);
-			blackOut.fade(() ->
-			{
-				FlxG.switchState(() -> new OfficeState());
-			}, true, 1.0, FlxColor.BLACK);
+			blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 1.0, FlxColor.BLACK);
 		}
 	}
+
 	override public function destroy():Void
 	{
 		bg = flixel.util.FlxDestroyUtil.destroy(bg);

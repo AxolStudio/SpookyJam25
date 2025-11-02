@@ -41,9 +41,9 @@ class GameResults extends FlxState
 	private var fameLabel:GameText;
 	private var fameAmount:GameText;
 	private var photoSprite:FlxSprite;
-	private var variantBadge:FlxSprite; // Shows variant icon (frame 0=shiny, 1=alpha)
-	private var photoTween:FlxTween = null; // For pulsing shiny photos
-	private var shinyHueTimer:Float = 0; // For animating shiny photo shader
+	private var variantBadge:FlxSprite;
+	private var photoTween:FlxTween = null;
+	private var shinyHueTimer:Float = 0;
 
 
 	private var currentUIIndex:Int = 0;
@@ -127,7 +127,7 @@ class GameResults extends FlxState
 		submitBtn = new NineSliceButton<GameText>(FlxG.width - 50, FlxG.height - 26, 40, 16, activateSubmitAction);
 		submitBtn.label = saveLabel;
 		submitBtn.positionLabel();
-		submitBtn.visible = false; // Hide until name is entered
+		submitBtn.visible = false;
 		add(submitBtn);
 		dateText = new GameText(14 + 18, FlxG.height - 66, "10/27/2025");
 		add(dateText);
@@ -191,7 +191,7 @@ class GameResults extends FlxState
 		{
 			nameLabel = new GameText(baseRightX, 40, "Name:");
 			add(nameLabel);
-			// Add RND button next to Name label
+
 			var btnText = new ui.GameText(0, 0, "RND");
 			rndButton = new ui.NineSliceButton<ui.GameText>(Std.int(baseRightX + nameLabel.width + 4), 38, 32, 14, onRandomName);
 			rndButton.label = btnText;
@@ -211,7 +211,7 @@ class GameResults extends FlxState
 		{
 			nameText.text = "[EDIT]";
 		}
-		// Start pulsing animation for [EDIT] text
+
 		if (nameTextPulseTween != null)
 		{
 			nameTextPulseTween.cancel();
@@ -249,7 +249,7 @@ class GameResults extends FlxState
 		{
 			speedStars[i].visible = (i < speedStarsCount);
 		}
-		// Aggression calculation - use unified utility
+
 		var aggrStarsCount:Int = util.CreatureStats.calculateAggressionStars(ci.aggression);
 
 		if (aggrLabel == null)
@@ -270,7 +270,7 @@ class GameResults extends FlxState
 		{
 			aggrStars[i].visible = (i < aggrStarsCount);
 		}
-		// Skittishness calculation - use unified utility
+
 		var skittStarsCount:Int = util.CreatureStats.calculateSkittishStars(ci.skittishness);
 
 		if (skittLabel == null)
@@ -291,8 +291,7 @@ class GameResults extends FlxState
 		{
 			skittStars[i].visible = (i < skittStarsCount);
 		}
-		
-		// Power calculation - use unified utility
+
 		var powerStarsCount:Int = util.CreatureStats.calculatePowerStars(ci.power);
 
 		if (powerLabel == null)
@@ -314,11 +313,10 @@ class GameResults extends FlxState
 			powerStars[i].visible = (i < powerStarsCount);
 		}
 
-		// Calculate rewards using unified utility
 		var totalStars:Int = util.CreatureStats.calculateTotalStars(speedStarsCount, aggrStarsCount, skittStarsCount, powerStarsCount);
 		currentFame = util.CreatureStats.calculateFameReward(totalStars, Globals.fameLevel);
 		currentReward = util.CreatureStats.calculateMoneyReward(totalStars, Globals.fameLevel);
-		// Apply variant bonuses
+
 		var bonusMultiplier:Float = 1.0;
 		if (ci.variantType == ALPHA)
 		{
@@ -351,7 +349,6 @@ class GameResults extends FlxState
 			rewardAmount.x = leftInnerRight - Std.int(rewardAmount.width);
 		}
 
-		// Fame display
 		if (fameLabel == null)
 		{
 			fameLabel = new GameText(leftLabelX, 148, "Fame:");
@@ -380,14 +377,13 @@ class GameResults extends FlxState
 			add(new FlxSprite(0, 0, "assets/ui/paperclip.png"));
 		}
 
-		// Load photo frames normally (no padding needed)
 		photoSprite.frames = FlxAtlasFrames.fromSparrow(ColorHelpers.getHueColoredBmp("assets/images/photos.png", ci.hue), "assets/images/photos.xml");
 
 		var framesForVariant = photoSprite.frames.getAllByPrefix(ci.variant);
 		var frameIndex = FlxG.random.int(0, framesForVariant.length - 1);
 		currentFrameName = framesForVariant[frameIndex].name;
 		photoSprite.animation.frameName = currentFrameName;
-		// Clear any existing photo effects
+
 		if (photoTween != null)
 		{
 			photoTween.cancel();
@@ -395,10 +391,8 @@ class GameResults extends FlxState
 		}
 		photoSprite.alpha = 1.0;
 
-		// Clear any existing shader
 		photoSprite.shader = null;
 
-		// Variant badge display and shaders
 		if (ci.variantType == ALPHA || ci.variantType == SHINY)
 		{
 			if (variantBadge == null)
@@ -408,13 +402,11 @@ class GameResults extends FlxState
 				add(variantBadge);
 			}
 
-			// Frame 0 = shiny, frame 1 = alpha
 			variantBadge.animation.frameIndex = ci.variantType == SHINY ? 0 : 1;
 			variantBadge.x = photoSprite.x + photoSprite.width - variantBadge.width - 2;
 			variantBadge.y = photoSprite.y + photoSprite.height - variantBadge.height - 2;
 			variantBadge.visible = true;
 
-			// Apply color cycling shader to Shiny photos
 			if (ci.variantType == SHINY)
 			{
 				var outlineShader = new shaders.OutlineShader();
@@ -437,12 +429,11 @@ class GameResults extends FlxState
 		if (isTransitioning)
 			return;
 
-		// Update shiny photo shader animation
 		if (photoSprite != null && photoSprite.shader != null && selectedIndex >= 0 && selectedIndex < items.length)
 		{
 			if (items[selectedIndex].variantType == SHINY)
 			{
-				shinyHueTimer += elapsed * 180; // Cycle through 180 degrees per second
+				shinyHueTimer += elapsed * 180;
 				if (shinyHueTimer >= 360)
 					shinyHueTimer -= 360;
 
@@ -450,7 +441,6 @@ class GameResults extends FlxState
 			}
 		}
 
-		// Update input manager and sync reticle visibility
 		util.InputManager.update();
 		if (!virtualKeyboard.isVisible)
 		{
@@ -511,8 +501,6 @@ class GameResults extends FlxState
 		if (keyboardActive)
 			return;
 
-		// Let FlxButton handle mouse input properly (on justReleased, not justPressed)
-		// Check for clicks on the name text field to activate rename
 		if (FlxG.mouse.justPressed)
 		{
 			var mousePos = FlxG.mouse.getWorldPosition();
@@ -543,7 +531,6 @@ class GameResults extends FlxState
 
 	private function activateCurrentUIObject():Void
 	{
-		// If no items, the only UI object is the OK button
 		if (items.length == 0)
 		{
 			returnToOffice();
@@ -624,7 +611,6 @@ class GameResults extends FlxState
 					photoCounterText.text = counterStr;
 				}
 
-				// Hide save button since name is reset
 				if (submitBtn != null)
 					submitBtn.visible = false;
 
@@ -648,7 +634,6 @@ class GameResults extends FlxState
 		currentCreatureName = newName;
 		keyboardActive = false;
 
-		// Only show save button if a name was actually entered
 		if (submitBtn != null)
 			submitBtn.visible = (newName != null && newName.length > 0);
 		if (rndButton != null)
@@ -657,14 +642,14 @@ class GameResults extends FlxState
 		if (nameText != null)
 		{
 			nameText.text = newName.length > 0 ? newName : "[EDIT]";
-			// Stop pulsing and restore full alpha when name is changed
+
 			if (nameTextPulseTween != null)
 			{
 				nameTextPulseTween.cancel();
 				nameTextPulseTween = null;
 			}
 			nameText.alpha = 1.0;
-			// If name is still "[EDIT]", start pulsing again
+
 			if (nameText.text == "[EDIT]")
 			{
 				nameTextPulseTween = FlxTween.tween(nameText, {alpha: 0.25}, 0.5, {
@@ -684,7 +669,6 @@ class GameResults extends FlxState
 
 	private function onRandomName():Void
 	{
-		// Generate random name and apply it directly without opening keyboard
 		if (virtualKeyboard != null)
 		{
 			var randomName = virtualKeyboard.generatePublicRandomName();
@@ -692,7 +676,7 @@ class GameResults extends FlxState
 			if (nameText != null)
 			{
 				nameText.text = currentCreatureName;
-				// Cancel any pulse tween
+
 				if (nameTextPulseTween != null)
 				{
 					nameTextPulseTween.cancel();
@@ -700,7 +684,7 @@ class GameResults extends FlxState
 				}
 				nameText.alpha = 1.0;
 			}
-			// Show submit button since we now have a name
+
 			if (submitBtn != null)
 				submitBtn.visible = true;
 			SoundHelper.playSound("ui_select");

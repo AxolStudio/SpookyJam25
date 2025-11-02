@@ -56,20 +56,12 @@ class InputManager
 	{
 		lastMouseX = FlxG.mouse.viewX;
 		lastMouseY = FlxG.mouse.viewY;
-		usingMouse = false; // Start hidden until mouse moves
+		usingMouse = false;
 		FlxG.mouse.visible = false;
 	}
 
-	/**
-	 * Update input detection
-	 * Call this in every state's update() method
-	 * 
-	 * @param allowGamepad - Whether gamepad input should hide mouse (default: true)
-	 *                       Set to false for states that don't support gamepad
-	 */
 	public static function update(allowGamepad:Bool = true):Void
 	{
-		// Check for mouse movement
 		var currentMouseX = FlxG.mouse.viewX;
 		var currentMouseY = FlxG.mouse.viewY;
 
@@ -78,14 +70,12 @@ class InputManager
 			lastMouseX = currentMouseX;
 			lastMouseY = currentMouseY;
 
-			// Mouse moved - switch to mouse mode
 			if (!usingMouse)
 			{
 				switchToMouse();
 			}
 		}
 
-		// Check for gamepad/keyboard input (if allowed)
 		if (allowGamepad && !forceMouseVisible)
 		{
 			var gamepadInput = checkGamepadInput();
@@ -100,7 +90,6 @@ class InputManager
 			}
 		}
 
-		// Apply mouse visibility based on mode
 		if (forceMouseVisible)
 		{
 			FlxG.mouse.visible = true;
@@ -110,19 +99,14 @@ class InputManager
 			FlxG.mouse.visible = usingMouse;
 		}
 
-		// Update reticle visibility if set
 		if (reticleSprite != null)
 		{
 			reticleSprite.visible = !usingMouse;
 		}
 	}
 
-	/**
-	 * Check if any gamepad input is active
-	 */
 	private static function checkGamepadInput():Bool
 	{
-		// Check action inputs
 		if (Actions.leftUI != null && Actions.leftUI.triggered)
 			return true;
 		if (Actions.rightUI != null && Actions.rightUI.triggered)
@@ -134,7 +118,6 @@ class InputManager
 		if (Actions.pressUI != null && Actions.pressUI.triggered)
 			return true;
 
-		// Check analog stick movement
 		if (Actions.leftStick != null)
 		{
 			if (Math.abs(Actions.leftStick.x) > GAMEPAD_DEADZONE || Math.abs(Actions.leftStick.y) > GAMEPAD_DEADZONE)
@@ -146,19 +129,14 @@ class InputManager
 		return false;
 	}
 
-	/**
-	 * Check if any keyboard input is active
-	 */
 	private static function checkKeyboardInput():Bool
 	{
-		// Check arrow keys and WASD
 		if (FlxG.keys.justPressed.LEFT || FlxG.keys.justPressed.RIGHT || FlxG.keys.justPressed.UP || FlxG.keys.justPressed.DOWN || FlxG.keys.justPressed.W
 			|| FlxG.keys.justPressed.A || FlxG.keys.justPressed.S || FlxG.keys.justPressed.D)
 		{
 			return true;
 		}
 
-		// Check Enter/Space/Escape
 		if (FlxG.keys.justPressed.ENTER || FlxG.keys.justPressed.SPACE || FlxG.keys.justPressed.ESCAPE)
 		{
 			return true;
@@ -186,9 +164,6 @@ class InputManager
 		}
 	}
 
-	/**
-	 * Switch to gamepad/keyboard mode
-	 */
 	public static function switchToGamepad():Void
 	{
 		usingMouse = false;
@@ -205,18 +180,11 @@ class InputManager
 		}
 	}
 
-	/**
-	 * Check if currently using mouse
-	 */
 	public static function isUsingMouse():Bool
 	{
 		return usingMouse;
 	}
 
-	/**
-	 * Set the reticle sprite to auto-show/hide based on input mode
-	 * Pass null to clear
-	 */
 	public static function setReticle(sprite:FlxSprite):Void
 	{
 		reticleSprite = sprite;
@@ -239,21 +207,13 @@ class InputManager
 		}
 	}
 
-	/**
-	 * Force switch to mouse mode (for specific situations like dialog boxes)
-	 */
 	public static function forceMouse():Void
 	{
 		switchToMouse();
 	}
 
-	/**
-	 * For touch support (future): Check if using touch
-	 */
 	public static function isUsingTouch():Bool
 	{
-		// TODO: Implement touch detection
-		// Check FlxG.touches for active touches
 		#if mobile
 		return FlxG.touches.list.length > 0;
 		#else
@@ -261,9 +221,6 @@ class InputManager
 		#end
 	}
 
-	/**
-	 * For touch support (future): Get primary touch point
-	 */
 	public static function getPrimaryTouch():flixel.input.touch.FlxTouch
 	{
 		#if mobile

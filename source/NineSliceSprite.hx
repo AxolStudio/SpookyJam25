@@ -25,12 +25,10 @@ class NineSliceSprite extends FlxGroup
 		createSlices(x, y, width, height, graphicPath);
 	}
 
-	// Public API to resize the nine-slice graphic. Recreates internal slice sprites.
 	public function setGraphicSize(width:Float, height:Float):Void
 	{
 		boundsWidth = width;
 		boundsHeight = height;
-		// recreate slices at current position
 		createSlices(get_x(), get_y(), width, height, graphicPath);
 	}
 
@@ -59,11 +57,8 @@ class NineSliceSprite extends FlxGroup
 		var currentX = get_x();
 		var offsetX = value - currentX;
 
-		// Move all sprites by the offset
 		for (sprite in sprites)
-		{
 			sprite.x += offsetX;
-		}
 
 		return value;
 	}
@@ -73,56 +68,41 @@ class NineSliceSprite extends FlxGroup
 		var currentY = get_y();
 		var offsetY = value - currentY;
 
-		// Move all sprites by the offset
 		for (sprite in sprites)
-		{
 			sprite.y += offsetY;
-		}
 
 		return value;
 	}
 
 	private function createSlices(x:Float, y:Float, width:Float, height:Float, graphicPath:String):Void
 	{
-		// Remove any existing sprites from the group before recreating
 		for (sprite in sprites)
-		{
-			// remove from group
 			remove(sprite);
-		}
 		sprites = [];
-
-		// Corner pieces (never tiled)
-		// Top-left corner
 		var topLeft = new FlxSprite(x, y);
 		topLeft.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 		topLeft.animation.frameIndex = 0;
 		sprites.push(topLeft);
 		add(topLeft);
 
-		// Top-right corner
 		var topRight = new FlxSprite(x + width - sliceSize, y);
 		topRight.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 		topRight.animation.frameIndex = 2;
 		sprites.push(topRight);
 		add(topRight);
 
-		// Bottom-left corner
 		var bottomLeft = new FlxSprite(x, y + height - sliceSize);
 		bottomLeft.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 		bottomLeft.animation.frameIndex = 6;
 		sprites.push(bottomLeft);
 		add(bottomLeft);
 
-		// Bottom-right corner
 		var bottomRight = new FlxSprite(x + width - sliceSize, y + height - sliceSize);
 		bottomRight.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 		bottomRight.animation.frameIndex = 8;
 		sprites.push(bottomRight);
 		add(bottomRight);
 
-		// Edges with proper tiling
-		// Top edge
 		var remainingWidth = (width - sliceSize * 2);
 		var currentX = x + sliceSize;
 		while (remainingWidth > 0)
@@ -132,16 +112,13 @@ class NineSliceSprite extends FlxGroup
 			topTile.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 			topTile.animation.frameIndex = 1;
 			if (tileWidth < sliceSize)
-			{
 				topTile.clipRect = new flixel.math.FlxRect(0, 0, tileWidth, sliceSize);
-			}
 			sprites.push(topTile);
 			add(topTile);
 			currentX += tileWidth;
 			remainingWidth -= tileWidth;
 		}
 
-		// Bottom edge
 		remainingWidth = (width - sliceSize * 2);
 		currentX = x + sliceSize;
 		while (remainingWidth > 0)
@@ -151,16 +128,13 @@ class NineSliceSprite extends FlxGroup
 			bottomTile.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 			bottomTile.animation.frameIndex = 7;
 			if (tileWidth < sliceSize)
-			{
 				bottomTile.clipRect = new flixel.math.FlxRect(0, 0, tileWidth, sliceSize);
-			}
 			sprites.push(bottomTile);
 			add(bottomTile);
 			currentX += tileWidth;
 			remainingWidth -= tileWidth;
 		}
 
-		// Left edge
 		var remainingHeight = (height - sliceSize * 2);
 		var currentY = y + sliceSize;
 		while (remainingHeight > 0)
@@ -170,16 +144,13 @@ class NineSliceSprite extends FlxGroup
 			leftTile.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 			leftTile.animation.frameIndex = 3;
 			if (tileHeight < sliceSize)
-			{
 				leftTile.clipRect = new flixel.math.FlxRect(0, 0, sliceSize, tileHeight);
-			}
 			sprites.push(leftTile);
 			add(leftTile);
 			currentY += tileHeight;
 			remainingHeight -= tileHeight;
 		}
 
-		// Right edge
 		remainingHeight = (height - sliceSize * 2);
 		currentY = y + sliceSize;
 		while (remainingHeight > 0)
@@ -189,16 +160,12 @@ class NineSliceSprite extends FlxGroup
 			rightTile.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 			rightTile.animation.frameIndex = 5;
 			if (tileHeight < sliceSize)
-			{
 				rightTile.clipRect = new flixel.math.FlxRect(0, 0, sliceSize, tileHeight);
-			}
 			sprites.push(rightTile);
 			add(rightTile);
 			currentY += tileHeight;
 			remainingHeight -= tileHeight;
 		}
-
-		// Center with proper tiling
 		remainingHeight = (height - sliceSize * 2);
 		currentY = y + sliceSize;
 		while (remainingHeight > 0)
@@ -213,9 +180,7 @@ class NineSliceSprite extends FlxGroup
 				centerTile.loadGraphic(graphicPath, true, sliceSize, sliceSize);
 				centerTile.animation.frameIndex = 4;
 				if (tileWidth < sliceSize || tileHeight < sliceSize)
-				{
 					centerTile.clipRect = new flixel.math.FlxRect(0, 0, tileWidth, tileHeight);
-				}
 				sprites.push(centerTile);
 				add(centerTile);
 				currentX += tileWidth;

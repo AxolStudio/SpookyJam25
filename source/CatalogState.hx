@@ -31,17 +31,14 @@ class CatalogState extends FlxState
 		bg = new FlxSprite(0, 0, "assets/ui/room_catalog.png");
 		add(bg);
 
-		// Money display - single line at top
 		moneyText = new GameText(35, 30, "YOUR FUNDS: $" + Globals.playerMoney);
 		add(moneyText);
 
-		// Create upgrade items (moved up by ~8 pixels, which is about half a pip height)
 		createUpgradeItem("O2 LEVEL", "o2", 25, 62);
 		createUpgradeItem("SPEED", "speed", 25, 97);
 		createUpgradeItem("ARMOR", "armor", 25, 132);
 		createUpgradeItem("FILM", "film", 25, 167);
 
-		// Close button (moved down)
 		var closeIcon = new FlxSprite(0, 0, "assets/ui/close.png");
 		closeBtn = new NineSliceButton<FlxSprite>(FlxG.width - 60, FlxG.height - 25, 50, 24, onClose);
 		closeBtn.isCancelButton = true;
@@ -49,7 +46,6 @@ class CatalogState extends FlxState
 		closeBtn.positionLabel();
 		add(closeBtn);
 
-		// BlackOut for transitions
 		var overCam = new flixel.FlxCamera(0, 0, FlxG.width, FlxG.height);
 		overCam.bgColor = FlxColor.TRANSPARENT;
 		FlxG.cameras.add(overCam, false);
@@ -98,8 +94,6 @@ class CatalogState extends FlxState
 		if (currentLevel >= MAX_LEVEL)
 			return 0;
 
-		// Level 1 = $50, Level 2 = $150, Level 3 = $400, Level 4 = $1000, Level 5 = maxed out
-		// Using a steeper exponential curve: 50 * (3^level)
 		return BASE_PRICE * Std.int(Math.pow(3, currentLevel));
 	}
 
@@ -118,23 +112,18 @@ class CatalogState extends FlxState
 			return;
 		}
 
-		// Purchase the upgrade
 		Globals.playerMoney -= price;
 		Globals.gameSave.data.money = Globals.playerMoney;
 
 		setUpgradeLevel(upgradeKey, currentLevel + 1);
 		Globals.gameSave.flush();
 
-		// Play purchase sound
 		util.SoundHelper.playSound("upgrade_buy");
 
-		// Track purchase event
 		axollib.AxolAPI.sendEvent("UPGRADE_PURCHASED_" + upgradeKey.toUpperCase(), currentLevel + 1);
 
-		// Update money display
 		moneyText.text = "YOUR FUNDS: $" + Globals.playerMoney;
 
-		// Refresh all upgrade items (affordability may have changed)
 		for (item in upgradeItems)
 		{
 			if (item.upgradeKey == upgradeKey)
@@ -143,7 +132,6 @@ class CatalogState extends FlxState
 			}
 			else
 			{
-				// Update affordability color for other items
 				item.updateAffordability(Globals.playerMoney);
 			}
 		}
@@ -164,11 +152,9 @@ class CatalogState extends FlxState
 	{
 		super.update(elapsed);
 
-		// Update input manager - force mouse visible for catalog
 		util.InputManager.forceMouseVisibility(true);
 		util.InputManager.update();
 
-		// ESC to close
 		if (FlxG.keys.justPressed.ESCAPE && !isTransitioning)
 		{
 			onClose();
@@ -195,11 +181,9 @@ class UpgradeItem extends flixel.group.FlxGroup
 		this.currentLevel = level;
 		this.onBuyCallback = onBuy;
 
-		// Name (moved right by ~10 pixels, about 2 letter widths)
 		nameText = new GameText(Std.int(x + 10), Std.int(y), name);
 		add(nameText);
 
-		// Pips showing level
 		for (i in 0...5)
 		{
 			var pip = new FlxSprite(x + 64 + i * 18, y + 2);
@@ -209,23 +193,19 @@ class UpgradeItem extends flixel.group.FlxGroup
 			add(pip);
 		}
 
-		// Price - same y as name
 		var priceStr = price > 0 ? "$" + price : "SOLD OUT";
 		priceText = new GameText(Std.int(x + 159), Std.int(y), priceStr);
-		// Color price based on affordability
 		if (price > 0)
 		{
 			priceText.color = Globals.playerMoney >= price ? 0xFF00FF00 : 0xFFFF0000;
 		}
 		add(priceText);
 
-		// Buy button - taller and more square
 		if (level < 5)
 		{
 			var buyIcon = new FlxSprite(0, 0, "assets/ui/buy.png");
-			// Make button fit icon properly: icon is likely ~16x16, so use height that fits middle slice
-			var btnHeight = Std.int(buyIcon.height + 9); // Top + bottom slices + icon
-			var btnWidth = Std.int(Math.max(buyIcon.width + 8, btnHeight)); // Make square-ish
+			var btnHeight = Std.int(buyIcon.height + 9);
+			var btnWidth = Std.int(Math.max(buyIcon.width + 8, btnHeight));
 			buyBtn = new NineSliceButton<FlxSprite>(Std.int(x + 209), Std.int(y - 3), btnWidth, btnHeight, onBuyClick);
 			buyBtn.label = buyIcon;
 			buyBtn.positionLabel();
@@ -245,22 +225,18 @@ class UpgradeItem extends flixel.group.FlxGroup
 	{
 		currentLevel = newLevel;
 
-		// Update pips
 		for (i in 0...pips.length)
 		{
 			pips[i].animation.frameIndex = i < newLevel ? 1 : 0;
 		}
 
-		// Update price
 		var priceStr = newPrice > 0 ? "$" + newPrice : "SOLD OUT";
 		priceText.text = priceStr;
-		// Update color based on affordability
 		if (newPrice > 0)
 		{
 			priceText.color = Globals.playerMoney >= newPrice ? 0xFF00FF00 : 0xFFFF0000;
 		}
 
-		// Hide buy button if maxed out
 		if (newLevel >= 5 && buyBtn != null)
 		{
 			remove(buyBtn);
@@ -271,7 +247,6 @@ class UpgradeItem extends flixel.group.FlxGroup
 
 	public function updateAffordability(currentMoney:Int):Void
 	{
-		// Just update price color based on current money
 		if (currentLevel < 5)
 		{
 			var price = 50 * Std.int(Math.pow(3, currentLevel));

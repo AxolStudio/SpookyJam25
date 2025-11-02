@@ -16,8 +16,7 @@ class Globals
 
 	public static var playerID:String = "";
 
-	// Fame system
-	public static var fameLevel:Int = 1; // 1-10 (shown as 'A' at 10)
+	public static var fameLevel:Int = 1;
 	public static var currentFame:Int = 0;
 
 	public static function init():Void
@@ -32,27 +31,22 @@ class Globals
 		SoundHelper.initSounds();
 		util.InputManager.init();
 
-		// Preload commonly used graphics to prevent lag spikes
 		preloadAssets();
 
 		if (Constants.Mouse == null)
-		{
 			Constants.Mouse = new MouseHandler();
-		}
 		Constants.Mouse.init();
 
-		// Start with mouse cursor hidden
 		FlxG.mouse.visible = false;
 
-		// Initialize save system
 		initSave();
 		AxolAPI.initSave(playerID, gameSave);
 		AxolAPI.initialize("7F2F79A96ED8A86D115894216E9EB", playerID);
 		AxolAPI.sendEvent("GAME_START");
 	}
+
 	private static function preloadAssets():Void
 	{
-		// Preload all commonly used graphics
 		FlxG.bitmap.add("assets/images/reticle.png");
 		FlxG.bitmap.add("assets/images/small-font.png");
 		FlxG.bitmap.add("assets/ui/ui_box_16x16.png");
@@ -89,44 +83,25 @@ class Globals
 		gameSave = new FlxSave();
 		gameSave.bind("SpookyJam25Save");
 
-		// Load saved creatures if they exist
 		if (gameSave.data.creatures != null)
-		{
 			savedCreatures = gameSave.data.creatures;
-		}
 		else
-		{
 			savedCreatures = [];
-		}
 
-		// Load player money
 		if (gameSave.data.money != null)
-		{
 			playerMoney = gameSave.data.money;
-		}
 		else
-		{
 			playerMoney = 0;
-		}
 
-		// Load fame data
 		if (gameSave.data.fameLevel != null)
-		{
 			fameLevel = gameSave.data.fameLevel;
-		}
 		else
-		{
 			fameLevel = 1;
-		}
 
 		if (gameSave.data.currentFame != null)
-		{
 			currentFame = gameSave.data.currentFame;
-		}
 		else
-		{
 			currentFame = 0;
-		}
 
 		if (gameSave.data.playerID != null)
 		{
@@ -164,13 +139,13 @@ class Globals
 
 	public static function getFameNeededForLevel(level:Int):Int
 	{
-		return 50 * level; // 50, 100, 150, 200...
+		return 50 * level;
 	}
 
 	public static function getFameNeededForNextLevel():Int
 	{
 		if (fameLevel >= 10)
-			return 0; // Max level
+			return 0;
 		return getFameNeededForLevel(fameLevel);
 	}
 
@@ -190,7 +165,6 @@ class Globals
 		fameLevel = 1;
 		currentFame = 0;
 		initSave();
-		// Save the reset values
 		gameSave.data.money = playerMoney;
 		gameSave.data.fameLevel = fameLevel;
 		gameSave.data.currentFame = currentFame;

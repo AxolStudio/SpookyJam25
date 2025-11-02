@@ -51,13 +51,8 @@ class PlayState extends FlxState
 	{
 		Globals.init();
 		Actions.switchSet(Actions.gameplayIndex);
-		// InputManager will handle mouse visibility based on input mode
 		util.InputManager.switchToGamepad();
-
-		// Hide mouse cursor during intro (will show when ready=true)
 		FlxG.mouse.visible = false;
-
-		// Switch to crosshair cursor for gameplay
 		if (Constants.Mouse != null)
 		{
 			Constants.Mouse.cursor = "crosshair";
@@ -85,7 +80,6 @@ class PlayState extends FlxState
 
 		enemies = new FlxTypedGroup<Enemy>();
 		add(enemies);
-		// Create pooled alert icons (max 20 should be plenty)
 		alertIcons = new FlxTypedGroup<FlxSprite>(20);
 		for (i in 0...20)
 		{
@@ -93,23 +87,18 @@ class PlayState extends FlxState
 			icon.loadGraphic("assets/images/alert_icons.png", true, 14, 14);
 			icon.visible = false;
 			icon.cameras = [overCam];
-			icon.scrollFactor.set(1, 1); // Icons move with world, not HUD
+			icon.scrollFactor.set(1, 1);
 			alertIcons.add(icon);
 		}
 		add(alertIcons);
-		
 		if (tilemap != null)
 			tilemap.spawnEnemies(enemies, atmosphereHue, Std.int(player.x / Constants.TILE_SIZE), Std.int(player.y / Constants.TILE_SIZE));
-		// Initialize AI brain with tilemap for pathfinding
 		ai.EnemyBrain.init(tilemap);
-		
 		reticle = new Reticle(player);
 		add(reticle);
-		// Don't register reticle with InputManager - it should always be visible in PlayState
-		reticle.visible = true; // Force always visible
+		reticle.visible = true;
 		hud = new Hud(player);
 		add(hud);
-		// Create white flash sprite for camera photos (no alpha/transparency in FlxCamera.flash)
 		flashSprite = new FlxSprite(0, 0);
 		flashSprite.makeGraphic(FlxG.width, FlxG.height, FlxColor.WHITE);
 		flashSprite.scrollFactor.set(0, 0);
@@ -149,12 +138,9 @@ class PlayState extends FlxState
 							portal.shader = null;
 							ready = true;
 							player.canDepleteo2 = true;
-							// Show mouse cursor when gameplay starts
 							FlxG.mouse.visible = true;
-							// Ensure reticle is always visible in gameplay
 							if (reticle != null)
 								reticle.visible = true;
-							// Track run start with initial O2
 							axollib.AxolAPI.sendEvent("RUN_START", player.o2);
 						}
 					});
@@ -176,25 +162,21 @@ class PlayState extends FlxState
 		fog.cameras = [mainCam];
 		fog.scrollFactor.set(0, 0);
 		add(fog);
-		// Setup twinkling sparkles (like distant stars in the fog)
-		// Spread across entire map, not just initial camera view
 		var mapWidth:Float = tilemap.width;
 		var mapHeight:Float = tilemap.height;
-		var sparkleCount:Int = Std.int(mainCam.width * mainCam.height * 0.0166); // Further reduced for performance
+		var sparkleCount:Int = Std.int(mainCam.width * mainCam.height * 0.0166);
 		sparkles = new FlxTypedGroup<Sparkle>(sparkleCount);
 		for (i in 0...sparkleCount)
 		{
 			var sparkle = new Sparkle(mapWidth, mapHeight);
-			// Position randomly across entire map
 			sparkle.x = FlxG.random.float(0, mapWidth);
 			sparkle.y = FlxG.random.float(0, mapHeight);
-			sparkle.scrollFactor.set(0.15, 0.15); // Slow parallax like distant stars
+			var sF:Float = FlxG.random.float(0.01, 0.2);
+			sparkle.scrollFactor.set(sF, sF);
 			sparkle.cameras = [mainCam];
 			sparkles.add(sparkle);
 		}
 		add(sparkles);
-
-		// Tone down fog shader contrast to avoid washing out the scene
 		try
 		{
 			if (fogShader != null)
@@ -222,23 +204,17 @@ class PlayState extends FlxState
 	override public function update(elapsed:Float):Void
 	{
 		Constants.Mouse.update(elapsed);
-
 		if (!ready)
 		{
-			// Don't update InputManager during intro - keeps mouse hidden
 			super.update(elapsed);
 		}
 		else if (isGameOver)
 		{
-			// Game over - only update UI
 			super.update(elapsed);
 		}
 		else
 		{
-			// Update InputManager during gameplay
 			util.InputManager.update();
-
-			// Update flash sprite timer
 			if (flashTimer > 0)
 			{
 				flashTimer -= elapsed;
@@ -247,21 +223,15 @@ class PlayState extends FlxState
 					flashSprite.visible = false;
 				}
 			}
-			
-			// Check for O2 depletion
 			if (player.o2 <= 0)
 			{
-				// Track death by O2 depletion
 				axollib.AxolAPI.sendEvent("O2_DEPLETED", 0);
 				triggerGameOver();
 				return;
 			}
-			
 			playerMovement(elapsed);
 			ai.EnemyBrain.process(player, enemies, tilemap, elapsed, mainCam);
 			ai.EnemyBrain.updatePaths(elapsed, tilemap);
-
-			// Update sound wave propagation (flood-fill, no lag!)
 			var enemyArray:Array<Enemy> = [];
 			for (e in enemies.members)
 			{
@@ -269,7 +239,6 @@ class PlayState extends FlxState
 					enemyArray.push(e);
 			}
 			ai.EnemyBrain.updateSoundWaves(tilemap, enemyArray);
-			
 			if (reticle != null)
 			{
 				reticle.updateFromPlayer(player, overCam);
@@ -278,12 +247,10 @@ class PlayState extends FlxState
 			super.update(elapsed);
 			FlxG.collide(player, tilemap.wallsMap);
 			FlxG.collide(enemies, tilemap.wallsMap);
-			// Check enemy collision with player
 			if (player.invincibilityTimer <= 0)
 			{
 				FlxG.overlap(player, enemies, onEnemyHitPlayer);
 			}
-			
 			if (portal.playerOn)
 			{
 				if (!portal.overlaps(player))
@@ -293,26 +260,16 @@ class PlayState extends FlxState
 			}
 			else
 			{
-				// if portal.playerOn is false but player now overlaps, treat as re-entry and end game
 				if (portal.overlaps(player))
 				{
 					ready = false;
 					player.stop();
-
-					// Stop low air sound when entering portal
 					if (hud != null)
 						hud.stopLowAirSound();
-
-					// Track successful run completion with remaining O2
 					axollib.AxolAPI.sendEvent("RUN_COMPLETE", player.o2);
-
-					// Track number of photos captured
 					var photoCount:Float = player.getCaptured().length;
 					axollib.AxolAPI.sendEvent("PHOTOS_CAPTURED", photoCount);
-
-					// Play portal sound
 					SoundHelper.playSound("portal");
-
 					for (enemy in enemies.members)
 					{
 						if (enemy != null)
@@ -323,7 +280,6 @@ class PlayState extends FlxState
 					SoundHelper.fadeOutMusic("bgm", 1);
 					blackOut.fade(() ->
 					{
-						// pass captured items to GameResults
 						var items = player.getCaptured();
 						FlxG.switchState(() -> new GameResults(items));
 					}, true, 1.5, FlxColor.BLACK);
@@ -345,27 +301,20 @@ class PlayState extends FlxState
 		if (up && down)
 			up = down = false;
 		var any:Bool = left || right || up || down;
-
 		var moveAngle:Float = 0;
 		var move:FlxPoint = FlxPoint.get();
 		var analogOrigSpeed:Float = -1.0;
-		// Check for touch input to move player toward touch position
 		var touchMoving:Bool = false;
 		if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
 		{
 			var primaryTouch = FlxG.touches.list[0];
 			if (primaryTouch != null && primaryTouch.pressed)
 			{
-				// Get touch world position
 				var touchWorldPos = primaryTouch.getWorldPosition(overCam);
 				var playerMid = player.getMidpoint();
-
-				// Calculate direction from player to touch
 				var dx:Float = touchWorldPos.x - playerMid.x;
 				var dy:Float = touchWorldPos.y - playerMid.y;
 				var distance:Float = Math.sqrt(dx * dx + dy * dy);
-
-				// Only move if touch is far enough away (> 8 pixels)
 				if (distance > 8)
 				{
 					moveAngle = Math.atan2(dy, dx) * FlxAngle.TO_DEG;
@@ -373,13 +322,10 @@ class PlayState extends FlxState
 					move.y = dy / distance;
 					any = true;
 					touchMoving = true;
-
-					// Scale speed based on distance (closer = slower, max at 64+ pixels)
 					var speedScale:Float = Math.min(distance / 64.0, 1.0);
 					analogOrigSpeed = player.speed;
 					player.speed = analogOrigSpeed * speedScale;
 				}
-
 				playerMid.put();
 				touchWorldPos.put();
 			}
@@ -394,13 +340,11 @@ class PlayState extends FlxState
 			var stickMag:Float = Math.sqrt(move.x * move.x + move.y * move.y);
 			if (stickMag > 1.0)
 				stickMag = 1.0;
-
 			analogOrigSpeed = player.speed;
 			player.speed = analogOrigSpeed * stickMag;
 		}
 		else if (any)
 		{
-			// assign degrees so moveAngle stays consistent with stick input (which uses degrees)
 			if (left)
 				moveAngle = 180.0;
 			else if (right)
@@ -409,7 +353,6 @@ class PlayState extends FlxState
 				moveAngle = -90.0;
 			else if (down)
 				moveAngle = 90.0;
-
 			if (left && up)
 				moveAngle = -135.0;
 			else if (right && up)
@@ -418,14 +361,11 @@ class PlayState extends FlxState
 				moveAngle = 135.0;
 			else if (right && down)
 				moveAngle = 45.0;
-
 			move.x = Math.cos(moveAngle * FlxAngle.TO_RAD);
 			move.y = Math.sin(moveAngle * FlxAngle.TO_RAD);
 		}
-
 		if (any)
 		{
-			// moveAngle is already in degrees (when set from sticks or keys)
 			player.move(moveAngle);
 			if (analogOrigSpeed >= 0)
 			{
@@ -435,10 +375,7 @@ class PlayState extends FlxState
 		else
 			player.stop();
 		move.put();
-		// Check for photo action (mouse click, key press, or touch tap)
 		var shouldTakePhoto:Bool = Actions.attack.check();
-
-		// Check for touch tap (justPressed means it's a tap, not a held touch)
 		if (!shouldTakePhoto && FlxG.touches.list != null)
 		{
 			for (touch in FlxG.touches.list)
@@ -450,7 +387,6 @@ class PlayState extends FlxState
 				}
 			}
 		}
-
 		if (shouldTakePhoto)
 		{
 			if (player.tryTakePhoto())
@@ -461,9 +397,7 @@ class PlayState extends FlxState
 					if (b != null && b.alive && b.exists)
 						hits.push(b);
 				});
-				// Track photo attempt with number of hits
 				axollib.AxolAPI.sendEvent("PHOTO_TAKEN", hits.length);
-				
 				for (h in hits)
 					if (h != null)
 						h.capture(player);
@@ -474,49 +408,33 @@ class PlayState extends FlxState
 	{
 		var enemyObj:Enemy = cast(enemy, Enemy);
 		var playerObj:Player = cast(player, Player);
-
 		if (enemyObj == null || !enemyObj.alive || !enemyObj.exists)
 			return;
 		if (playerObj == null || !playerObj.alive || !playerObj.exists)
 			return;
 		if (enemyObj.stunTimer > 0)
 			return;
-
-		// Calculate damage based on enemy power, reduced by armor (flat reduction)
-		var damage:Float = Math.max(1, enemyObj.power - playerObj.armor); // Minimum 1 damage
+		var damage:Float = Math.max(1, enemyObj.power - playerObj.armor);
 		playerObj.o2 -= damage;
-
-		// Play random hurt sound
 		SoundHelper.playRandomHurtSound();
-
-		// Track enemy hit event with damage dealt
 		axollib.AxolAPI.sendEvent("ENEMY_HIT", damage);
-
-		// If this hit causes knockout, track it
 		if (playerObj.o2 <= 0)
 		{
 			axollib.AxolAPI.sendEvent("ENEMY_KNOCKOUT", enemyObj.power);
 		}
-
-		// Calculate knockback direction (opposite from enemy)
 		var dx:Float = playerObj.x - enemyObj.x;
 		var dy:Float = playerObj.y - enemyObj.y;
 		var dist:Float = Math.sqrt(dx * dx + dy * dy);
 		if (dist > 0)
 		{
-			// Normalize and apply knockback
 			dx /= dist;
 			dy /= dist;
 			var knockbackForce:Float = 100.0;
 			playerObj.velocity.x = dx * knockbackForce;
 			playerObj.velocity.y = dy * knockbackForce;
 		}
-
-		// Give player invincibility (0.5-1 second)
 		playerObj.invincibilityTimer = FlxG.random.float(0.5, 1.0);
 		playerObj.flickerTimer = 0;
-
-		// Stun the enemy briefly
 		enemyObj.stunTimer = FlxG.random.float(0.2, 0.4);
 		enemyObj.stop();
 	}
@@ -527,18 +445,10 @@ class PlayState extends FlxState
 		ready = false;
 		player.stop();
 		player.o2 = 0;
-
-		// Stop low air sound when dying
 		if (hud != null)
 			hud.stopLowAirSound();
-
-		// Play out of oxygen sound at full volume
 		SoundHelper.playSound("out_of_oxygen", null, null, 1.0);
-
-		// Clear captured photos
 		player.clearCaptured();
-
-		// Stop all enemies
 		for (enemy in enemies.members)
 		{
 			if (enemy != null)
@@ -546,8 +456,6 @@ class PlayState extends FlxState
 				enemy.stop();
 			}
 		}
-
-		// Fade to WHITE and go to office
 		blackOut.fade(() ->
 		{
 			FlxG.switchState(() -> new OfficeState(true));
@@ -556,28 +464,20 @@ class PlayState extends FlxState
 
 	private function showGameOverDialog():Void
 	{
-		// Clear captured photos
 		player.clearCaptured();
-
-		// Create dialog box (centered)
 		var dialogWidth:Float = 240;
 		var dialogHeight:Float = 80;
 		var dialogX:Float = (FlxG.width - dialogWidth) / 2;
 		var dialogY:Float = (FlxG.height - dialogHeight) / 2;
-
 		gameOverDialog = new NineSliceSprite(dialogX, dialogY, dialogWidth, dialogHeight);
 		gameOverDialog.cameras = [hudCam];
 		add(gameOverDialog);
-
-		// Add message text
 		var message = new ui.GameText(0, 0,
 			"You fell unconscious and\nwere dragged back through\nthe portal by your assistant.\nHowever you lost your photos.");
 		message.cameras = [hudCam];
 		add(message);
 		message.x = dialogX + (dialogWidth - message.width) / 2;
 		message.y = dialogY + 8;
-
-		// Add OK button
 		var okBtn = new FlxTypedButton<ui.GameText>(0, 0);
 		okBtn.makeGraphic(40, 16, 0xFF666666);
 		okBtn.label = new ui.GameText(0, 0, "OK");
@@ -592,26 +492,20 @@ class PlayState extends FlxState
 		okBtn.onUp.callback = onGameOverOK;
 		okBtn.cameras = [hudCam];
 		add(okBtn);
-
-		// Fade in from WHITE (transparent)
 		blackOut.fade(null, false, 1.0, FlxColor.WHITE);
 	}
 
 	private function onGameOverOK():Void
 	{
-		// Fade to black and return to office
 		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 1.0, FlxColor.BLACK);
 	}
 
-	/**
-	 * Trigger camera flash effect (white sprite for 1 frame, no alpha/transparency)
-	 */
 	public function triggerFlash():Void
 	{
 		if (flashSprite != null)
 		{
 			flashSprite.visible = true;
-			flashTimer = FlxG.elapsed; // Show for exactly 1 frame
+			flashTimer = FlxG.elapsed;
 		}
 	}
 
@@ -632,14 +526,10 @@ class PlayState extends FlxState
 	}
 	override public function destroy():Void
 	{
-		// Switch back to finger cursor when leaving PlayState
 		if (Constants.Mouse != null)
 		{
 			Constants.Mouse.cursor = "finger";
 		}
-		
-		// we need to destroy every module-level object we've created - AND remove/destroy all the shaders
-		// we can use Flixel's FlxDestroyUtil for this to do it safely.
 		ai.EnemyBrain.destroy();
 		tilemap = FlxDestroyUtil.destroy(tilemap);
 		player = FlxDestroyUtil.destroy(player);

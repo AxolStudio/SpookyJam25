@@ -201,11 +201,9 @@ class GameMap extends FlxGroup
 
 		if (Math.abs(tx - this.portalTileX) <= avoidRadius && Math.abs(ty - this.portalTileY) <= avoidRadius)
 			return true;
-
-		// Avoid spawning near player (larger radius for safe start)
 		if (playerTileX >= 0 && playerTileY >= 0)
 		{
-			var playerAvoidRadius:Int = 25; // 25 tiles minimum distance from player (400 pixels = 1.25 screen widths)
+			var playerAvoidRadius:Int = 25;
 			if (Math.abs(tx - playerTileX) <= playerAvoidRadius && Math.abs(ty - playerTileY) <= playerAvoidRadius)
 				return true;
 		}
@@ -299,10 +297,9 @@ class GameMap extends FlxGroup
 			if (playerTileX >= 0 && playerTileY >= 0)
 			{
 				var playerDistTiles:Float = Math.pow(room.centroid.x - playerTileX, 2) + Math.pow(room.centroid.y - playerTileY, 2);
-				// REDUCE enemies near player start, don't increase!
 				if (playerDistTiles <= 144.0)
 				{
-					desired = Std.int(desired * 0.5); // Cut spawn rate in half near player
+					desired = Std.int(desired * 0.5);
 					if (desired < 1)
 						desired = 1;
 				}

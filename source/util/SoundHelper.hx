@@ -13,9 +13,6 @@ class SoundHelper
 
 	private static var currentMusicName:String = null;
 
-	/**
-	 * Track if we've had user interaction (for HTML5 audio unlock)
-	 */
 	private static var audioUnlocked:Bool = false;
 
 	public static function initSounds():Void
@@ -77,7 +74,7 @@ class SoundHelper
 	{
 		if (!soundsInitialized)
 			initSounds();
-		// Don't play sounds if audio hasn't been unlocked yet (HTML5 audio context restriction)
+
 		#if web
 		if (!audioUnlocked)
 			return;
@@ -90,12 +87,11 @@ class SoundHelper
 			return;
 		}
 
-		// Custom volumes for specific sounds
 		var soundVolume:Float = volume != null ? volume : 0.5;
 		if (volume == null)
 		{
 			if (name == "low_air")
-				soundVolume = 0.25; // Reduce low_air by 50%
+				soundVolume = 0.25;
 		}
 
 		var sound:FlxSound = FlxG.sound.play(assetPath, soundVolume);
@@ -134,7 +130,6 @@ class SoundHelper
 		if (!soundsInitialized)
 			initSounds();
 
-		// Don't play sounds if audio hasn't been unlocked yet (HTML5 audio context restriction)
 		#if web
 		if (!audioUnlocked)
 			return null;
@@ -161,19 +156,16 @@ class SoundHelper
 		if (!soundsInitialized)
 			initSounds();
 
-		// Don't play sounds if audio hasn't been unlocked yet (HTML5 audio context restriction)
 		#if web
 		if (!audioUnlocked)
 			return;
 		#end
 
-		// Filter out the last played sound
 		var availableSounds:Array<String> = playerHurtSounds.filter(function(s:String):Bool
 		{
 			return s != lastHurtSound;
 		});
 
-		// Pick a random sound from the available ones
 		var soundName:String = availableSounds[FlxG.random.int(0, availableSounds.length - 1)];
 		lastHurtSound = soundName;
 
@@ -184,26 +176,24 @@ class SoundHelper
 			return;
 		}
 
-		FlxG.sound.play(assetPath, 1.0); // Full volume for player hurt
+		FlxG.sound.play(assetPath, 1.0);
 	}
 
 	public static function playRandomPageTurn():Void
 	{
 		if (!soundsInitialized)
 			initSounds();
-		// Don't play sounds if audio hasn't been unlocked yet (HTML5 audio context restriction)
+
 		#if web
 		if (!audioUnlocked)
 			return;
 		#end
 
-		// Filter out the last played sound
 		var availableSounds:Array<String> = pageTurnSounds.filter(function(s:String):Bool
 		{
 			return s != lastPageTurnSound;
 		});
 
-		// Pick a random sound from the available ones
 		var soundName:String = availableSounds[FlxG.random.int(0, availableSounds.length - 1)];
 		lastPageTurnSound = soundName;
 
@@ -221,7 +211,7 @@ class SoundHelper
 	{
 		if (!soundsInitialized)
 			initSounds();
-		// Don't play music if audio hasn't been unlocked yet (HTML5 audio context restriction)
+
 		#if web
 		if (!audioUnlocked)
 		{
@@ -277,10 +267,7 @@ class SoundHelper
 			});
 		}
 	}
-	/**
-	 * Call this on first user interaction to unlock audio on HTML5
-	 * Returns true if audio was just unlocked, false if already unlocked
-	 */
+
 	public static function unlockAudio():Bool
 	{
 		#if web
@@ -291,19 +278,15 @@ class SoundHelper
 			return true;
 		}
 		#else
-		// On non-web platforms, audio is always "unlocked"
 		audioUnlocked = true;
 		#end
 		return false;
 	}
 
-	/**
-	 * Check if audio has been unlocked yet
-	 */
 	public static function isAudioUnlocked():Bool
 	{
 		#if !web
-		return true; // Always unlocked on non-web platforms
+		return true;
 		#end
 		return audioUnlocked;
 	}

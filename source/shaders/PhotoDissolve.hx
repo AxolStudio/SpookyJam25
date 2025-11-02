@@ -24,26 +24,21 @@ class PhotoDissolve extends FlxShader
 			
 			vec3 baseGray = mix(src.rgb, toGray(src.rgb), clamp(fDesat,0.0,1.0));
 
-		
 			const float ROWS = 16.0;
 			float vflip = 1.0 - uv.y;
 			float rowF = floor(vflip * ROWS);
 
-			
 			float progressed = clamp(fDissolve * ROWS, 0.0, ROWS);
 			float currentRow = floor(progressed);
 			float local = clamp(progressed - currentRow, 0.0, 1.0);
 
-		
 			float FALL_PER_ROW = 0.02;
 
-			
 			if (rowF < currentRow) {
 				gl_FragColor = vec4(vec3(0.0), 0.0);
 				return;
 			}
 
-			
 			if (rowF == currentRow) {
 				float fall = local * (currentRow + 1.0) * FALL_PER_ROW;
 				vec2 sampleUV = uv - vec2(0.0, fall);
@@ -56,72 +51,38 @@ class PhotoDissolve extends FlxShader
 			}
 
 			
-			vec4 sampled = flixel_texture2D(bitmap, uv);
-			vec3 finalCol = mix(sampled.rgb, toGray(sampled.rgb), clamp(fDesat,0.0,1.0));
-			
-			gl_FragColor = vec4(finalCol * sampled.a, sampled.a);
+		
+		vec4 sampled = flixel_texture2D(bitmap, uv);
+		vec3 finalCol = mix(sampled.rgb, toGray(sampled.rgb), clamp(fDesat,0.0,1.0));
+		gl_FragColor = vec4(finalCol * sampled.a, sampled.a);
 		}
     ')
 	public function new()
 	{
 		super();
-		try
-		{
-			dissolve = 0;
-		}
-		catch (e:Dynamic) {}
-		try
-		{
-			desat = 0;
-		}
-		catch (e:Dynamic) {}
-		try
-		{
-			time = 0;
-		}
-		catch (e:Dynamic) {}
+		dissolve = 0;
+		desat = 0;
+		time = 0;
 	}
 
 	private function set_dissolve(Value:Float):Float
 	{
 		dissolve = FlxMath.bound(Value, 0, 1);
-
-		if (fDissolve != null)
-		{
-			try
-			{
-				fDissolve.value = [dissolve];
-			}
-			catch (e:Dynamic) {}
-		}
+		fDissolve.value = [dissolve];
 		return dissolve;
 	}
 
 	private function set_desat(Value:Float):Float
 	{
 		desat = FlxMath.bound(Value, 0, 1);
-		if (fDesat != null)
-		{
-			try
-			{
-				fDesat.value = [desat];
-			}
-			catch (e:Dynamic) {}
-		}
+		fDesat.value = [desat];
 		return desat;
 	}
 
 	private function set_time(Value:Float):Float
 	{
 		time = Value;
-		if (iTime != null)
-		{
-			try
-			{
-				iTime.value = [time];
-			}
-			catch (e:Dynamic) {}
-		}
+		iTime.value = [time];
 		return time;
 	}
 }

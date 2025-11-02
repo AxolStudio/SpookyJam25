@@ -133,72 +133,52 @@ class TitleFog extends FlxShader
 	{
 		super();
 		time = 0.0;
-		if (iTime != null)
-			iTime.value = [time];
-
 		hue = 0.0;
-		if (fHue != null)
-			fHue.value = [hue / 360.0];
-
 		sat = 0.5;
 		vDark = 0.10;
 		vLight = 0.40;
 		contrast = 0.15;
-		if (fSat != null)
-			fSat.value = [sat];
-		if (fVDark != null)
-			fVDark.value = [vDark];
-		if (fVLight != null)
-			fVLight.value = [vLight];
-		if (fContrast != null)
-			fContrast.value = [contrast];
 	}
 
 	private function set_time(v:Float):Float
 	{
 		time = v;
-		if (iTime != null)
-			iTime.value = [time];
+		iTime.value = [time];
 		return time;
 	}
 
 	private function set_hue(v:Float):Float
 	{
 		hue = v;
-		if (fHue != null)
-			fHue.value = [hue / 360.0];
+		fHue.value = [hue / 360.0];
 		return hue;
 	}
 
 	private function set_sat(v:Float):Float
 	{
 		sat = v;
-		if (fSat != null)
-			fSat.value = [sat];
+		fSat.value = [sat];
 		return sat;
 	}
 
 	private function set_vDark(v:Float):Float
 	{
 		vDark = v;
-		if (fVDark != null)
-			fVDark.value = [vDark];
+		fVDark.value = [vDark];
 		return vDark;
 	}
 
 	private function set_vLight(v:Float):Float
 	{
 		vLight = v;
-		if (fVLight != null)
-			fVLight.value = [vLight];
+		fVLight.value = [vLight];
 		return vLight;
 	}
 
 	private function set_contrast(v:Float):Float
 	{
 		contrast = v;
-		if (fContrast != null)
-			fContrast.value = [contrast];
+		fContrast.value = [contrast];
 		return contrast;
 	}
 }
