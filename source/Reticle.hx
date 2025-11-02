@@ -5,6 +5,10 @@ import flixel.FlxSprite;
 import flixel.FlxCamera;
 import flixel.math.FlxPoint;
 import flixel.math.FlxAngle;
+import flixel.util.FlxColor;
+
+// Import reticle state enum
+using Types.ReticleState;
 
 class Reticle extends FlxSprite
 {
@@ -12,6 +16,12 @@ class Reticle extends FlxSprite
 	public var reticleDistance:Float = 32;
 	public var minDistance:Float = 16;
 	public var maxDistance:Float = 96;
+
+	// Reticle color states
+	public var currentState:ReticleState = NEUTRAL;
+
+	// Reference to check what we're targeting
+	private var player:Player;
 
 	public var stickDeadzone:Float = 0.25;
 	public var maxRadialSpeed:Float = 60;
@@ -28,14 +38,93 @@ class Reticle extends FlxSprite
 	public function new(Parent:Player)
 	{
 		super();
+		player = Parent;
+		
 		loadGraphic("assets/images/reticle.png", true, Constants.TILE_SIZE, Constants.TILE_SIZE, false, 'reticle');
 		animation.add("blink", [0, 1], 12, true);
 		animation.play("blink");
+		// Hitbox is smaller than graphic for tighter targeting
 		width = height = 14;
 		offset.x = offset.y = 1;
+		// Center the graphic on the reticle position
+		centerOrigin();
 
 		reticleAngle = 0;
 		reticleDistance = Math.max(minDistance, Math.min(maxDistance, reticleDistance));
+	}
+
+	/**
+	 * Override cameras setter (no longer needed for cursor sprite)
+	 */
+	override function set_cameras(value:Array<FlxCamera>):Array<FlxCamera>
+	{
+		super.set_cameras(value);
+		return value;
+	}
+
+	/**
+	 * Update reticle color based on state
+	 */
+	public function updateState(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>):Void
+	{
+		// Check player film and cooldown status
+		if (player.film <= 0)
+		{
+			setState(OUT_OF_FILM);
+			return;
+		}
+
+		if (player.photoCooldown > 0)
+		{
+			setState(ON_COOLDOWN);
+			return;
+		}
+
+		// Check if targeting an enemy
+		var targetingEnemy:Bool = false;
+		if (enemies != null)
+		{
+			for (enemy in enemies.members)
+			{
+				if (enemy != null && enemy.alive && enemy.exists)
+				{
+					// Check if reticle overlaps enemy
+					if (overlaps(enemy))
+					{
+						targetingEnemy = true;
+						break;
+					}
+				}
+			}
+		}
+
+		if (targetingEnemy)
+			setState(ENEMY_TARGETED);
+		else
+			setState(NEUTRAL);
+	}
+
+	/**
+	 * Set the reticle state and update colors
+	 */
+	private function setState(newState:ReticleState):Void
+	{
+		if (currentState == newState)
+			return;
+
+		currentState = newState;
+
+		switch (newState)
+		{
+			case NEUTRAL:
+				color = FlxColor.WHITE;
+			case ENEMY_TARGETED:
+				color = FlxColor.LIME; // Bright green
+			case OUT_OF_FILM:
+				color = FlxColor.RED;
+			case ON_COOLDOWN:
+				color = FlxColor.YELLOW;
+		}
 	}
 
 	public function updateFromPlayer(player:Player, cam:FlxCamera):Void
@@ -65,6 +154,19 @@ class Reticle extends FlxSprite
 		var mouseMoved:Bool = false;
 		var curViewX:Float = FlxG.mouse.viewX;
 		var curViewY:Float = FlxG.mouse.viewY;
+		// Check for touch input and use it as mouse position
+		var touchActive:Bool = false;
+		if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
+		{
+			var primaryTouch = FlxG.touches.list[0];
+			if (primaryTouch != null)
+			{
+				curViewX = primaryTouch.viewX;
+				curViewY = primaryTouch.viewY;
+				touchActive = true;
+			}
+		}
+		
 		if (lastMouseViewX < 0 || lastMouseViewY < 0)
 		{
 			lastMouseViewX = curViewX;
@@ -79,7 +181,7 @@ class Reticle extends FlxSprite
 		}
 
 
-		if (mouseMoved)
+		if (mouseMoved || touchActive)
 			Actions.usingGamepad = false;
 		else if (rsActive)
 			Actions.usingGamepad = true;
@@ -132,12 +234,42 @@ class Reticle extends FlxSprite
 			var mx:Float;
 			var my:Float;
 
+			// Use touch position if available, otherwise use mouse
+			var useViewX:Float = FlxG.mouse.viewX;
+			var useViewY:Float = FlxG.mouse.viewY;
+
+			if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
+			{
+				var primaryTouch = FlxG.touches.list[0];
+				if (primaryTouch != null)
+				{
+					useViewX = primaryTouch.viewX;
+					useViewY = primaryTouch.viewY;
+				}
+			}
+
 			var p = null;
 			if (FlxG.mouse != null)
 			{
 				try
 				{
 					p = FlxG.mouse.getWorldPosition(cam);
+					// Override with touch position if available
+					if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
+					{
+						var primaryTouch = FlxG.touches.list[0];
+						if (primaryTouch != null)
+						{
+							try
+							{
+								p = primaryTouch.getWorldPosition(cam);
+							}
+							catch (e:Dynamic)
+							{
+								p = null;
+							}
+						}
+					}
 				}
 				catch (e:Dynamic)
 				{
@@ -152,8 +284,8 @@ class Reticle extends FlxSprite
 			else
 			{
 
-				mx = cam.scroll.x + (FlxG.mouse.viewX - cam.x) / cam.zoom;
-				my = cam.scroll.y + (FlxG.mouse.viewY - cam.y) / cam.zoom;
+				mx = cam.scroll.x + (useViewX - cam.x) / cam.zoom;
+				my = cam.scroll.y + (useViewY - cam.y) / cam.zoom;
 			}
 			var pm_mouse:FlxPoint = player.getMidpoint();
 			var cx:Float = pm_mouse.x;
@@ -196,11 +328,24 @@ class Reticle extends FlxSprite
 		var cx:Float = pm2.x;
 		var cy:Float = pm2.y;
 
-		x = cx + Math.cos(rad) * reticleDistance - width / 2;
-		y = cy + Math.sin(rad) * reticleDistance - height / 2;
+		// Position so the CENTER of the 16x16 graphic aligns with the target point
+		// The graphic is 16x16, so subtract 8 to center it
+		x = cx + Math.cos(rad) * reticleDistance - 8;
+		y = cy + Math.sin(rad) * reticleDistance - 8;
+
 		if (pm != null)
 			pm.put();
 		if (pm2 != null)
 			pm2.put();
+	}
+	public override function draw():Void
+	{
+		super.draw();
+	}
+
+	public override function destroy():Void
+	{
+		player = null;
+		super.destroy();
 	}
 }

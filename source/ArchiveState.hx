@@ -8,6 +8,7 @@ import flixel.util.FlxColor;
 import ui.GameText;
 import ui.NineSliceButton;
 import util.ColorHelpers;
+import Types.EnemyVariant;
 
 class ArchiveState extends FlxState
 {
@@ -29,6 +30,9 @@ class ArchiveState extends FlxState
 	private var fameLabel:GameText;
 	private var fameAmount:GameText;
 	private var photoSprite:FlxSprite;
+	private var variantBadge:FlxSprite; // Shows variant icon (frame 0=shiny, 1=alpha)
+	private var shinyHueTimer:Float = 0; // For animating shiny photo shader
+
 	private var dateText:GameText;
 	private var photoCounterText:GameText;
 	private var blackOut:BlackOut;
@@ -369,6 +373,7 @@ class ArchiveState extends FlxState
 
 		photoSprite.visible = false;
 
+		// Load photo frames normally (no padding needed)
 		photoSprite.frames = FlxAtlasFrames.fromSparrow(ColorHelpers.getHueColoredBmp("assets/images/photos.png", Std.int(creature.hue)),
 			"assets/images/photos.xml");
 
@@ -384,8 +389,39 @@ class ArchiveState extends FlxState
 				photoSprite.animation.frameName = framesForVariant[0].name;
 			}
 		}
+		// Clear any existing shader
+		photoSprite.shader = null;
 
 		photoSprite.visible = true;
+		// Display variant badge and shaders
+		if (creature.variantType == ALPHA || creature.variantType == SHINY)
+		{
+			if (variantBadge == null)
+			{
+				variantBadge = new FlxSprite(0, 0);
+				variantBadge.loadGraphic("assets/ui/variants.png", true, 16, 16);
+				add(variantBadge);
+			}
+
+			// Frame 0 = shiny, frame 1 = alpha
+			variantBadge.animation.frameIndex = creature.variantType == SHINY ? 0 : 1;
+			variantBadge.x = photoSprite.x + photoSprite.width - variantBadge.width - 2;
+			variantBadge.y = photoSprite.y + photoSprite.height - variantBadge.height - 2;
+			variantBadge.visible = true;
+
+			// Apply color cycling shader to Shiny photos
+			if (creature.variantType == SHINY)
+			{
+				var outlineShader = new shaders.OutlineShader();
+				outlineShader.size.value = [1.0, 1.0];
+				outlineShader.hue.value = [0.0];
+				photoSprite.shader = outlineShader;
+			}
+		}
+		else if (variantBadge != null)
+		{
+			variantBadge.visible = false;
+		}
 	}
 
 	private function calculateReward(creature:SavedCreature):Int
@@ -437,6 +473,19 @@ class ArchiveState extends FlxState
 
 		if (isTransitioning)
 			return;
+
+		// Update shiny photo shader animation
+		if (photoSprite != null && photoSprite.shader != null && selectedIndex >= 0 && selectedIndex < creatures.length)
+		{
+			if (creatures[selectedIndex].variantType == SHINY)
+			{
+				shinyHueTimer += elapsed * 180; // Cycle through 180 degrees per second
+				if (shinyHueTimer >= 360)
+					shinyHueTimer -= 360;
+
+				cast(photoSprite.shader, shaders.OutlineShader).hue.value = [shinyHueTimer / 360.0];
+			}
+		}
 
 		util.InputManager.update();
 		highlightSprite.visible = !util.InputManager.isUsingMouse();

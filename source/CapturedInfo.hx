@@ -1,5 +1,7 @@
 package;
 
+import Types;
+
 class CapturedInfo
 {
 	public var variant:String;
@@ -9,8 +11,10 @@ class CapturedInfo
 	public var hue:Int;
 	public var photoIndex:Int;
 	public var power:Int; // 1-5 stars
+	public var variantType:EnemyVariant; // NORMAL, ALPHA, or SHINY
 
-	public function new(variant:String, aggression:Float, speed:Float, hue:Int, photoIndex:Int = 1, power:Int = 3, skittishness:Float = 0.0)
+	public function new(variant:String, aggression:Float, speed:Float, hue:Int, photoIndex:Int = 1, power:Int = 3, skittishness:Float = 0.0,
+			variantType:EnemyVariant = NORMAL)
 	{
 		this.variant = variant;
 		this.aggression = aggression;
@@ -19,5 +23,6 @@ class CapturedInfo
 		this.hue = hue;
 		this.photoIndex = photoIndex;
 		this.power = power;
+		this.variantType = variantType;
 	}
 }

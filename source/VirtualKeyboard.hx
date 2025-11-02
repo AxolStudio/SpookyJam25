@@ -293,6 +293,9 @@ class VirtualKeyboard extends FlxGroup
 			return;
 		checkInputMode();
 
+		// Handle physical keyboard input FIRST (before nav keys)
+		handlePhysicalKeyboard();
+
 		if (Actions.rightUI.triggered)
 			navigateRight();
 		else if (Actions.leftUI.triggered)
@@ -306,6 +309,157 @@ class VirtualKeyboard extends FlxGroup
 		if (FlxG.mouse.justPressed)
 			handleMouseClick();
 		updateHighlight();
+	}
+
+	/**
+	 * Handle physical keyboard typing when virtual keyboard is visible
+	 */
+	private function handlePhysicalKeyboard():Void
+	{
+		// Only process if something was just pressed
+		if (!FlxG.keys.justPressed.ANY)
+			return;
+
+		// Check for backspace/delete
+		if (FlxG.keys.justPressed.BACKSPACE || FlxG.keys.justPressed.DELETE)
+		{
+			deleteChar();
+			return;
+		}
+
+		// Check for enter/escape
+		if (FlxG.keys.justPressed.ENTER)
+		{
+			submitName();
+			return;
+		}
+
+		if (FlxG.keys.justPressed.ESCAPE)
+		{
+			cancelInput();
+			return;
+		}
+
+		// Check for alphanumeric keys and allowed symbols
+		var validChars:String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -_";
+
+		// Get the pressed key as a string
+		var pressedKey:String = getJustPressedKey();
+
+		if (pressedKey != null && pressedKey.length == 1)
+		{
+			// Check if it's a valid character
+			if (validChars.indexOf(pressedKey) >= 0)
+			{
+				if (currentText.length < maxLength)
+				{
+					// Apply case (respect uppercase/lowercase mode of virtual keyboard)
+					var char = pressedKey;
+					if (isUppercase && char.toLowerCase() == char && char.toUpperCase() != char)
+					{
+						char = char.toUpperCase();
+					}
+					else if (!isUppercase && char.toUpperCase() == char && char.toLowerCase() != char)
+					{
+						char = char.toLowerCase();
+					}
+
+					currentText += char;
+					updateDisplay();
+				}
+			}
+		}
+	}
+
+	/**
+	 * Get the character of the key that was just pressed
+	 */
+	private function getJustPressedKey():String
+	{
+		// Letters
+		if (FlxG.keys.justPressed.A)
+			return "a";
+		if (FlxG.keys.justPressed.B)
+			return "b";
+		if (FlxG.keys.justPressed.C)
+			return "c";
+		if (FlxG.keys.justPressed.D)
+			return "d";
+		if (FlxG.keys.justPressed.E)
+			return "e";
+		if (FlxG.keys.justPressed.F)
+			return "f";
+		if (FlxG.keys.justPressed.G)
+			return "g";
+		if (FlxG.keys.justPressed.H)
+			return "h";
+		if (FlxG.keys.justPressed.I)
+			return "i";
+		if (FlxG.keys.justPressed.J)
+			return "j";
+		if (FlxG.keys.justPressed.K)
+			return "k";
+		if (FlxG.keys.justPressed.L)
+			return "l";
+		if (FlxG.keys.justPressed.M)
+			return "m";
+		if (FlxG.keys.justPressed.N)
+			return "n";
+		if (FlxG.keys.justPressed.O)
+			return "o";
+		if (FlxG.keys.justPressed.P)
+			return "p";
+		if (FlxG.keys.justPressed.Q)
+			return "q";
+		if (FlxG.keys.justPressed.R)
+			return "r";
+		if (FlxG.keys.justPressed.S)
+			return "s";
+		if (FlxG.keys.justPressed.T)
+			return "t";
+		if (FlxG.keys.justPressed.U)
+			return "u";
+		if (FlxG.keys.justPressed.V)
+			return "v";
+		if (FlxG.keys.justPressed.W)
+			return "w";
+		if (FlxG.keys.justPressed.X)
+			return "x";
+		if (FlxG.keys.justPressed.Y)
+			return "y";
+		if (FlxG.keys.justPressed.Z)
+			return "z";
+
+		// Numbers
+		if (FlxG.keys.justPressed.ZERO)
+			return "0";
+		if (FlxG.keys.justPressed.ONE)
+			return "1";
+		if (FlxG.keys.justPressed.TWO)
+			return "2";
+		if (FlxG.keys.justPressed.THREE)
+			return "3";
+		if (FlxG.keys.justPressed.FOUR)
+			return "4";
+		if (FlxG.keys.justPressed.FIVE)
+			return "5";
+		if (FlxG.keys.justPressed.SIX)
+			return "6";
+		if (FlxG.keys.justPressed.SEVEN)
+			return "7";
+		if (FlxG.keys.justPressed.EIGHT)
+			return "8";
+		if (FlxG.keys.justPressed.NINE)
+			return "9";
+
+		// Special characters
+		if (FlxG.keys.justPressed.SPACE)
+			return " ";
+		if (FlxG.keys.justPressed.MINUS)
+			return "-";
+		// Note: underscore requires shift+minus, not handled here - use virtual keyboard for _
+
+		return null;
 	}
 
 	private function checkInputMode():Void
@@ -508,7 +662,21 @@ class VirtualKeyboard extends FlxGroup
 		hide();
 	}
 
+	/**
+	 * Public method to generate and return a random name without updating display
+	 */
+	public function generatePublicRandomName():String
+	{
+		return generateRandomNameInternal();
+	}
+
 	private function generateRandomName():Void
+	{
+		currentText = generateRandomNameInternal();
+		updateDisplay();
+	}
+
+	private function generateRandomNameInternal():String
 	{
 		var syllables:Array<String> = [
 			"ba", "bah", "be", "bee", "bo", "boo", "bu", "buh", "cha", "choo", "chi", "che", "chu", "da", "dah", "de", "dee", "do", "doo", "du", "duh", "fa",
@@ -568,8 +736,7 @@ class VirtualKeyboard extends FlxGroup
 			}
 		}
 
-		currentText = result;
-		updateDisplay();
+		return result;
 	}
 
 	private function updateDisplay():Void

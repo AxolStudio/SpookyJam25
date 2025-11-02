@@ -1,5 +1,7 @@
 package;
 
+import Types.EnemyVariant;
+
 typedef SavedCreature =
 {
 	var enemyType:String; // "001", "002", etc
@@ -12,4 +14,5 @@ typedef SavedCreature =
 	var name:String;
 	var date:String; // MM/DD/YYYY format
 	var frameName:String; // The specific photo frame name selected
+	var variantType:EnemyVariant; // NORMAL, ALPHA, or SHINY
 }

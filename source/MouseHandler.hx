@@ -21,6 +21,8 @@ class MouseHandler extends FlxSprite
 		loadGraphic("assets/ui/cursors.png", true, 32, 32, false, "cursors");
 		animation.add("finger", [0], 0, false);
 		animation.add("finger-down", [1], 0, false);
+		// Use 7th frame (index 6) for the gameplay crosshair as requested
+		animation.add("crosshair", [6], 0, false);
 		pixelPerfectPosition = pixelPerfectRender = true;
 		antialiasing = false;
 
@@ -59,24 +61,53 @@ class MouseHandler extends FlxSprite
 		FlxG.stage.quality = flash.display.StageQuality.LOW;
 		#end
 
-		FlxG.mouse.load(null, 2.0, -10, -6);
+		FlxG.mouse.load(null, 2.0, -16, -16);
 		FlxG.mouse.cursor.smoothing = false;
 		FlxG.mouse.cursor.pixelSnapping = PixelSnapping.ALWAYS;
 	}
 
+	private var wasVisible:Bool = false;
+
 	override public function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
+		// Check for touch input and treat it like mouse
+		var touchPressed:Bool = false;
+		if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
+		{
+			for (touch in FlxG.touches.list)
+			{
+				if (touch != null && touch.pressed)
+				{
+					touchPressed = true;
+					break;
+				}
+			}
+		}
+
+		// Reset cursor state when visibility changes
+		if (FlxG.mouse.visible && !wasVisible)
+		{
+			// Mouse just became visible - reset to unpressed state
+			if (cursor == MouseCursor.FINGER_DOWN)
+			{
+				cursor = MouseCursor.FINGER;
+			}
+		}
+		wasVisible = FlxG.mouse.visible;
+		
 		if (!FlxG.mouse.visible || !loaded)
 		{
 			return;
 		}
 
-		if (cursor == MouseCursor.FINGER && FlxG.mouse.pressed)
+		// Only animate finger cursor, not crosshair
+		// Include touch presses
+		if (cursor == MouseCursor.FINGER && (FlxG.mouse.pressed || touchPressed))
 		{
 			cursor = MouseCursor.FINGER_DOWN;
 		}
-		else if (cursor == MouseCursor.FINGER_DOWN && FlxG.mouse.justReleased)
+		else if (cursor == MouseCursor.FINGER_DOWN && FlxG.mouse.justReleased && !touchPressed)
 		{
 			cursor = MouseCursor.FINGER;
 		}
@@ -102,9 +133,15 @@ class MouseHandler extends FlxSprite
 		{
 			case FINGER:
 				animation.play("finger");
+				return currentCursor = Value;
 			case FINGER_DOWN:
 				animation.play("finger-down");
+				return currentCursor = Value;
+			case CROSSHAIR:
+				animation.play("crosshair");
+				return currentCursor = Value;
 		}
+		// Fallback
 		return currentCursor = Value;
 	}
 
@@ -118,4 +155,5 @@ enum abstract MouseCursor(String) from String to String
 {
 	var FINGER = "finger";
 	var FINGER_DOWN = "finger-down";
+	var CROSSHAIR = "crosshair";
 }

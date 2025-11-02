@@ -27,5 +27,6 @@ class GameObject extends FlxSprite
 	public function stop():Void
 	{
 		velocity.set(0, 0);
+		acceleration.set(0, 0);
 	}
 }

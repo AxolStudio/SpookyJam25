@@ -195,11 +195,20 @@ class GameMap extends FlxGroup
 		super();
 	}
 
-	private function isSpawnBlocked(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, tx:Int, ty:Int, avoidRadius:Int, minSpacing:Int, TILE_SIZE:Int):Bool
+	private function isSpawnBlocked(enemies:flixel.group.FlxGroup.FlxTypedGroup<Enemy>, tx:Int, ty:Int, avoidRadius:Int, minSpacing:Int, TILE_SIZE:Int,
+			?playerTileX:Int = -1, ?playerTileY:Int = -1):Bool
 	{
 
 		if (Math.abs(tx - this.portalTileX) <= avoidRadius && Math.abs(ty - this.portalTileY) <= avoidRadius)
 			return true;
+
+		// Avoid spawning near player (larger radius for safe start)
+		if (playerTileX >= 0 && playerTileY >= 0)
+		{
+			var playerAvoidRadius:Int = 25; // 25 tiles minimum distance from player (400 pixels = 1.25 screen widths)
+			if (Math.abs(tx - playerTileX) <= playerAvoidRadius && Math.abs(ty - playerTileY) <= playerAvoidRadius)
+				return true;
+		}
 
 		for (existing in enemies.members)
 		{
@@ -290,11 +299,12 @@ class GameMap extends FlxGroup
 			if (playerTileX >= 0 && playerTileY >= 0)
 			{
 				var playerDistTiles:Float = Math.pow(room.centroid.x - playerTileX, 2) + Math.pow(room.centroid.y - playerTileY, 2);
+				// REDUCE enemies near player start, don't increase!
 				if (playerDistTiles <= 144.0)
 				{
-					desired += 1;
-					if (desired > maxPerRoom)
-						desired = maxPerRoom;
+					desired = Std.int(desired * 0.5); // Cut spawn rate in half near player
+					if (desired < 1)
+						desired = 1;
 				}
 			}
 
@@ -334,7 +344,7 @@ class GameMap extends FlxGroup
 				var ty:Int = Std.int(t.y);
 				var avoidRadius:Int = 6;
 				var minSpacingTiles:Int = 4;
-				if (isSpawnBlocked(enemies, tx, ty, avoidRadius, minSpacingTiles, TILE_SIZE))
+				if (isSpawnBlocked(enemies, tx, ty, avoidRadius, minSpacingTiles, TILE_SIZE, playerTileX, playerTileY))
 					continue;
 
 				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, atmosphereHue);
@@ -367,7 +377,7 @@ class GameMap extends FlxGroup
 				var ty:Int = Std.int(t.y);
 				var avoidRadiusCluster:Int = 6;
 				var minSpacingTiles:Int = 4;
-				if (isSpawnBlocked(enemies, tx, ty, avoidRadiusCluster, minSpacingTiles, TILE_SIZE))
+				if (isSpawnBlocked(enemies, tx, ty, avoidRadiusCluster, minSpacingTiles, TILE_SIZE, playerTileX, playerTileY))
 					continue;
 				var eObj:Enemy = new Enemy(tx * TILE_SIZE, ty * TILE_SIZE, atmosphereHue);
 				enemies.add(eObj);

@@ -14,6 +14,7 @@ class Player extends GameObject
 	public var armor:Int = 0;
 
 	public var photoCooldown(default, null):Float = 0;
+	private var noFilmSoundCooldown:Float = 0; // Cooldown for "no film" click sound
 
 	// Invincibility system for taking damage
 	public var invincibilityTimer:Float = 0;
@@ -162,6 +163,8 @@ class Player extends GameObject
 		super.update(elapsed);
 		if (photoCooldown > 0)
 			photoCooldown -= elapsed;
+		if (noFilmSoundCooldown > 0)
+			noFilmSoundCooldown -= elapsed;
 		if (canDepleteo2)
 			o2 -= elapsed;
 		if (invincibilityTimer > 0)
@@ -186,6 +189,12 @@ class Player extends GameObject
 	{
 		if (film <= 0)
 		{
+			// Play "no film" sound with cooldown to prevent spam
+			if (noFilmSoundCooldown <= 0)
+			{
+				SoundHelper.playSound("camera_no_film");
+				noFilmSoundCooldown = 0.5; // Half-second cooldown
+			}
 			axollib.AxolAPI.sendEvent("OUT_OF_FILM");
 			return false;
 		}
@@ -200,8 +209,40 @@ class Player extends GameObject
 		photoCooldown = Constants.PHOTO_COOLDOWN;
 
 		SoundHelper.playSound("camera");
-		FlxG.camera.flash(0xFFFFFFFF, Constants.PHOTO_FLASH_TIME, false);
+		// Trigger flash via PlayState (white sprite, no alpha/transparency)
+		var playState = cast(FlxG.state, PlayState);
+		if (playState != null)
+			playState.triggerFlash();
 
 		return true;
+	}
+	/**
+	 * Take damage from enemy attack
+	 */
+	public function takeDamage(damage:Int):Void
+	{
+		// Ignore if invincible
+		if (invincibilityTimer > 0)
+			return;
+
+		// Apply armor reduction
+		var actualDamage = damage - armor;
+		if (actualDamage < 1)
+			actualDamage = 1; // Always take at least 1 damage
+
+		// Reduce O2 (health)
+		o2 -= actualDamage;
+
+		// Play hurt sound
+		SoundHelper.playRandomHurtSound();
+
+		// Start invincibility period (1 second)
+		invincibilityTimer = 1.0;
+		flickerTimer = FLICKER_INTERVAL;
+
+		// Track damage taken
+		axollib.AxolAPI.sendEvent("PLAYER_DAMAGED", actualDamage);
+
+		trace("Player took " + actualDamage + " damage, O2 now: " + o2);
 	}
 }

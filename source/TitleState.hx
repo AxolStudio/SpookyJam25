@@ -75,12 +75,17 @@ class TitleState extends FlxState
 			});
 		}, false, 1.0, FlxColor.BLACK);
 
+		// Audio is already unlocked from SpookyAxolversaryState on desktop
+		// or will be unlocked on first click anywhere in the game on web
 		util.SoundHelper.playMusic("title");
 	}
 
 	override public function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
+
+		// Update custom mouse cursor
+		Constants.Mouse.update(elapsed);
 
 		// Only update input manager if the state is ready to prevent issues
 		if (ready)
@@ -92,20 +97,21 @@ class TitleState extends FlxState
 		if (!ready)
 			return;
 
-		// Check for user interaction to unlock audio (HTML5 requirement)
+		// Check for user interaction to start game
 		var userInteracted = (Actions.pressUI != null && Actions.pressUI.triggered) || FlxG.mouse.justPressed;
 
+		// On web, unlock audio on first click if not already unlocked
+		// This ensures music plays even if user skipped the splash screen click
 		#if web
-		// On first interaction, unlock audio and start music, but don't proceed to next state
 		if (userInteracted && !util.SoundHelper.isAudioUnlocked())
 		{
 			util.SoundHelper.unlockAudio();
-			util.SoundHelper.playMusic("title"); // Now it will actually play
-			return; // Don't process the click as a "start game" action
+			util.SoundHelper.playMusic("title"); // Start music now
+			return; // Don't start game on this click, just unlock audio
 		}
 		#end
 
-		// Null-check Actions to prevent crash when window loses focus for extended period
+		// Start game on user interaction
 		if (userInteracted)
 		{
 			ready = false;

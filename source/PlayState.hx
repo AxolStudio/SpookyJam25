@@ -23,6 +23,7 @@ class PlayState extends FlxState
 	public var portal:Portal;
 	public var reticle:Reticle;
 	public var enemies:FlxTypedGroup<Enemy>;
+	public var alertIcons:FlxTypedGroup<FlxSprite>; // Pooled alert icons for enemies
 	public var mainCam:FlxCamera;
 	public var overCam:FlxCamera;
 	public var hudCam:FlxCamera;
@@ -30,7 +31,11 @@ class PlayState extends FlxState
 	public var hud:Hud;
 	public var fog:FlxSprite;
 	public var fogShader:shaders.Fog;
+	public var sparkles:FlxTypedGroup<Sparkle>;
 	public var blackOut:BlackOut;
+	public var flashSprite:FlxSprite; // White fullscreen flash for camera photos
+
+	private var flashTimer:Float = 0;
 
 	private var _visibilityMask:VisibilityMask;
 	private var _maskState:MaskState;
@@ -48,6 +53,15 @@ class PlayState extends FlxState
 		Actions.switchSet(Actions.gameplayIndex);
 		// InputManager will handle mouse visibility based on input mode
 		util.InputManager.switchToGamepad();
+
+		// Hide mouse cursor during intro (will show when ready=true)
+		FlxG.mouse.visible = false;
+
+		// Switch to crosshair cursor for gameplay
+		if (Constants.Mouse != null)
+		{
+			Constants.Mouse.cursor = "crosshair";
+		}
 
 		atmosphereHue = FlxG.random.int(0, 359);
 		createCameras();
@@ -71,15 +85,40 @@ class PlayState extends FlxState
 
 		enemies = new FlxTypedGroup<Enemy>();
 		add(enemies);
+		// Create pooled alert icons (max 20 should be plenty)
+		alertIcons = new FlxTypedGroup<FlxSprite>(20);
+		for (i in 0...20)
+		{
+			var icon = new FlxSprite();
+			icon.loadGraphic("assets/images/alert_icons.png", true, 14, 14);
+			icon.visible = false;
+			icon.cameras = [overCam];
+			icon.scrollFactor.set(1, 1); // Icons move with world, not HUD
+			alertIcons.add(icon);
+		}
+		add(alertIcons);
+		
 		if (tilemap != null)
 			tilemap.spawnEnemies(enemies, atmosphereHue, Std.int(player.x / Constants.TILE_SIZE), Std.int(player.y / Constants.TILE_SIZE));
+		// Initialize AI brain with tilemap for pathfinding
+		ai.EnemyBrain.init(tilemap);
+		
 		reticle = new Reticle(player);
 		add(reticle);
-		util.InputManager.setReticle(reticle);
+		// Don't register reticle with InputManager - it should always be visible in PlayState
+		reticle.visible = true; // Force always visible
 		hud = new Hud(player);
 		add(hud);
+		// Create white flash sprite for camera photos (no alpha/transparency in FlxCamera.flash)
+		flashSprite = new FlxSprite(0, 0);
+		flashSprite.makeGraphic(FlxG.width, FlxG.height, FlxColor.WHITE);
+		flashSprite.scrollFactor.set(0, 0);
+		flashSprite.visible = false;
+		add(flashSprite);
+		
 		portal.cameras = tilemap.cameras = player.cameras = enemies.cameras = [mainCam];
 		reticle.cameras = [overCam];
+		flashSprite.cameras = [hudCam]; // Flash on top of everything
 		hud.cameras = [hudCam];
 		setupFog();
 		blackOut = new BlackOut(hudCam);
@@ -110,6 +149,11 @@ class PlayState extends FlxState
 							portal.shader = null;
 							ready = true;
 							player.canDepleteo2 = true;
+							// Show mouse cursor when gameplay starts
+							FlxG.mouse.visible = true;
+							// Ensure reticle is always visible in gameplay
+							if (reticle != null)
+								reticle.visible = true;
 							// Track run start with initial O2
 							axollib.AxolAPI.sendEvent("RUN_START", player.o2);
 						}
@@ -132,6 +176,35 @@ class PlayState extends FlxState
 		fog.cameras = [mainCam];
 		fog.scrollFactor.set(0, 0);
 		add(fog);
+		// Setup twinkling sparkles (like distant stars in the fog)
+		// Spread across entire map, not just initial camera view
+		var mapWidth:Float = tilemap.width;
+		var mapHeight:Float = tilemap.height;
+		var sparkleCount:Int = Std.int(mainCam.width * mainCam.height * 0.0166); // Further reduced for performance
+		sparkles = new FlxTypedGroup<Sparkle>(sparkleCount);
+		for (i in 0...sparkleCount)
+		{
+			var sparkle = new Sparkle(mapWidth, mapHeight);
+			// Position randomly across entire map
+			sparkle.x = FlxG.random.float(0, mapWidth);
+			sparkle.y = FlxG.random.float(0, mapHeight);
+			sparkle.scrollFactor.set(0.15, 0.15); // Slow parallax like distant stars
+			sparkle.cameras = [mainCam];
+			sparkles.add(sparkle);
+		}
+		add(sparkles);
+
+		// Tone down fog shader contrast to avoid washing out the scene
+		try
+		{
+			if (fogShader != null)
+			{
+				fogShader.contrast = 0.08;
+				fogShader.vDark = 0.12;
+				fogShader.vLight = 0.28;
+			}
+		}
+		catch (e:Dynamic) {}
 	}
 
 	private function updateFogAndMask():Void
@@ -149,10 +222,10 @@ class PlayState extends FlxState
 	override public function update(elapsed:Float):Void
 	{
 		Constants.Mouse.update(elapsed);
-		util.InputManager.update();
 
 		if (!ready)
 		{
+			// Don't update InputManager during intro - keeps mouse hidden
 			super.update(elapsed);
 		}
 		else if (isGameOver)
@@ -162,6 +235,19 @@ class PlayState extends FlxState
 		}
 		else
 		{
+			// Update InputManager during gameplay
+			util.InputManager.update();
+
+			// Update flash sprite timer
+			if (flashTimer > 0)
+			{
+				flashTimer -= elapsed;
+				if (flashTimer <= 0)
+				{
+					flashSprite.visible = false;
+				}
+			}
+			
 			// Check for O2 depletion
 			if (player.o2 <= 0)
 			{
@@ -173,8 +259,22 @@ class PlayState extends FlxState
 			
 			playerMovement(elapsed);
 			ai.EnemyBrain.process(player, enemies, tilemap, elapsed, mainCam);
+			ai.EnemyBrain.updatePaths(elapsed, tilemap);
+
+			// Update sound wave propagation (flood-fill, no lag!)
+			var enemyArray:Array<Enemy> = [];
+			for (e in enemies.members)
+			{
+				if (e != null && e.exists && e.alive)
+					enemyArray.push(e);
+			}
+			ai.EnemyBrain.updateSoundWaves(tilemap, enemyArray);
+			
 			if (reticle != null)
+			{
 				reticle.updateFromPlayer(player, overCam);
+				reticle.updateState(enemies);
+			}
 			super.update(elapsed);
 			FlxG.collide(player, tilemap.wallsMap);
 			FlxG.collide(enemies, tilemap.wallsMap);
@@ -249,8 +349,43 @@ class PlayState extends FlxState
 		var moveAngle:Float = 0;
 		var move:FlxPoint = FlxPoint.get();
 		var analogOrigSpeed:Float = -1.0;
+		// Check for touch input to move player toward touch position
+		var touchMoving:Bool = false;
+		if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
+		{
+			var primaryTouch = FlxG.touches.list[0];
+			if (primaryTouch != null && primaryTouch.pressed)
+			{
+				// Get touch world position
+				var touchWorldPos = primaryTouch.getWorldPosition(overCam);
+				var playerMid = player.getMidpoint();
 
-		if (Actions.leftStick.check() && (Math.abs(Actions.leftStick.x) > 0.1 || Math.abs(Actions.leftStick.y) > 0.1))
+				// Calculate direction from player to touch
+				var dx:Float = touchWorldPos.x - playerMid.x;
+				var dy:Float = touchWorldPos.y - playerMid.y;
+				var distance:Float = Math.sqrt(dx * dx + dy * dy);
+
+				// Only move if touch is far enough away (> 8 pixels)
+				if (distance > 8)
+				{
+					moveAngle = Math.atan2(dy, dx) * FlxAngle.TO_DEG;
+					move.x = dx / distance;
+					move.y = dy / distance;
+					any = true;
+					touchMoving = true;
+
+					// Scale speed based on distance (closer = slower, max at 64+ pixels)
+					var speedScale:Float = Math.min(distance / 64.0, 1.0);
+					analogOrigSpeed = player.speed;
+					player.speed = analogOrigSpeed * speedScale;
+				}
+
+				playerMid.put();
+				touchWorldPos.put();
+			}
+		}
+
+		if (!touchMoving && Actions.leftStick.check() && (Math.abs(Actions.leftStick.x) > 0.1 || Math.abs(Actions.leftStick.y) > 0.1))
 		{
 			move.x = Actions.leftStick.x;
 			move.y = Actions.leftStick.y;
@@ -300,7 +435,23 @@ class PlayState extends FlxState
 		else
 			player.stop();
 		move.put();
-		if (Actions.attack.check())
+		// Check for photo action (mouse click, key press, or touch tap)
+		var shouldTakePhoto:Bool = Actions.attack.check();
+
+		// Check for touch tap (justPressed means it's a tap, not a held touch)
+		if (!shouldTakePhoto && FlxG.touches.list != null)
+		{
+			for (touch in FlxG.touches.list)
+			{
+				if (touch != null && touch.justPressed)
+				{
+					shouldTakePhoto = true;
+					break;
+				}
+			}
+		}
+
+		if (shouldTakePhoto)
 		{
 			if (player.tryTakePhoto())
 			{
@@ -381,8 +532,8 @@ class PlayState extends FlxState
 		if (hud != null)
 			hud.stopLowAirSound();
 
-		// Play out of oxygen sound
-		SoundHelper.playSound("out_of_oxygen");
+		// Play out of oxygen sound at full volume
+		SoundHelper.playSound("out_of_oxygen", null, null, 1.0);
 
 		// Clear captured photos
 		player.clearCaptured();
@@ -452,6 +603,18 @@ class PlayState extends FlxState
 		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 1.0, FlxColor.BLACK);
 	}
 
+	/**
+	 * Trigger camera flash effect (white sprite for 1 frame, no alpha/transparency)
+	 */
+	public function triggerFlash():Void
+	{
+		if (flashSprite != null)
+		{
+			flashSprite.visible = true;
+			flashTimer = FlxG.elapsed; // Show for exactly 1 frame
+		}
+	}
+
 	private function createCameras():Void
 	{
 		mainCam = new FlxCamera(0, 18, FlxG.width, FlxG.height - 18);
@@ -469,8 +632,15 @@ class PlayState extends FlxState
 	}
 	override public function destroy():Void
 	{
+		// Switch back to finger cursor when leaving PlayState
+		if (Constants.Mouse != null)
+		{
+			Constants.Mouse.cursor = "finger";
+		}
+		
 		// we need to destroy every module-level object we've created - AND remove/destroy all the shaders
 		// we can use Flixel's FlxDestroyUtil for this to do it safely.
+		ai.EnemyBrain.destroy();
 		tilemap = FlxDestroyUtil.destroy(tilemap);
 		player = FlxDestroyUtil.destroy(player);
 		portal = FlxDestroyUtil.destroy(portal);
@@ -478,6 +648,7 @@ class PlayState extends FlxState
 		enemies = FlxDestroyUtil.destroy(enemies);
 		hud = FlxDestroyUtil.destroy(hud);
 		fog = FlxDestroyUtil.destroy(fog);
+		sparkles = FlxDestroyUtil.destroy(sparkles);
 		blackOut = FlxDestroyUtil.destroy(blackOut);
 		mainCam = FlxDestroyUtil.destroy(mainCam);
 		overCam = FlxDestroyUtil.destroy(overCam);

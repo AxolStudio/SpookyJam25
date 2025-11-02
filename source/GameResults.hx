@@ -9,6 +9,7 @@ import flixel.util.FlxColor;
 import ui.GameText;
 import ui.NineSliceButton;
 import util.ColorHelpers;
+import util.SoundHelper;
 
 class GameResults extends FlxState
 {
@@ -40,6 +41,10 @@ class GameResults extends FlxState
 	private var fameLabel:GameText;
 	private var fameAmount:GameText;
 	private var photoSprite:FlxSprite;
+	private var variantBadge:FlxSprite; // Shows variant icon (frame 0=shiny, 1=alpha)
+	private var photoTween:FlxTween = null; // For pulsing shiny photos
+	private var shinyHueTimer:Float = 0; // For animating shiny photo shader
+
 
 	private var currentUIIndex:Int = 0;
 	private var uiObjects:Array<FlxSprite> = [];
@@ -52,6 +57,7 @@ class GameResults extends FlxState
 	private var currentFame:Int = 0;
 	private var currentFrameName:String = "";
 	private var nameTextPulseTween:FlxTween = null;
+	private var rndButton:ui.NineSliceButton<ui.GameText> = null;
 
 	public function new(items:Array<CapturedInfo>)
 	{
@@ -185,6 +191,13 @@ class GameResults extends FlxState
 		{
 			nameLabel = new GameText(baseRightX, 40, "Name:");
 			add(nameLabel);
+			// Add RND button next to Name label
+			var btnText = new ui.GameText(0, 0, "RND");
+			rndButton = new ui.NineSliceButton<ui.GameText>(Std.int(baseRightX + nameLabel.width + 4), 38, 32, 14, onRandomName);
+			rndButton.label = btnText;
+			rndButton.positionLabel();
+			add(rndButton);
+			uiObjects.push(rndButton);
 		}
 
 		if (nameText == null)
@@ -305,6 +318,19 @@ class GameResults extends FlxState
 		var totalStars:Int = util.CreatureStats.calculateTotalStars(speedStarsCount, aggrStarsCount, skittStarsCount, powerStarsCount);
 		currentFame = util.CreatureStats.calculateFameReward(totalStars, Globals.fameLevel);
 		currentReward = util.CreatureStats.calculateMoneyReward(totalStars, Globals.fameLevel);
+		// Apply variant bonuses
+		var bonusMultiplier:Float = 1.0;
+		if (ci.variantType == ALPHA)
+		{
+			bonusMultiplier = 1.5;
+		}
+		else if (ci.variantType == SHINY)
+		{
+			bonusMultiplier = 2.0;
+		}
+
+		currentFame = Std.int(currentFame * bonusMultiplier);
+		currentReward = Std.int(currentReward * bonusMultiplier);
 
 		var leftLabelX:Int = pageMargin + 18;
 		if (rewardLabel == null)
@@ -354,11 +380,53 @@ class GameResults extends FlxState
 			add(new FlxSprite(0, 0, "assets/ui/paperclip.png"));
 		}
 
+		// Load photo frames normally (no padding needed)
 		photoSprite.frames = FlxAtlasFrames.fromSparrow(ColorHelpers.getHueColoredBmp("assets/images/photos.png", ci.hue), "assets/images/photos.xml");
+
 		var framesForVariant = photoSprite.frames.getAllByPrefix(ci.variant);
 		var frameIndex = FlxG.random.int(0, framesForVariant.length - 1);
 		currentFrameName = framesForVariant[frameIndex].name;
 		photoSprite.animation.frameName = currentFrameName;
+		// Clear any existing photo effects
+		if (photoTween != null)
+		{
+			photoTween.cancel();
+			photoTween = null;
+		}
+		photoSprite.alpha = 1.0;
+
+		// Clear any existing shader
+		photoSprite.shader = null;
+
+		// Variant badge display and shaders
+		if (ci.variantType == ALPHA || ci.variantType == SHINY)
+		{
+			if (variantBadge == null)
+			{
+				variantBadge = new FlxSprite(0, 0);
+				variantBadge.loadGraphic("assets/ui/variants.png", true, 16, 16);
+				add(variantBadge);
+			}
+
+			// Frame 0 = shiny, frame 1 = alpha
+			variantBadge.animation.frameIndex = ci.variantType == SHINY ? 0 : 1;
+			variantBadge.x = photoSprite.x + photoSprite.width - variantBadge.width - 2;
+			variantBadge.y = photoSprite.y + photoSprite.height - variantBadge.height - 2;
+			variantBadge.visible = true;
+
+			// Apply color cycling shader to Shiny photos
+			if (ci.variantType == SHINY)
+			{
+				var outlineShader = new shaders.OutlineShader();
+				outlineShader.size.value = [1.0, 1.0];
+				outlineShader.hue.value = [0.0];
+				photoSprite.shader = outlineShader;
+			}
+		}
+		else if (variantBadge != null)
+		{
+			variantBadge.visible = false;
+		}
 	}
 
 	override public function update(elapsed:Float):Void
@@ -368,6 +436,19 @@ class GameResults extends FlxState
 
 		if (isTransitioning)
 			return;
+
+		// Update shiny photo shader animation
+		if (photoSprite != null && photoSprite.shader != null && selectedIndex >= 0 && selectedIndex < items.length)
+		{
+			if (items[selectedIndex].variantType == SHINY)
+			{
+				shinyHueTimer += elapsed * 180; // Cycle through 180 degrees per second
+				if (shinyHueTimer >= 360)
+					shinyHueTimer -= 360;
+
+				cast(photoSprite.shader, shaders.OutlineShader).hue.value = [shinyHueTimer / 360.0];
+			}
+		}
 
 		// Update input manager and sync reticle visibility
 		util.InputManager.update();
@@ -486,6 +567,8 @@ class GameResults extends FlxState
 
 		if (submitBtn != null)
 			submitBtn.visible = false;
+		if (rndButton != null)
+			rndButton.visible = false;
 		
 		virtualKeyboard.show(currentCreatureName);
 	}
@@ -514,7 +597,8 @@ class GameResults extends FlxState
 				power: ci.power,
 				name: currentCreatureName,
 				date: "10/27/2025",
-				frameName: currentFrameName
+				frameName: currentFrameName,
+				variantType: ci.variantType
 			};
 
 			Globals.saveCreature(savedCreature);
@@ -567,6 +651,8 @@ class GameResults extends FlxState
 		// Only show save button if a name was actually entered
 		if (submitBtn != null)
 			submitBtn.visible = (newName != null && newName.length > 0);
+		if (rndButton != null)
+			rndButton.visible = true;
 
 		if (nameText != null)
 		{
@@ -596,11 +682,38 @@ class GameResults extends FlxState
 		}
 	}
 
+	private function onRandomName():Void
+	{
+		// Generate random name and apply it directly without opening keyboard
+		if (virtualKeyboard != null)
+		{
+			var randomName = virtualKeyboard.generatePublicRandomName();
+			currentCreatureName = randomName;
+			if (nameText != null)
+			{
+				nameText.text = currentCreatureName;
+				// Cancel any pulse tween
+				if (nameTextPulseTween != null)
+				{
+					nameTextPulseTween.cancel();
+					nameTextPulseTween = null;
+				}
+				nameText.alpha = 1.0;
+			}
+			// Show submit button since we now have a name
+			if (submitBtn != null)
+				submitBtn.visible = true;
+			SoundHelper.playSound("ui_select");
+		}
+	}
+
 	private function onKeyboardCancel():Void
 	{
 		keyboardActive = false;
 		if (submitBtn != null)
 			submitBtn.visible = true;
+		if (rndButton != null)
+			rndButton.visible = true;
 
 		if (uiObjects.length > 0)
 		{
@@ -609,6 +722,7 @@ class GameResults extends FlxState
 			highlightSprite.visible = !Globals.usingMouse;
 		}
 	}
+
 	override public function destroy():Void
 	{
 		bg = flixel.util.FlxDestroyUtil.destroy(bg);
@@ -656,6 +770,13 @@ class GameResults extends FlxState
 		rewardLabel = flixel.util.FlxDestroyUtil.destroy(rewardLabel);
 		rewardAmount = flixel.util.FlxDestroyUtil.destroy(rewardAmount);
 		photoSprite = flixel.util.FlxDestroyUtil.destroy(photoSprite);
+		variantBadge = flixel.util.FlxDestroyUtil.destroy(variantBadge);
+
+		if (photoTween != null)
+		{
+			photoTween.cancel();
+			photoTween = null;
+		}
 
 		highlightSprite = flixel.util.FlxDestroyUtil.destroy(highlightSprite);
 		virtualKeyboard = flixel.util.FlxDestroyUtil.destroy(virtualKeyboard);

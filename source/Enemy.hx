@@ -1,12 +1,18 @@
 package;
 
+import flixel.util.FlxColor;
 import haxe.ds.StringMap;
 import flixel.FlxG;
 import flixel.effects.particles.FlxEmitter;
 import flixel.graphics.frames.FlxAtlasFrames;
+import flixel.math.FlxPoint;
+import flixel.math.FlxAngle;
+import flixel.math.FlxMath;
 import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
+import ai.EnemyBrain;
 import util.ColorHelpers;
+import Types;
 
 class Enemy extends GameObject
 {
@@ -22,14 +28,60 @@ class Enemy extends GameObject
 	public var wanderSpeed:Float = 40.0;
 	public var power:Int = 10; // 5-15 damage, calculated from stats
 
-	public var aiState:Int = 0;
+	// AI State Machine
+	public var aiState:EnemyState = EnemyState.IDLE;
 	public var aiTimer:Float = 0.0;
 	public var aiDecisionInterval:Float = 0.6;
 	public var aiValue:Int = 1;
 	public var lastSawPlayer:Bool = false;
+	public var seenPlayer:Bool = false; // Track if enemy has EVER seen player (for icon logic)
 	public var stunTimer:Float = 0;
 
+	// Pathfinding support
+	public var needsPathUpdate:Bool = false;
+	public var lastPathTarget:FlxPoint = null;
+
+	// Aggression personality
+	public var aggressionType:AggressionType = HUNTER;
+
+	// Variant type
+	public var variantType:EnemyVariant = NORMAL;
+
+	private var variantScale:Float = 1.0;
+	private var variantSpeedMult:Float = 1.0;
+	private var variantDamageMult:Float = 1.0;
+
+	// Detection ranges (scaled by fame level)
+	public var detectionRange:Float = 120;
+	public var hearingRange:Float = 160;
+	public var attackRange:Float = 20;
+
+	// Alert icon (recycled from pool)
+	public var alertIcon:flixel.FlxSprite = null;
+
+	private var alertIconTimer:Float = 0;
+
+	private static inline var ALERT_ICON_DURATION:Float = 0.5;
+
+	// Attack telegraph system
+	public var isAttacking:Bool = false;
+	public var attackPhase:Int = 0; // 0=pullback, 1=pause, 2=lunge
+	public var attackTimer:Float = 0;
+
+	private var attackStartPos:FlxPoint = null;
+	private var attackTargetPos:FlxPoint = null;
+
+	private static inline var PULLBACK_DISTANCE:Float = 8.0;
+	private static inline var PULLBACK_TIME:Float = 0.15;
+	private static inline var PAUSE_TIME:Float = 0.3;
+	private static inline var LUNGE_DISTANCE:Float = 32.0;
+	private static inline var LUNGE_TIME:Float = 0.2;
+
 	private var _captured:Bool = false;
+
+	// Shiny rainbow effect
+	private var shinyHueTimer:Float = 0;
+	private var shinyBaseHue:Int = 0;
 
 	public function startTimedMove(angleDeg:Float, duration:Float):Void
 	{
@@ -81,7 +133,20 @@ class Enemy extends GameObject
 		var emitter = new FlxEmitter();
 		emitter.setPosition(x + 2, y + height - 2);
 		emitter.setSize(Math.max(2, width - 4), 2);
-		emitter.makeParticles(2, 2, 0xFF888888, count);
+		// Create particles manually to avoid FlxG logo bug
+		for (i in 0...count)
+		{
+			var p = new flixel.effects.particles.FlxParticle();
+			p.makeGraphic(2, 2, FlxColor.TRANSPARENT);
+			// Set pixels manually to avoid logo
+			p.pixels.setPixel32(0, 0, 0xFF888888);
+			p.pixels.setPixel32(1, 0, 0xFF888888);
+			p.pixels.setPixel32(0, 1, 0xFF888888);
+			p.pixels.setPixel32(1, 1, 0xFF888888);
+			p.exists = false;
+			emitter.add(p);
+		}
+		
 		emitter.lifespan.max = 0.5;
 		emitter.lifespan.min = 0.2;
 		emitter.speed.start.min = -10;
@@ -104,14 +169,31 @@ class Enemy extends GameObject
 		_captured = true;
 		if (byPlayer != null)
 		{
-			var ci = new CapturedInfo(variant != null ? variant : "enemy", aggression, wanderSpeed, hue, 1, power, skittishness);
+			var ci = new CapturedInfo(variant != null ? variant : "enemy", aggression, wanderSpeed, hue, 1, power, skittishness, variantType);
 			byPlayer.captured.push(ci);
 		}
 
+		// Stop ALL movement completely
 		velocity.set(0, 0);
 		acceleration.set(0, 0);
+		drag.set(0, 0);
 		animation.stop();
 		stop();
+		// Unregister from EnemyBrain pathfinding
+		ai.EnemyBrain.unregister(this);
+
+		// Cancel any active pathfinding
+		if (path != null)
+		{
+			path.cancel();
+			path = null;
+		}
+
+		// Cancel all tweens on this object
+		FlxTween.cancelTweensOf(this);
+
+		// Hide alert icon when captured/killed
+		hideAlertIcon();
 
 		alive = false;
 		exists = true;
@@ -154,7 +236,76 @@ class Enemy extends GameObject
 		offset.y = 4;
 		x += 2;
 		y += 4;
+		// Assign variant (rare chance for special variants)
+		#if debug
+		// Debug mode: Force all enemies to be Shiny
+		variantType = SHINY;
+		variantScale = 1.0;
+		variantSpeedMult = 1.0;
+		variantDamageMult = 1.0;
+		shinyBaseHue = hue; // Save original hue for rainbow cycling
+		#else
+		var variantRoll = FlxG.random.float(0, 1);
+		if (variantRoll < 0.05) // 5% Alpha
+		{
+			variantType = ALPHA;
+			variantScale = 1.5;
+			variantSpeedMult = 1.25;
+			variantDamageMult = 1.5;
+			scale.set(variantScale, variantScale);
+			updateHitbox();
+		}
+		else if (variantRoll < 0.15) // 10% Shiny (5-15% range)
+		{
+			variantType = SHINY;
+			variantScale = 1.0;
+			variantSpeedMult = 1.0;
+			variantDamageMult = 1.0;
+			shinyBaseHue = hue; // Save original hue for rainbow cycling
+		}
+		else
+		{
+			variantType = NORMAL;
+			variantScale = 1.0;
+			variantSpeedMult = 1.0;
+			variantDamageMult = 1.0;
+		}
+		#end
+
+		// Rebuild graphics now that variantType is set (for shader application)
+		if (variantType == SHINY)
+			buildGraphics();
+
 		randomizeBehavior();
+		assignAggressionType();
+	}
+
+	/**
+	 * Assign aggression type based on stats
+	 */
+	private function assignAggressionType():Void
+	{
+		// Shiny variants are always skittish (hard to photograph)
+		if (variantType == SHINY)
+		{
+			aggressionType = SKITTISH;
+			skittishness = 1.0; // Max skittishness
+		}
+		else if (aggression >= 0.5 && skittishness < 0.3)
+			aggressionType = HUNTER;
+		else if (aggression >= 0 && aggression < 0.5)
+			aggressionType = TERRITORIAL;
+		else if (skittishness >= 0.6)
+			aggressionType = SKITTISH;
+		else
+			aggressionType = AMBUSHER;
+
+		// Scale detection ranges by fame level
+		var fameLevel:Int = Globals.fameLevel;
+		var fameScale:Float = 0.8 + ((fameLevel - 1) / 9.0) * 0.4; // 0.8 to 1.2
+		detectionRange = 120 * fameScale;
+		hearingRange = 160 * fameScale;
+		attackRange = 20;
 	}
 
 	public function randomizeBehavior():Void
@@ -220,6 +371,281 @@ class Enemy extends GameObject
 		aiTimer = 0.0;
 	}
 
+	/**
+	 * Get the current target position for pathfinding
+	 */
+	public function getPathTarget():FlxPoint
+	{
+		if (FlxG.state != null && Std.isOfType(FlxG.state, PlayState))
+		{
+			var playState:PlayState = cast FlxG.state;
+			if (aiState == FLEE || aiState == CORNERED)
+			{
+				// Flee away from player
+				var playerPos = playState.player.getMidpoint();
+				var myPos = getMidpoint();
+				var angle = Math.atan2(myPos.y - playerPos.y, myPos.x - playerPos.x);
+				var fleeDistance = 200;
+				var target = FlxPoint.get(myPos.x + Math.cos(angle) * fleeDistance, myPos.y + Math.sin(angle) * fleeDistance);
+				myPos.put();
+				playerPos.put();
+				return target;
+			}
+			else
+			{
+				// Chase player
+				return playState.player.getMidpoint();
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Get current movement speed based on state and variant
+	 */
+	public function getCurrentSpeed():Float
+	{
+		var baseSpeed = speed;
+		if (aiState == FLEE || aiState == CORNERED)
+			baseSpeed *= 1.5; // Faster when fleeing
+		return baseSpeed * variantSpeedMult;
+	}
+
+	/**
+	 * Handle hearing a sound event
+	 */
+	public function hearSound(origin:FlxPoint):Void
+	{
+		// React to sounds if idle (not if already chasing/attacking/alerting)
+		if (aiState == IDLE)
+		{
+			// Interrupt current action and become alert
+			stop();
+			aiTimer = 0.0;
+			changeState(ALERT);
+			needsPathUpdate = true;
+		}
+	}
+
+	/**
+	 * Start attack telegraph animation (pullback -> pause -> lunge)
+	 */
+	public function startAttack(targetPlayer:Player):Void
+	{
+		if (isAttacking)
+			return;
+
+		isAttacking = true;
+		attackPhase = 0;
+		attackTimer = PULLBACK_TIME;
+
+		// Trigger attack cry (now with cooldown to prevent constant screaming)
+		var playState:PlayState = cast FlxG.state;
+		if (playState != null)
+		{
+			ai.EnemyBrain.triggerAttackCry(this, targetPlayer, playState.enemies, playState.tilemap);
+		}
+
+		// Store start position
+		if (attackStartPos == null)
+			attackStartPos = FlxPoint.get();
+		attackStartPos.set(x, y);
+
+		// Calculate pullback direction (away from player)
+		var angleToPlayer = FlxAngle.angleBetween(this, targetPlayer, true);
+		var pullbackAngle = angleToPlayer + 180; // Opposite direction
+
+		if (attackTargetPos == null)
+			attackTargetPos = FlxPoint.get();
+
+		// Pullback position
+		attackTargetPos.set(x + Math.cos(pullbackAngle * FlxAngle.TO_RAD) * PULLBACK_DISTANCE,
+			y + Math.sin(pullbackAngle * FlxAngle.TO_RAD) * PULLBACK_DISTANCE);
+
+		// Stop normal movement
+		velocity.set(0, 0);
+		acceleration.set(0, 0);
+		stop();
+	}
+
+	/**
+	 * Update attack telegraph animation
+	 */
+	public function updateAttack(elapsed:Float, targetPlayer:Player):Void
+	{
+		if (!isAttacking)
+			return;
+
+		attackTimer -= elapsed;
+
+		if (attackPhase == 0) // Pullback
+		{
+			// Move backward smoothly
+			var t = 1.0 - (attackTimer / PULLBACK_TIME);
+			x = FlxMath.lerp(attackStartPos.x, attackTargetPos.x, t);
+			y = FlxMath.lerp(attackStartPos.y, attackTargetPos.y, t);
+
+			if (attackTimer <= 0)
+			{
+				// Move to pause phase
+				attackPhase = 1;
+				attackTimer = PAUSE_TIME;
+			}
+		}
+		else if (attackPhase == 1) // Pause
+		{
+			// Stay still at pullback position
+			if (attackTimer <= 0)
+			{
+				// Move to lunge phase
+				attackPhase = 2;
+				attackTimer = LUNGE_TIME;
+
+				// Calculate lunge target (toward player)
+				var angleToPlayer = FlxAngle.angleBetween(this, targetPlayer, true);
+				attackTargetPos.set(x + Math.cos(angleToPlayer * FlxAngle.TO_RAD) * LUNGE_DISTANCE,
+					y + Math.sin(angleToPlayer * FlxAngle.TO_RAD) * LUNGE_DISTANCE);
+				attackStartPos.set(x, y);
+			}
+		}
+		else if (attackPhase == 2) // Lunge
+		{
+			// Fast forward movement
+			var t = 1.0 - (attackTimer / LUNGE_TIME);
+			x = FlxMath.lerp(attackStartPos.x, attackTargetPos.x, t);
+			y = FlxMath.lerp(attackStartPos.y, attackTargetPos.y, t);
+
+			// Check for player collision during lunge
+			if (overlaps(targetPlayer))
+			{
+				// Deal damage to player
+				targetPlayer.takeDamage(power);
+				endAttack();
+				return;
+			}
+
+			if (attackTimer <= 0)
+			{
+				// Attack complete, return to normal behavior
+				endAttack();
+			}
+		}
+	}
+
+	/**
+	 * End attack and return to normal behavior
+	 */
+	public function endAttack():Void
+	{
+		isAttacking = false;
+		attackPhase = 0;
+		attackTimer = 0;
+
+		// Return to CHASE or IDLE
+		changeState(CHASE);
+	}
+
+	/**
+	 * Change AI state and handle transitions
+	 */
+	public function changeState(newState:EnemyState):Void
+	{
+		if (aiState == newState)
+			return;
+
+		// Unregister from old state
+		if (aiState == CHASE || aiState == FLEE || aiState == CORNERED)
+			EnemyBrain.unregister(this);
+
+		aiState = newState;
+
+		// Register to new state
+		if (aiState == CHASE)
+			EnemyBrain.registerChaser(this);
+		else if (aiState == FLEE)
+			EnemyBrain.registerFleer(this);
+		else if (aiState == CORNERED)
+			EnemyBrain.registerCornered(this);
+
+		needsPathUpdate = true;
+
+		// Show alert icon when appropriate
+		updateAlertIcon();
+	}
+
+	/**
+	 * Update which alert icon to show based on state
+	 * Icons are ONLY shown on state transitions via EnemyBrain, not here
+	 * This just hides the icon when timer expires
+	 */
+	private function updateAlertIcon():Void
+	{
+		// Simply hide icon when timer expires
+		if (alertIconTimer <= 0 && alertIcon != null && alertIcon.visible)
+		{
+			hideAlertIcon();
+		}
+	}
+
+	/**
+	 * Show alert icon above enemy
+	 * @param frame 0 for "!", 1 for "?"
+	 */
+	public function showAlertIcon(frame:Int):Void
+	{
+		// Kill existing icon first to ensure fresh display
+		if (alertIcon != null && alertIcon.visible)
+		{
+			hideAlertIcon();
+		}
+
+		// Get icon from pool if we don't have one
+		if (alertIcon == null)
+		{
+			var playState = cast(FlxG.state, PlayState);
+			if (playState != null && playState.alertIcons != null)
+			{
+				// Recycle from pool
+				alertIcon = playState.alertIcons.recycle();
+			}
+		}
+
+		if (alertIcon != null)
+		{
+			alertIcon.animation.frameIndex = frame;
+			alertIcon.visible = true;
+			alertIconTimer = ALERT_ICON_DURATION;
+
+			// Position above enemy
+			updateAlertIconPosition();
+		}
+	}
+
+	/**
+	 * Hide alert icon and return to pool
+	 */
+	public function hideAlertIcon():Void
+	{
+		if (alertIcon != null)
+		{
+			alertIcon.visible = false;
+			// Return to pool
+			alertIcon = null;
+		}
+	}
+
+	/**
+	 * Update alert icon position to stay above enemy
+	 */
+	private function updateAlertIconPosition():Void
+	{
+		if (alertIcon != null && alertIcon.visible)
+		{
+			alertIcon.x = x + (width - alertIcon.width) / 2;
+			alertIcon.y = y - alertIcon.height - 2;
+		}
+	}
+
 	public override function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
@@ -229,8 +655,55 @@ class Enemy extends GameObject
 			acceleration.set(0, 0);
 			return;
 		}
+		// Handle attack animation
+		if (isAttacking)
+		{
+			var playState = cast(FlxG.state, PlayState);
+			if (playState != null && playState.player != null)
+			{
+				updateAttack(elapsed, playState.player);
+			}
+			else
+			{
+				endAttack(); // No player, cancel attack
+			}
+			return; // Skip normal updates during attack
+		}
+
+		// NO ALPHA EFFECTS - keep enemy fully opaque always
+		alpha = 1.0;
+
+		// Rainbow hue cycling for Shiny enemies (just update timer, shader handles the rest)
+		if (variantType == SHINY && shader != null)
+		{
+			shinyHueTimer += elapsed * 180; // Cycle through 180 degrees per second (faster)
+			if (shinyHueTimer >= 360)
+				shinyHueTimer -= 360;
+
+			// Update shader hue parameter
+			cast(shader, shaders.OutlineShader).hue.value = [shinyHueTimer / 360.0];
+		}
+
+		// Update alert icon timer and position ALWAYS (even off-screen)
+		if (alertIconTimer > 0)
+		{
+			alertIconTimer -= elapsed;
+			if (alertIconTimer <= 0)
+			{
+				hideAlertIcon();
+			}
+		}
+
+		// Keep alert icon positioned above enemy ALWAYS
+		updateAlertIconPosition();
+
+		// Off-screen enemies skip AI updates (optimization)
 		if (!this.isOnScreen())
+		{
+			if (aiState == CHASE || aiState == FLEE || aiState == CORNERED)
+				EnemyBrain.unregister(this);
 			return;
+		}
 
 		if (stunTimer > 0)
 		{
@@ -244,7 +717,9 @@ class Enemy extends GameObject
 	public override function buildGraphics():Void
 	{
 		ensureFrames();
+		// Use normal coloring for all enemies
 		frames = FlxAtlasFrames.fromSparrow(ColorHelpers.getHueColoredBmp("assets/images/enemies.png", hue), "assets/images/enemies.xml");
+
 		var names = VARIANT_FRAMES.get(variant);
 		if (names != null && names.length > 0)
 		{
@@ -256,6 +731,47 @@ class Enemy extends GameObject
 			animation.addByPrefix(variant, variant, 12, true);
 			animation.play(variant);
 		}
+		// Apply color cycling shader for Shiny enemies only
+		if (variantType == SHINY)
+		{
+			var outlineShader = new shaders.OutlineShader();
+			outlineShader.size.value = [1.0, 1.0];
+			outlineShader.hue.value = [0.0]; // Will be updated in update()
+			shader = outlineShader;
+		}
+	}
 
+	public override function destroy():Void
+	{
+		// Unregister from EnemyBrain
+		EnemyBrain.unregister(this);
+
+		// Clean up path target
+		if (lastPathTarget != null)
+		{
+			lastPathTarget.put();
+			lastPathTarget = null;
+		}
+
+		// Clean up attack positions
+		if (attackStartPos != null)
+		{
+			attackStartPos.put();
+			attackStartPos = null;
+		}
+		if (attackTargetPos != null)
+		{
+			attackTargetPos.put();
+			attackTargetPos = null;
+		}
+
+		// Clean up alert icon
+		if (alertIcon != null)
+		{
+			alertIcon.destroy();
+			alertIcon = null;
+		}
+
+		super.destroy();
 	}
 }

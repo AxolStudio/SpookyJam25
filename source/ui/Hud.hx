@@ -146,7 +146,7 @@ class Hud extends FlxGroup
 				if (lowAirSoundTimer >= 0.5)
 				{
 					lowAirSoundTimer = 0;
-					util.SoundHelper.playSound("low_air");
+					util.SoundHelper.playSound("low_air", 0.5); // 50% volume
 					isLowAirSoundActive = true;
 				}
 			}

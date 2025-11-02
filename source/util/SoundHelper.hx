@@ -28,12 +28,19 @@ class SoundHelper
 		musicLibrary = new Map<String, String>();
 
 		soundLibrary.set("camera", "assets/sounds/camera_shutter.ogg");
+		soundLibrary.set("camera_no_film", "assets/sounds/camera_shutter_no_film.ogg");
 		soundLibrary.set("portal", "assets/sounds/portal_enter.ogg");
 
 		soundLibrary.set("chimera_gruntly", "assets/sounds/chimera_cry_gruntly.ogg");
 		soundLibrary.set("chimera_roar", "assets/sounds/chimera_cry_roar.ogg");
 		soundLibrary.set("chimera_squeakly", "assets/sounds/chimera_cry_squeakly.ogg");
 		soundLibrary.set("chimera_whimpy", "assets/sounds/chimera_cry_whimpy.ogg");
+		soundLibrary.set("chimera_5", "assets/sounds/chimera_5.ogg");
+		soundLibrary.set("chimera_6", "assets/sounds/chimera_6.ogg");
+		soundLibrary.set("chimera_7", "assets/sounds/chimera_7.ogg");
+		soundLibrary.set("chimera_8", "assets/sounds/chimera_8.ogg");
+		soundLibrary.set("chimera_9", "assets/sounds/chimera_9.ogg");
+		soundLibrary.set("chimera_10", "assets/sounds/chimera_10.ogg");
 
 		soundLibrary.set("player_hurt_1", "assets/sounds/player_hurt_1.ogg");
 		soundLibrary.set("player_hurt_2", "assets/sounds/player_hurt_2.ogg");
@@ -99,7 +106,18 @@ class SoundHelper
 		}
 	}
 
-	private static var chimeraSounds:Array<String> = ["chimera_gruntly", "chimera_roar", "chimera_squeakly", "chimera_whimpy"];
+	private static var chimeraSounds:Array<String> = [
+		"chimera_gruntly",
+		"chimera_roar",
+		"chimera_squeakly",
+		"chimera_whimpy",
+		"chimera_5",
+		"chimera_6",
+		"chimera_7",
+		"chimera_8",
+		"chimera_9",
+		"chimera_10"
+	];
 	private static var playerHurtSounds:Array<String> = [
 		"player_hurt_1",
 		"player_hurt_2",
@@ -166,7 +184,7 @@ class SoundHelper
 			return;
 		}
 
-		FlxG.sound.play(assetPath, 0.75); // Increased from 0.5 to 0.75
+		FlxG.sound.play(assetPath, 1.0); // Full volume for player hurt
 	}
 
 	public static function playRandomPageTurn():Void
@@ -206,7 +224,11 @@ class SoundHelper
 		// Don't play music if audio hasn't been unlocked yet (HTML5 audio context restriction)
 		#if web
 		if (!audioUnlocked)
+		{
+			trace("playMusic blocked - audio not unlocked yet");
 			return;
+		}
+		trace("playMusic - audio IS unlocked, playing: " + name);
 		#end
 			
 		var assetPath:String = musicLibrary.get(name);
