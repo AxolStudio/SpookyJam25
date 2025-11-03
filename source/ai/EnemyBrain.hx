@@ -151,7 +151,7 @@ class EnemyBrain
 			}
 
 			var dist:Float = Math.sqrt(dist2);
-			applyPersonalityBehavior(e, player, tilemap, sees, dist); // Check for attack range (if chasing and close enough)
+			applyPersonalityBehavior(e, player, tilemap, sees, dist);
 			if (!e.isAttacking && e.aiState == CHASE && sees && dist < e.attackRange)
 			{
 				e.changeState(ATTACK);
@@ -243,10 +243,6 @@ class EnemyBrain
 			pMid.put();
 		}
 	}
-	/**
-	 * Updates the active chimera cry's proximity audio based on current enemy/player positions.
-	 * Called every frame from process().
-	 */
 	private static function updateActiveChimeraCry(player:Player):Void
 	{
 		if (activeChimeraCry == null || cryingEnemy == null)
@@ -263,9 +259,6 @@ class EnemyBrain
 		enemyMid.put();
 	}
 
-	/**
-	 * Cleans up the active chimera cry sound and references.
-	 */
 	private static function cleanupChimeraCry():Void
 	{
 		if (activeChimeraCry != null)
@@ -325,7 +318,6 @@ class EnemyBrain
 
 		var isVisible = cryingEnemy.alpha > 0.5;
 
-		// Get the sound (doesn't play yet)
 		activeChimeraCry = SoundHelper.playRandomChimeraCry(isVisible);
 
 		if (activeChimeraCry == null)
@@ -347,18 +339,11 @@ class EnemyBrain
 
 		cryCooldown = MIN_CRY_DELAY + FlxG.random.float(0, 1.5);
 	}
-	/**
-	 * Apply aggression-type specific behavior modifications
-	 * Called from process() to layer personality on top of base AI
-	 */
 	public static function applyPersonalityBehavior(enemy:Enemy, player:Player, tilemap:GameMap, seesPlayer:Bool, distToPlayer:Float):Void
 	{
 		switch (enemy.aggressionType)
 		{
 			case HUNTER:
-				// Hunters: Large detection radius, relentless chase
-				// Already handled by larger detectionRange in Enemy constructor
-				// Increase speed slightly when chasing
 				if (seesPlayer && enemy.aiState == CHASE)
 				{
 					enemy.speed = enemy.wanderSpeed * 1.3;
@@ -369,54 +354,40 @@ class EnemyBrain
 				}
 
 			case TERRITORIAL:
-				// Territorial: Patrol area, only chase if player invades
-				// Don't chase too far from spawn point
-				// (Spawn point tracking would need to be added to Enemy.hx)
-				// For now, just reduce chase range
 				if (enemy.aiState == CHASE && distToPlayer > enemy.detectionRange * 1.5)
 				{
-					// Give up chase, return to patrol
 					enemy.changeState(IDLE);
 					enemy.speed = enemy.wanderSpeed;
 				}
 
 			case SKITTISH:
-				// Skittish: Flee immediately when spotted, hard to photograph
 				if (seesPlayer && distToPlayer < enemy.detectionRange * 1.2)
 				{
-					// Flee instead of chase!
 					if (enemy.aiState != FLEE)
 					{
 						enemy.changeState(FLEE);
-						enemy.speed = enemy.wanderSpeed * 1.5; // Faster flee
+						enemy.speed = enemy.wanderSpeed * 1.5;
 					}
 				}
-				// Move faster when fleeing
 				if (enemy.aiState == FLEE)
 				{
 					enemy.speed = enemy.wanderSpeed * 1.8;
 				}
 
 			case AMBUSHER:
-				// Ambusher: Looks idle/slow until player close, then sudden charge
 				if (enemy.aiState == IDLE || enemy.aiState == ALERT)
 				{
-					// Move very slowly or not at all
 					enemy.speed = enemy.wanderSpeed * 0.3;
 
-					// If player gets close, sudden burst!
 					if (seesPlayer && distToPlayer < enemy.attackRange * 3)
 					{
 						enemy.changeState(CHASE);
-						enemy.speed = enemy.wanderSpeed * 2.0; // Sudden charge!
+						enemy.speed = enemy.wanderSpeed * 2.0;
 
-						// Visual feedback handled by state change
-						// TODO: Add visual flash when assets support it
 					}
 				}
 				else if (enemy.aiState == CHASE)
 				{
-					// Maintain high speed during charge
 					enemy.speed = enemy.wanderSpeed * 2.0;
 				}
 		}
@@ -424,7 +395,6 @@ class EnemyBrain
 
 	public static function init(tilemap:GameMap):Void
 	{
-		// Create shared pathfinder with diagonal movement (WIDE policy counts diagonal as +2 cost)
 		pathfinder = new FlxDiagonalPathfinder(FlxTilemapDiagonalPolicy.WIDE);
 		chasingEnemies = [];
 		fleeingEnemies = [];
@@ -486,7 +456,6 @@ class EnemyBrain
 		if (pathfinder == null)
 			return;
 
-		// Check if camera has scrolled significantly
 		var cameraMoved = false;
 		if (FlxG.camera != null)
 		{
@@ -503,7 +472,6 @@ class EnemyBrain
 			}
 		}
 
-		// Update paths for chasing enemies (prioritize on-screen)
 		var pathsUpdated = 0;
 		for (enemy in chasingEnemies)
 		{
@@ -517,7 +485,6 @@ class EnemyBrain
 			}
 		}
 
-		// Update paths for fleeing enemies
 		for (enemy in fleeingEnemies)
 		{
 			if (pathsUpdated >= maxPathsPerFrame)
@@ -530,7 +497,6 @@ class EnemyBrain
 			}
 		}
 
-		// Update paths for cornered enemies (they might escape)
 		for (enemy in corneredEnemies)
 		{
 			if (pathsUpdated >= maxPathsPerFrame)
@@ -546,19 +512,15 @@ class EnemyBrain
 
 	private static function shouldUpdatePath(enemy:Enemy, cameraMoved:Bool):Bool
 	{
-		// Check if enemy explicitly needs path update
 		if (enemy.needsPathUpdate)
 			return true;
 
-		// Update if camera moved significantly
 		if (cameraMoved)
 			return true;
 
-		// Check if path doesn't exist
 		if (enemy.path == null || enemy.path.nodes == null || enemy.path.nodes.length == 0)
 			return true;
 
-		// Check if target has moved significantly
 		var currentTarget = enemy.getPathTarget();
 		if (enemy.lastPathTarget != null && currentTarget != null)
 		{
@@ -588,13 +550,11 @@ class EnemyBrain
 
 		var startPos = enemy.getMidpoint();
 
-		// Use wallsMap's findPath method for pathfinding
 		var path = tilemap.wallsMap.findPath(startPos, target, FlxPathSimplifier.LINE, FlxTilemapDiagonalPolicy.WIDE);
 		startPos.put();
 
 		if (path != null && path.length > 0)
 		{
-			// Apply path to enemy
 			if (enemy.path == null)
 				enemy.path = new flixel.path.FlxPath();
 
@@ -608,17 +568,11 @@ class EnemyBrain
 		target.put();
 	}
 
-	/**
-	 * Trigger alert cry when enemy spots player
-	 * Propagates to nearby enemies via pathfinding
-	 */
 	private static function triggerAlertCry(alertedEnemy:Enemy, player:Player, allEnemies:FlxTypedGroup<Enemy>, tilemap:GameMap):Void
 	{
-		// Cooldown check
 		if (cryCooldown > 0)
 			return;
 
-		// Play cry sound from this enemy
 		var isVisible = alertedEnemy.alpha > 0.5;
 		var cry = SoundHelper.playRandomChimeraCry(isVisible);
 
@@ -628,7 +582,6 @@ class EnemyBrain
 			cry.proximity(enemyMid.x, enemyMid.y, player, CRY_MAX_RADIUS, true);
 			cry.play(true);
 
-			// Propagate alert to nearby enemies via pathfinding
 			var enemyArray:Array<Enemy> = [];
 			for (e in allEnemies.members)
 			{
@@ -636,7 +589,6 @@ class EnemyBrain
 					enemyArray.push(e);
 			}
 
-			// Use pathfinding-based sound propagation
 			propagateSound(enemyMid, alertedEnemy.hearingRange * 1.5, enemyArray, tilemap, alertedEnemy);
 
 			enemyMid.put();
@@ -644,17 +596,11 @@ class EnemyBrain
 		}
 	}
 
-	/**
-	 * Trigger attack cry when enemy starts attacking
-	 * Propagates to nearby enemies via pathfinding
-	 */
 	public static function triggerAttackCry(attackingEnemy:Enemy, player:Player, allEnemies:FlxTypedGroup<Enemy>, tilemap:GameMap):Void
 	{
-		// Cooldown check - prevent constant screaming
 		if (attackCryCooldown > 0)
 			return;
 
-		// Play cry sound from this enemy
 		var isVisible = attackingEnemy.alpha > 0.5;
 		var cry = SoundHelper.playRandomChimeraCry(isVisible);
 
@@ -664,10 +610,8 @@ class EnemyBrain
 			cry.proximity(enemyMid.x, enemyMid.y, player, CRY_MAX_RADIUS, true);
 			cry.play(true);
 
-			// Set cooldown
 			attackCryCooldown = MIN_ATTACK_CRY_DELAY;
 
-			// Propagate attack cry to nearby enemies via pathfinding
 			var enemyArray:Array<Enemy> = [];
 			for (e in allEnemies.members)
 			{
@@ -675,26 +619,17 @@ class EnemyBrain
 					enemyArray.push(e);
 			}
 
-			// Use pathfinding-based sound propagation (slightly larger radius for attack cries)
 			propagateSound(enemyMid, attackingEnemy.hearingRange * 2.0, enemyArray, tilemap, attackingEnemy);
 
 			enemyMid.put();
 		}
 	}
 
-	/**
-	 * Start sound propagation using flood-fill (spreads over multiple frames, no lag!)
-	 */
 	public static function propagateSound(origin:FlxPoint, loudness:Float, allEnemies:Array<Enemy>, tilemap:GameMap, ?sourceEnemy:Enemy = null):Void
 	{
-		// Start a new sound wave that will spread incrementally
 		startSoundWave(origin.x, origin.y, loudness, sourceEnemy);
 	}
 
-	/**
-	 * Update active sound waves - spreads flood-fill incrementally
-	 * Call this from PlayState.update()
-	 */
 	public static function updateSoundWaves(tilemap:GameMap, allEnemies:Array<Enemy>):Void
 	{
 		var i = activeSoundWaves.length - 1;
@@ -702,14 +637,11 @@ class EnemyBrain
 		{
 			var wave = activeSoundWaves[i];
 
-			// Expand frontier by TILES_PER_FRAME tiles this frame
 			var tilesExpanded = 0;
 			while (tilesExpanded < TILES_PER_FRAME && wave.frontier.length > 0)
 			{
-				// Pop next tile from frontier
 				var current = wave.frontier.shift();
 
-				// Check if any enemy is at this tile
 				for (enemy in allEnemies)
 				{
 					if (!enemy.exists || !enemy.alive)
@@ -720,13 +652,10 @@ class EnemyBrain
 
 					if (enemyTileX == current.x && enemyTileY == current.y)
 					{
-						// Enemy found! Alert them based on source
 						if (wave.sourceEnemy != null)
 						{
-							// Responding to another enemy's alert cry
 							if (enemy.aggressionType == HUNTER || enemy.aggressionType == TERRITORIAL)
 							{
-								// Aggressive types move TOWARD the alert location
 								if (enemy.aiState == IDLE)
 								{
 									var soundOrigin = FlxPoint.get(wave.originX, wave.originY);
@@ -736,18 +665,15 @@ class EnemyBrain
 							}
 							else if (enemy.aggressionType == SKITTISH)
 							{
-								// Skittish types flee AWAY from alert
 								if (enemy.aiState == IDLE)
 								{
 									enemy.changeState(FLEE);
 									enemy.needsPathUpdate = true;
 								}
 							}
-							// Ambushers stay still (ambush behavior)
 						}
 						else
 						{
-							// Generic sound (not from alert cry)
 							var soundOrigin = FlxPoint.get(wave.originX, wave.originY);
 							enemy.hearSound(soundOrigin);
 							soundOrigin.put();
@@ -755,7 +681,6 @@ class EnemyBrain
 					}
 				}
 
-				// Add neighbors to frontier if not visited and not blocked
 				var neighbors = [
 					{x: current.x + 1, y: current.y},
 					{x: current.x - 1, y: current.y},
@@ -765,21 +690,17 @@ class EnemyBrain
 
 				for (neighbor in neighbors)
 				{
-					// Check if already visited
 					var key = neighbor.x + "," + neighbor.y;
 					if (wave.visited.exists(key))
 						continue;
 
-					// Check if tile is walkable
 					var tileIndex = tilemap.wallsMap.getTileIndex(neighbor.x, neighbor.y);
-					if (tileIndex == 0) // 0 = walkable
+					if (tileIndex == 0)
 					{
-						// Calculate distance from origin
 						var dx = (neighbor.x * Constants.TILE_SIZE + Constants.TILE_SIZE / 2) - wave.originX;
 						var dy = (neighbor.y * Constants.TILE_SIZE + Constants.TILE_SIZE / 2) - wave.originY;
 						var dist = Math.sqrt(dx * dx + dy * dy);
 
-						// Only add if within loudness range
 						if (dist < wave.loudness)
 						{
 							wave.frontier.push({x: neighbor.x, y: neighbor.y});
@@ -788,7 +709,6 @@ class EnemyBrain
 					}
 					else
 					{
-						// Mark wall as visited so we don't re-check it
 						wave.visited.set(key, true);
 					}
 				}
@@ -796,7 +716,6 @@ class EnemyBrain
 				tilesExpanded++;
 			}
 
-			// Remove wave if frontier is empty (finished spreading)
 			if (wave.frontier.length == 0)
 			{
 				activeSoundWaves.splice(i, 1);
@@ -806,12 +725,8 @@ class EnemyBrain
 		}
 	}
 
-	/**
-	 * Start a new sound wave propagation
-	 */
 	private static function startSoundWave(originX:Float, originY:Float, loudness:Float, ?sourceEnemy:Enemy):Void
 	{
-		// Create new sound wave starting at origin tile
 		var startTileX = Std.int(originX / Constants.TILE_SIZE);
 		var startTileY = Std.int(originY / Constants.TILE_SIZE);
 
@@ -829,9 +744,6 @@ class EnemyBrain
 	}
 }
 
-/**
- * Represents a sound wave spreading through the map
- */
 typedef SoundWave =
 {
 	var originX:Float;
