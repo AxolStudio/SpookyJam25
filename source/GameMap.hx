@@ -201,6 +201,18 @@ class GameMap extends FlxGroup
 
 		if (Math.abs(tx - this.portalTileX) <= avoidRadius && Math.abs(ty - this.portalTileY) <= avoidRadius)
 			return true;
+		// Block spawns that would be visible on the initial screen
+		// The camera will be centered on the portal when the player spawns
+		// Calculate what will be on-screen based on portal position
+		var screenTilesW:Int = Std.int(Math.ceil(FlxG.width / TILE_SIZE));
+		var screenTilesH:Int = Std.int(Math.ceil(FlxG.height / TILE_SIZE));
+		var halfScreenW:Int = Std.int(screenTilesW / 2) + 2; // +2 tile buffer
+		var halfScreenH:Int = Std.int(screenTilesH / 2) + 2; // +2 tile buffer
+
+		// Check if this tile would be on screen when camera is centered on portal
+		if (Math.abs(tx - this.portalTileX) <= halfScreenW && Math.abs(ty - this.portalTileY) <= halfScreenH)
+			return true;
+			
 		if (playerTileX >= 0 && playerTileY >= 0)
 		{
 			var playerAvoidRadius:Int = 25;

@@ -26,6 +26,7 @@ class SoundHelper
 
 		soundLibrary.set("camera", "assets/sounds/camera_shutter.ogg");
 		soundLibrary.set("camera_no_film", "assets/sounds/camera_shutter_no_film.ogg");
+		soundLibrary.set("camera_caught", "assets/sounds/chimera_caught_on_camera.ogg");
 		soundLibrary.set("portal", "assets/sounds/portal_enter.ogg");
 
 		soundLibrary.set("chimera_gruntly", "assets/sounds/chimera_cry_gruntly.ogg");
@@ -52,6 +53,7 @@ class SoundHelper
 		soundLibrary.set("drawer_open", "assets/sounds/drawer_open.ogg");
 		soundLibrary.set("drawer_close", "assets/sounds/drawer_close.ogg");
 		soundLibrary.set("phone_pickup", "assets/sounds/phone_pickup.ogg");
+		soundLibrary.set("phone_hangup", "assets/sounds/phone_hangup.ogg");
 		soundLibrary.set("trashcan_rustle", "assets/sounds/trashcan_rustle.ogg");
 		soundLibrary.set("upgrade_buy", "assets/sounds/upgrade_buy.ogg");
 		soundLibrary.set("trashcan_throw_away", "assets/sounds/trashcan_throw_away.ogg");

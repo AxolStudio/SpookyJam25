@@ -291,8 +291,25 @@ class VirtualKeyboard extends FlxGroup
 	{
 		if (!isVisible)
 			return;
+		// Check if ANY keyboard key is being used for typing
+		// This must happen BEFORE checkInputMode or Actions are checked
+		var usingPhysicalKeyboard = isUsingPhysicalKeyboard();
+
+		if (usingPhysicalKeyboard)
+		{
+			// Hide reticle immediately when using physical keyboard
+			if (sharedReticle != null)
+				sharedReticle.visible = false;
+
+			// Handle physical keyboard input
+			handlePhysicalKeyboard();
+			return; // Skip all gamepad/mouse processing
+		}
+
+		// Only handle mouse/gamepad if keyboard isn't being used
 		checkInputMode();
-		handlePhysicalKeyboard();
+
+		// Handle gamepad navigation
 		if (Actions.rightUI.triggered)
 			navigateRight();
 		else if (Actions.leftUI.triggered)
@@ -303,30 +320,54 @@ class VirtualKeyboard extends FlxGroup
 			navigateUp();
 		if (Actions.pressUI.triggered)
 			activateCurrentKey();
+		// Handle mouse
 		if (FlxG.mouse.justPressed)
 			handleMouseClick();
+
 		updateHighlight();
 	}
 
-	private function handlePhysicalKeyboard():Void
+	private function isUsingPhysicalKeyboard():Bool
 	{
-		if (!FlxG.keys.justPressed.ANY)
-			return;
-		if (FlxG.keys.justPressed.BACKSPACE || FlxG.keys.justPressed.DELETE)
+		// Check if any key that would be used for typing is pressed or released
+		if (FlxG.keys.justPressed.ANY || FlxG.keys.justReleased.ANY)
+			return true;
+		// Also check if shift is being held (for case changing)
+		if (FlxG.keys.pressed.SHIFT)
+			return true;
+		return false;
+	}
+
+	private function handlePhysicalKeyboard():Bool
+	{
+		// Handle SHIFT for case toggle (continuous check, not just pressed)
+		var shiftPressed = FlxG.keys.pressed.SHIFT;
+		var shouldBeUppercase = !shiftPressed; // Shift inverts the default uppercase mode
+
+		if (shouldBeUppercase != isUppercase)
 		{
-			deleteChar();
-			return;
+			toggleCase();
 		}
-		if (FlxG.keys.justPressed.ENTER)
+		// Check for Enter key to submit
+		if (FlxG.keys.justReleased.ENTER)
 		{
 			submitName();
-			return;
+			return true;
 		}
+		// Check for Escape to cancel
 		if (FlxG.keys.justPressed.ESCAPE)
 		{
 			cancelInput();
-			return;
+			return true;
 		}
+		// Check for backspace/delete
+		if (FlxG.keys.justPressed.BACKSPACE || FlxG.keys.justPressed.DELETE)
+		{
+			deleteChar();
+			return true;
+		}
+
+		// Check if any valid character key was pressed
 		var validChars:String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -_";
 		var pressedKey:String = getJustPressedKey();
 		if (pressedKey != null && pressedKey.length == 1)
@@ -336,6 +377,7 @@ class VirtualKeyboard extends FlxGroup
 				if (currentText.length < maxLength)
 				{
 					var char = pressedKey;
+					// Apply case based on current mode
 					if (isUppercase && char.toLowerCase() == char && char.toUpperCase() != char)
 					{
 						char = char.toUpperCase();
@@ -347,8 +389,10 @@ class VirtualKeyboard extends FlxGroup
 					currentText += char;
 					updateDisplay();
 				}
+				return true;
 			}
 		}
+		return false;
 	}
 
 	private function getJustPressedKey():String

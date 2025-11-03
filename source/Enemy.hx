@@ -145,6 +145,7 @@ class Enemy extends GameObject
 		if (!exists || !alive)
 			return;
 		_captured = true;
+		util.SoundHelper.playSound("camera_caught");
 		if (byPlayer != null)
 		{
 			var ci = new CapturedInfo(variant != null ? variant : "enemy", aggression, wanderSpeed, hue, 1, power, skittishness, variantType);
@@ -206,7 +207,15 @@ class Enemy extends GameObject
 		x += 2;
 		y += 4;
 		var variantRoll = FlxG.random.float(0, 1);
-		if (variantRoll < 0.05)
+		if (variantRoll < 0.02)
+		{
+			variantType = SHINY;
+			variantScale = 1.0;
+			variantSpeedMult = 1.0;
+			variantDamageMult = 1.0;
+			shinyBaseHue = hue;
+		}
+		else if (variantRoll < 0.07)
 		{
 			variantType = ALPHA;
 			variantScale = 1.5;
@@ -214,14 +223,6 @@ class Enemy extends GameObject
 			variantDamageMult = 1.5;
 			scale.set(variantScale, variantScale);
 			updateHitbox();
-		}
-		else if (variantRoll < 0.15)
-		{
-			variantType = SHINY;
-			variantScale = 1.0;
-			variantSpeedMult = 1.0;
-			variantDamageMult = 1.0;
-			shinyBaseHue = hue;
 		}
 		else
 		{

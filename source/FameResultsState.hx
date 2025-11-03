@@ -245,17 +245,23 @@ class FameResultsState extends FlxState
 		if (fameRemaining >= fameToNextLevel)
 		{
 			var addAmount = fameToNextLevel;
-			fameRemaining -= addAmount;
+			var startingFameRemaining = fameRemaining;
+			var endingFameRemaining = fameRemaining - addAmount;
 
 			var tween = FlxTween.num(Globals.currentFame, maxFame, 0.5, {ease: FlxEase.quadOut}, (v:Float) ->
 			{
 				Globals.currentFame = Std.int(v);
 				fameBar.value = v;
+				// Animate the fame counter counting down
+				var progress = (v - (maxFame - addAmount)) / addAmount;
+				fameRemaining = Std.int(startingFameRemaining - (progress * addAmount));
 				updateFameCounter();
 			});
 			activeTweens.push(tween);
 			tween.onComplete = (_) ->
 			{
+				fameRemaining = endingFameRemaining;
+				updateFameCounter();
 				var timer = new FlxTimer().start(0.2, (_) ->
 				{
 					levelUp();
@@ -266,17 +272,23 @@ class FameResultsState extends FlxState
 		else
 		{
 			var targetFame = Globals.currentFame + fameRemaining;
-			fameRemaining = 0;
+			var startingFameRemaining = fameRemaining;
+			var addAmount = fameRemaining;
 
 			var tween = FlxTween.num(Globals.currentFame, targetFame, 0.5, {ease: FlxEase.quadOut}, (v:Float) ->
 			{
 				Globals.currentFame = Std.int(v);
 				fameBar.value = v;
+				// Animate the fame counter counting down
+				var progress = (v - Globals.currentFame + addAmount) / addAmount;
+				fameRemaining = Std.int(startingFameRemaining - (progress * addAmount));
 				updateFameCounter();
 			});
 			activeTweens.push(tween);
 			tween.onComplete = (_) ->
 			{
+				fameRemaining = 0;
+				updateFameCounter();
 				Globals.addFame(0);
 				var timer = new FlxTimer().start(0.2, (_) ->
 				{

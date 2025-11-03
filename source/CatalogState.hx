@@ -145,6 +145,7 @@ class CatalogState extends FlxState
 			return;
 
 		isTransitioning = true;
+		util.SoundHelper.playSound("phone_hangup");
 		blackOut.fade(() -> FlxG.switchState(() -> new OfficeState()), true, 0.33, FlxColor.BLACK);
 	}
 
