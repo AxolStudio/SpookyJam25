@@ -34,6 +34,7 @@ class PlayState extends FlxState
 	public var sparkles:FlxTypedGroup<Sparkle>;
 	public var blackOut:BlackOut;
 	public var flashSprite:FlxSprite; // White fullscreen flash for camera photos
+	public var compass:ui.Compass;
 
 	private var flashTimer:Float = 0;
 
@@ -99,6 +100,16 @@ class PlayState extends FlxState
 		reticle.visible = true;
 		hud = new Hud(player);
 		add(hud);
+		// Add compass if player has purchased it
+		if (Globals.gameSave.data.upgrades != null
+			&& Reflect.field(Globals.gameSave.data.upgrades, "compass") != null
+			&& Reflect.field(Globals.gameSave.data.upgrades, "compass") > 0)
+		{
+			compass = new ui.Compass((FlxG.width / 2) - 12, 2);
+			compass.addToState(this);
+			compass.setCameras(hudCam);
+		}
+		
 		flashSprite = new FlxSprite(0, 0);
 		flashSprite.makeGraphic(FlxG.width, FlxG.height, FlxColor.WHITE);
 		flashSprite.scrollFactor.set(0, 0);
@@ -215,6 +226,13 @@ class PlayState extends FlxState
 		else
 		{
 			util.InputManager.update();
+			// Update compass
+			if (compass != null)
+			{
+				compass.setPlayerPosition(player.getMidpoint().x, player.getMidpoint().y);
+				compass.setTarget(portal.getMidpoint().x, portal.getMidpoint().y);
+			}
+			
 			if (flashTimer > 0)
 			{
 				flashTimer -= elapsed;

@@ -1,0 +1,1 @@
+(lime build html5 -clean -final && butler push export/html5/bin axolstudio/chimera-obscura:html5) & (lime build windows -clean -final && butler push export/windows/bin axolstudio/chimera-obscura:windows)

@@ -57,7 +57,7 @@ class Hud extends FlxGroup
 		add(filmText);
 
 
-		flashIcon = new FlxSprite(filmText.x + 32 + 48, iconY);
+		flashIcon = new FlxSprite(filmText.x + filmText.width + 8, iconY);
 		flashIcon.loadGraphic("assets/images/hud_bulb.png");
 		flashIcon.scrollFactor.set(0, 0);
 

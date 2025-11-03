@@ -93,6 +93,10 @@ class Globals
 		else
 			playerMoney = 0;
 
+		#if debug
+		playerMoney = 50000; // Debug: Start with lots of money
+		#end
+
 		if (gameSave.data.fameLevel != null)
 			fameLevel = gameSave.data.fameLevel;
 		else

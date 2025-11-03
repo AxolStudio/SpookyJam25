@@ -174,7 +174,12 @@ class Player extends GameObject
 		film -= 1;
 		if (film == 0)
 			axollib.AxolAPI.sendEvent("FILM_DEPLETED");
-		photoCooldown = Constants.PHOTO_COOLDOWN;
+		var cooldown = Constants.PHOTO_COOLDOWN;
+		// Apply shutter upgrade (33% reduction)
+		if (getUpgradeLevel("shutter") > 0)
+			cooldown *= 0.67;
+
+		photoCooldown = cooldown;
 		SoundHelper.playSound("camera");
 		var playState = cast(FlxG.state, PlayState);
 		if (playState != null)

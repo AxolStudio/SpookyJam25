@@ -14,6 +14,7 @@ class CatalogState extends FlxState
 	private var moneyText:GameText;
 
 	private var upgradeItems:Array<UpgradeItem> = [];
+	private var oneTimeUpgradeItems:Array<OneTimeUpgradeItem> = [];
 
 	private var blackOut:BlackOut;
 	private var isTransitioning:Bool = false;
@@ -34,10 +35,14 @@ class CatalogState extends FlxState
 		moneyText = new GameText(35, 30, "YOUR FUNDS: $" + Globals.playerMoney);
 		add(moneyText);
 
-		createUpgradeItem("O2 LEVEL", "o2", 25, 62);
-		createUpgradeItem("SPEED", "speed", 25, 97);
-		createUpgradeItem("ARMOR", "armor", 25, 132);
-		createUpgradeItem("FILM", "film", 25, 167);
+		createUpgradeItem("O2 LEVEL", "o2", 25, 58);
+		createUpgradeItem("SPEED", "speed", 25, 86);
+		createUpgradeItem("ARMOR", "armor", 25, 114);
+		createUpgradeItem("FILM", "film", 25, 142);
+
+		// One-time upgrades (side by side)
+		createOneTimeUpgrade("COMPASS", "compass", 300, 25, 175);
+		createOneTimeUpgrade("SHUTTER+", "shutter", 400, 150, 175);
 
 		var closeIcon = new FlxSprite(0, 0, "assets/ui/close.png");
 		closeBtn = new NineSliceButton<FlxSprite>(FlxG.width - 60, FlxG.height - 25, 50, 24, onClose);
@@ -64,6 +69,49 @@ class CatalogState extends FlxState
 		var item = new UpgradeItem(name, upgradeKey, currentLevel, price, x, y, onBuy);
 		upgradeItems.push(item);
 		add(item);
+	}
+
+	private function createOneTimeUpgrade(name:String, upgradeKey:String, price:Int, x:Float, y:Float):Void
+	{
+		var owned = getUpgradeLevel(upgradeKey) > 0;
+		var item = new OneTimeUpgradeItem(name, upgradeKey, owned, price, x, y, onBuyOneTime);
+		oneTimeUpgradeItems.push(item);
+		add(item);
+	}
+
+	private function onBuyOneTime(upgradeKey:String, price:Int):Void
+	{
+		if (getUpgradeLevel(upgradeKey) > 0)
+			return;
+
+		if (Globals.playerMoney < price)
+		{
+			trace("Not enough money!");
+			return;
+		}
+
+		Globals.playerMoney -= price;
+		Globals.gameSave.data.money = Globals.playerMoney;
+
+		setUpgradeLevel(upgradeKey, 1);
+		Globals.gameSave.flush();
+
+		util.SoundHelper.playSound("upgrade_buy");
+		axollib.AxolAPI.sendEvent("UPGRADE_PURCHASED_" + upgradeKey.toUpperCase(), 1);
+
+		moneyText.text = "YOUR FUNDS: $" + Globals.playerMoney;
+
+		for (item in upgradeItems)
+		{
+			item.updateAffordability(Globals.playerMoney);
+		}
+
+		for (item in oneTimeUpgradeItems)
+		{
+			item.updateAffordability(Globals.playerMoney);
+		}
+
+		trace("Purchased " + upgradeKey + " for $" + price);
 	}
 
 	private function getUpgradeLevel(key:String):Int
@@ -94,7 +142,7 @@ class CatalogState extends FlxState
 		if (currentLevel >= MAX_LEVEL)
 			return 0;
 
-		return BASE_PRICE * Std.int(Math.pow(3, currentLevel));
+		return BASE_PRICE * Std.int(Math.pow(3.5, currentLevel));
 	}
 
 	private function onBuy(upgradeKey:String):Void
@@ -134,6 +182,11 @@ class CatalogState extends FlxState
 			{
 				item.updateAffordability(Globals.playerMoney);
 			}
+		}
+
+		for (item in oneTimeUpgradeItems)
+		{
+			item.updateAffordability(Globals.playerMoney);
 		}
 
 		trace("Purchased " + upgradeKey + " level " + (currentLevel + 1) + " for $" + price);
@@ -250,7 +303,90 @@ class UpgradeItem extends flixel.group.FlxGroup
 	{
 		if (currentLevel < 5)
 		{
-			var price = 50 * Std.int(Math.pow(3, currentLevel));
+			var price = 50 * Std.int(Math.pow(3.5, currentLevel));
+			priceText.color = currentMoney >= price ? 0xFF00FF00 : 0xFFFF0000;
+		}
+	}
+}
+
+class OneTimeUpgradeItem extends flixel.group.FlxGroup
+{
+	public var upgradeKey:String;
+
+	private var nameText:GameText;
+	private var priceText:GameText;
+	private var statusText:GameText;
+	private var buyBtn:NineSliceButton<FlxSprite>;
+	private var owned:Bool;
+	private var price:Int;
+	private var onBuyCallback:(String, Int) -> Void;
+
+	public function new(name:String, upgradeKey:String, owned:Bool, price:Int, x:Float, y:Float, onBuy:(String, Int) -> Void)
+	{
+		super();
+
+		this.upgradeKey = upgradeKey;
+		this.owned = owned;
+		this.price = price;
+		this.onBuyCallback = onBuy;
+
+		nameText = new GameText(Std.int(x + 10), Std.int(y), name);
+		add(nameText);
+
+		if (owned)
+		{
+			statusText = new GameText(Std.int(x + 10), Std.int(y + 15), "OWNED");
+			statusText.color = 0xFF00FF00;
+			add(statusText);
+		}
+		else
+		{
+			priceText = new GameText(Std.int(x + 10), Std.int(y + 15), "$" + price);
+			priceText.color = Globals.playerMoney >= price ? 0xFF00FF00 : 0xFFFF0000;
+			add(priceText);
+
+			var buyIcon = new FlxSprite(0, 0, "assets/ui/buy.png");
+			var btnHeight = Std.int(buyIcon.height + 9);
+			var btnWidth = Std.int(Math.max(buyIcon.width + 8, btnHeight));
+			buyBtn = new NineSliceButton<FlxSprite>(Std.int(x + 60), Std.int(y + 12), btnWidth, btnHeight, onBuyClick);
+			buyBtn.label = buyIcon;
+			buyBtn.positionLabel();
+			add(buyBtn);
+		}
+	}
+
+	private function onBuyClick():Void
+	{
+		if (onBuyCallback != null && !owned)
+		{
+			onBuyCallback(upgradeKey, price);
+			owned = true;
+
+			// Update display
+			if (priceText != null)
+			{
+				remove(priceText);
+				priceText.destroy();
+				priceText = null;
+			}
+
+			if (buyBtn != null)
+			{
+				remove(buyBtn);
+				buyBtn.destroy();
+				buyBtn = null;
+			}
+
+			statusText = new GameText(Std.int(nameText.x), Std.int(nameText.y + 15), "OWNED");
+			statusText.color = 0xFF00FF00;
+			add(statusText);
+		}
+	}
+
+	public function updateAffordability(currentMoney:Int):Void
+	{
+		if (!owned && priceText != null)
+		{
 			priceText.color = currentMoney >= price ? 0xFF00FF00 : 0xFFFF0000;
 		}
 	}
