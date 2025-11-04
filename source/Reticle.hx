@@ -132,6 +132,7 @@ class Reticle extends FlxSprite
 		var curViewX:Float = FlxG.mouse.viewX;
 		var curViewY:Float = FlxG.mouse.viewY;
 		var touchActive:Bool = false;
+		#if (mobile || html5)
 		if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
 		{
 			var primaryTouch = FlxG.touches.list[0];
@@ -142,6 +143,7 @@ class Reticle extends FlxSprite
 				touchActive = true;
 			}
 		}
+		#end
 		
 		if (lastMouseViewX < 0 || lastMouseViewY < 0)
 		{
@@ -211,6 +213,7 @@ class Reticle extends FlxSprite
 			var my:Float;
 			var useViewX:Float = FlxG.mouse.viewX;
 			var useViewY:Float = FlxG.mouse.viewY;
+			#if (mobile || html5)
 			if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
 			{
 				var primaryTouch = FlxG.touches.list[0];
@@ -220,12 +223,14 @@ class Reticle extends FlxSprite
 					useViewY = primaryTouch.viewY;
 				}
 			}
+			#end
 			var p = null;
 			if (FlxG.mouse != null)
 			{
 				try
 				{
 					p = FlxG.mouse.getWorldPosition(cam);
+					#if (mobile || html5)
 					if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
 					{
 						var primaryTouch = FlxG.touches.list[0];
@@ -241,6 +246,7 @@ class Reticle extends FlxSprite
 							}
 						}
 					}
+					#end
 				}
 				catch (e:Dynamic)
 				{

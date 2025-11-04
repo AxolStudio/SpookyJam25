@@ -68,6 +68,7 @@ class MouseHandler extends FlxSprite
 	{
 		super.update(elapsed);
 		var touchPressed:Bool = false;
+		#if (mobile || html5)
 		if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
 		{
 			for (touch in FlxG.touches.list)
@@ -79,6 +80,7 @@ class MouseHandler extends FlxSprite
 				}
 			}
 		}
+		#end
 		if (FlxG.mouse.visible && !wasVisible)
 		{
 			if (cursor == MouseCursor.FINGER_DOWN)

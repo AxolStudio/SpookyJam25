@@ -323,6 +323,7 @@ class PlayState extends FlxState
 		var move:FlxPoint = FlxPoint.get();
 		var analogOrigSpeed:Float = -1.0;
 		var touchMoving:Bool = false;
+		#if (mobile || html5)
 		if (FlxG.touches.list != null && FlxG.touches.list.length > 0)
 		{
 			var primaryTouch = FlxG.touches.list[0];
@@ -348,6 +349,7 @@ class PlayState extends FlxState
 				touchWorldPos.put();
 			}
 		}
+		#end
 
 		if (!touchMoving && Actions.leftStick.check() && (Math.abs(Actions.leftStick.x) > 0.1 || Math.abs(Actions.leftStick.y) > 0.1))
 		{
@@ -394,6 +396,7 @@ class PlayState extends FlxState
 			player.stop();
 		move.put();
 		var shouldTakePhoto:Bool = Actions.attack.check();
+		#if (mobile || html5)
 		if (!shouldTakePhoto && FlxG.touches.list != null)
 		{
 			for (touch in FlxG.touches.list)
@@ -405,6 +408,7 @@ class PlayState extends FlxState
 				}
 			}
 		}
+		#end
 		if (shouldTakePhoto)
 		{
 			if (player.tryTakePhoto())
